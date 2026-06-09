@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, Loader2, ShieldCheck, Timer, Zap } from "lucide-react";
+import { Check, Circle, Flame, Gem, Loader2, LockKeyhole, Timer, Zap } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { PredictionColor } from "@color-trading/shared";
@@ -23,27 +24,31 @@ const choices: Array<{
   surface: string;
   glow: string;
   ratio: string;
+  icon: LucideIcon;
 }> = [
   {
     color: "GREEN",
     label: "Green",
-    surface: "from-[#dcfce7] to-[#bbf7d0]",
-    glow: "shadow-[0_14px_28px_rgba(22,135,79,0.14)]",
+    surface: "from-[#22c55e] to-[#047857]",
+    glow: "shadow-[0_16px_30px_rgba(22,163,74,0.28)]",
     ratio: "1:2",
+    icon: Circle,
   },
   {
     color: "VIOLET",
     label: "Violet",
-    surface: "from-[#ede9fe] to-[#ddd6fe]",
-    glow: "shadow-[0_14px_28px_rgba(110,70,185,0.12)]",
+    surface: "from-[#a855f7] to-[#6d28d9]",
+    glow: "shadow-[0_16px_30px_rgba(126,34,206,0.26)]",
     ratio: "1:4.5",
+    icon: Gem,
   },
   {
     color: "RED",
     label: "Red",
-    surface: "from-[#fee2e2] to-[#fecaca]",
-    glow: "shadow-[0_14px_28px_rgba(201,42,42,0.12)]",
+    surface: "from-[#f97316] to-[#dc2626]",
+    glow: "shadow-[0_16px_30px_rgba(220,38,38,0.26)]",
     ratio: "1:2",
+    icon: Flame,
   },
 ];
 
@@ -67,6 +72,7 @@ export function GamePage() {
   const [confirming, setConfirming] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [ordersTab, setOrdersTab] = useState<"everyone" | "mine">("everyone");
+  const [now, setNow] = useState(() => Date.now());
   const userId = user?.id;
 
   const roundQuery = useQuery({ queryKey: ["current-round"], queryFn: fetchCurrentRound });
@@ -87,6 +93,12 @@ export function GamePage() {
       setRound(roundQuery.data.round);
     }
   }, [roundQuery.data, setRound]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setNow(Date.now()), 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const selectedForRound = selectedRoundId === currentRound?.id ? selectedChoices : [];
   const canPredict =
@@ -113,6 +125,10 @@ export function GamePage() {
   const roundHistory = roundHistoryQuery.data?.rounds ?? [];
   const latestBets = activeBets.slice(0, 8);
   const myBets = myBetsQuery.data?.bets.slice(0, 8) ?? [];
+  const roundRemainingSeconds = currentRound
+    ? Math.max(0, Math.ceil((new Date(currentRound.endTime).getTime() - now) / 1000))
+    : timer;
+  const showLockOverlay = Boolean(currentRound) && !canPredict && !roundResult;
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -180,20 +196,23 @@ export function GamePage() {
             </div>
             <div className="text-right">
               <p className="text-xs font-black text-muted">Count Down</p>
-              <CountdownBoxes remainingSeconds={timer} />
+              <CountdownBoxes remainingSeconds={roundRemainingSeconds} locked={showLockOverlay} />
             </div>
           </div>
         </section>
 
         <section className="grid gap-2">
-          {!canPredict ? (
-            <div className="flex min-h-11 items-center justify-center rounded-2xl border border-[#f7df9e] bg-[#fff8e6] px-3 text-center text-xs font-black uppercase text-[#8a5a00]">
-              Locked - wait for result or next round
-            </div>
-          ) : null}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="relative grid grid-cols-3 gap-2">
+              {showLockOverlay ? (
+                <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-2xl bg-white/50 backdrop-blur-[1px]">
+                  <div className="grid size-16 place-items-center rounded-full border border-[#f7df9e] bg-[#fff8e6]/80 text-[#8a5a00] shadow-sm">
+                    <LockKeyhole size={28} aria-hidden="true" />
+                  </div>
+                </div>
+              ) : null}
               {choices.map((choice) => {
                 const active = selectedForRound.includes(choice.color);
+                const Icon = choice.icon;
                 return (
                   <motion.button
                     key={choice.color}
@@ -202,17 +221,19 @@ export function GamePage() {
                     disabled={!canPredict}
                     onClick={() => {
                       setSelectedRoundId(currentRound?.id ?? null);
-                      setSelectedChoices((current) => toggleChoice(current, choice.color));
+                      setSelectedChoices((current) => (current.includes(choice.color) ? [] : [choice.color]));
                       setConfirming(false);
                     }}
-                    className={`min-h-24 rounded-2xl border bg-gradient-to-br ${choice.surface} p-3 text-center text-ink transition disabled:opacity-45 ${
-                      active ? `border-ink ring-4 ring-ink/10 ${choice.glow}` : "border-line"
+                    className={`min-h-24 rounded-2xl border bg-gradient-to-br ${choice.surface} p-3 text-center text-white transition disabled:opacity-45 ${
+                      active ? `border-white ring-4 ring-ink/10 ${choice.glow}` : "border-white/70 shadow-[0_10px_22px_rgba(23,32,26,0.10)]"
                     }`}
                   >
                     <span className="grid justify-items-center gap-1">
-                      <ShieldCheck size={20} aria-hidden="true" />
+                      <span className="grid size-9 place-items-center rounded-full bg-white/20 text-white">
+                        <Icon size={21} aria-hidden="true" />
+                      </span>
                       <span className="text-xs font-black uppercase">Join {choice.label}</span>
-                      <span className="text-[11px] font-black text-muted">{choice.ratio}</span>
+                      <span className="text-[11px] font-black text-white/85">{choice.ratio}</span>
                       {active ? (
                         <span className="mt-1 grid size-7 place-items-center rounded-full bg-white text-ink shadow-sm">
                           <Check size={16} aria-hidden="true" />
@@ -226,7 +247,7 @@ export function GamePage() {
           <p className="text-center text-xs font-black text-muted">
             {currentBets.length > 0
               ? `${currentBets.length} prediction${currentBets.length === 1 ? "" : "s"} placed this round`
-              : "Choose one or more colors before countdown closes"}
+              : "Choose one color before countdown closes"}
           </p>
         </section>
 
@@ -371,7 +392,7 @@ export function GamePage() {
   );
 }
 
-function CountdownBoxes({ remainingSeconds }: { remainingSeconds: number }) {
+function CountdownBoxes({ remainingSeconds, locked }: { remainingSeconds: number; locked: boolean }) {
   const safe = Math.max(0, remainingSeconds);
   const minutes = Math.floor(safe / 60);
   const seconds = safe % 60;
@@ -379,11 +400,17 @@ function CountdownBoxes({ remainingSeconds }: { remainingSeconds: number }) {
 
   return (
     <div className="mt-2 flex items-center justify-end gap-1">
-      <Timer size={16} className="mr-1 text-muted" aria-hidden="true" />
+      {locked ? (
+        <LockKeyhole size={16} className="mr-1 text-[#8a5a00]" aria-hidden="true" />
+      ) : (
+        <Timer size={16} className="mr-1 text-muted" aria-hidden="true" />
+      )}
       {digits.map((digit, index) => (
         <span
           key={`${digit}-${index}`}
-          className="grid size-8 place-items-center rounded-md bg-[#eef3ee] text-lg font-black tabular-nums text-ink"
+          className={`grid size-8 place-items-center rounded-md text-lg font-black tabular-nums ${
+            locked ? "bg-[#fff3cd] text-[#8a5a00]" : "bg-[#eef3ee] text-ink"
+          }`}
         >
           {digit}
         </span>
@@ -539,12 +566,6 @@ function maskUser(userId: string) {
 
 function getBetPeriodLabel(bet: BetDto | UserBetHistoryDto) {
   return `#${"round" in bet && bet.round?.roundNumber ? bet.round.roundNumber : bet.roundId.slice(0, 6)}`;
-}
-
-function toggleChoice(current: PredictionColor[], choice: PredictionColor) {
-  return current.includes(choice)
-    ? current.filter((item) => item !== choice)
-    : [...current, choice];
 }
 
 function dedupeBets<TBet extends BetDto>(bets: TBet[]) {

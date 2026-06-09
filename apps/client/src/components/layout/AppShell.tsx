@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Clock3, Gamepad2, Home, UserRound, WalletCards } from "lucide-react";
+import { Bell, Clock3, Home, UserRound, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -10,7 +10,6 @@ import { useAuthStore } from "@/store/auth-store";
 
 const navItems = [
   { href: "/", label: "Home", icon: Home },
-  { href: "/game/color-prediction", label: "Play", icon: Gamepad2 },
   { href: "/wallet", label: "Wallet", icon: WalletCards },
   { href: "/history", label: "History", icon: Clock3 },
   { href: "/profile", label: "Profile", icon: UserRound },
@@ -62,13 +61,11 @@ export function AppShell({
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/96 px-2 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-10px_30px_rgba(23,32,26,0.10)] backdrop-blur">
-        <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
+        <div className="mx-auto grid max-w-md grid-cols-4 gap-1">
           {navItems.map((item) => {
             const active =
               pathname === item.href ||
-              (pathname === "/dashboard" && item.href === "/") ||
-              (pathname === "/game" && item.href === "/game/color-prediction") ||
-              (pathname.startsWith("/game/") && item.href === "/game/color-prediction");
+              (pathname === "/dashboard" && item.href === "/");
             const Icon = item.icon;
 
             return (
