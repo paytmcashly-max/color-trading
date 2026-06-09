@@ -33,7 +33,7 @@ export function RegisterPage() {
       footer={
         <>
           Already joined?{" "}
-          <Link href="/login" className="font-black text-[#83ffc3]">
+          <Link href="/login" className="font-black text-[#16874f]">
             Sign in
           </Link>
         </>
@@ -46,10 +46,10 @@ export function RegisterPage() {
           mutation.mutate();
         }}
       >
-        <label className="grid gap-2 text-sm font-bold text-white/78">
+        <label className="grid gap-2 text-sm font-bold text-ink">
           Display name
           <input
-            className="min-h-12 rounded-2xl border border-white/10 bg-black/25 px-3 text-white outline-none focus:border-[#83ffc3]"
+            className="min-h-12 rounded-2xl border border-line bg-white px-3 text-ink outline-none focus:border-[#16874f]"
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
             autoComplete="nickname"
@@ -57,10 +57,10 @@ export function RegisterPage() {
             maxLength={80}
           />
         </label>
-        <label className="grid gap-2 text-sm font-bold text-white/78">
+        <label className="grid gap-2 text-sm font-bold text-ink">
           Email
           <input
-            className="min-h-12 rounded-2xl border border-white/10 bg-black/25 px-3 text-white outline-none focus:border-[#83ffc3]"
+            className="min-h-12 rounded-2xl border border-line bg-white px-3 text-ink outline-none focus:border-[#16874f]"
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
@@ -68,10 +68,10 @@ export function RegisterPage() {
             required
           />
         </label>
-        <label className="grid gap-2 text-sm font-bold text-white/78">
+        <label className="grid gap-2 text-sm font-bold text-ink">
           Password
           <input
-            className="min-h-12 rounded-2xl border border-white/10 bg-black/25 px-3 text-white outline-none focus:border-[#83ffc3]"
+            className="min-h-12 rounded-2xl border border-line bg-white px-3 text-ink outline-none focus:border-[#16874f]"
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
@@ -82,7 +82,7 @@ export function RegisterPage() {
             required
           />
         </label>
-        <p className="text-xs font-semibold leading-5 text-white/45">
+        <p className="text-xs font-semibold leading-5 text-muted">
           Use 6 to 12 characters.
         </p>
         {mutation.error ? (

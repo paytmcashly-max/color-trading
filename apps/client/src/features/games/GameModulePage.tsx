@@ -11,14 +11,14 @@ export function GameModulePage({ gameId }: { gameId: string }) {
   if (!gameModule) {
     return (
       <AppShell title="Game not found">
-        <section className="grid min-h-[60vh] place-items-center rounded-[32px] border border-white/10 bg-white/[0.07] p-6 text-center text-white backdrop-blur-xl">
+        <section className="grid min-h-[60vh] place-items-center rounded-3xl border border-line bg-white p-6 text-center text-ink shadow-[0_14px_34px_rgba(23,32,26,0.08)]">
           <div>
-            <p className="text-xs font-black uppercase text-white/42">Unavailable</p>
+            <p className="text-xs font-black uppercase text-muted">Unavailable</p>
             <h1 className="mt-2 text-3xl font-black">Game module not found</h1>
-            <p className="mt-2 text-sm font-bold text-white/58">Choose an available game from the lobby.</p>
+            <p className="mt-2 text-sm font-bold text-muted">Choose an available game from the lobby.</p>
             <Link
               href="/"
-              className="mt-6 grid min-h-12 place-items-center rounded-2xl bg-white px-5 text-sm font-black text-[#070812]"
+              className="mt-6 grid min-h-12 place-items-center rounded-2xl bg-ink px-5 text-sm font-black text-white"
             >
               Back to lobby
             </Link>

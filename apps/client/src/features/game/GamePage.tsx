@@ -26,20 +26,20 @@ const choices: Array<{
   {
     color: "GREEN",
     label: "Green",
-    surface: "from-[#19d879] to-[#0d7a49]",
-    glow: "shadow-[0_0_38px_rgba(25,216,121,0.34)]",
+    surface: "from-[#dcfce7] to-[#bbf7d0]",
+    glow: "shadow-[0_14px_28px_rgba(22,135,79,0.14)]",
   },
   {
     color: "RED",
     label: "Red",
-    surface: "from-[#ff3b4f] to-[#9f1239]",
-    glow: "shadow-[0_0_38px_rgba(255,59,79,0.30)]",
+    surface: "from-[#fee2e2] to-[#fecaca]",
+    glow: "shadow-[0_14px_28px_rgba(201,42,42,0.12)]",
   },
   {
     color: "VIOLET",
     label: "Violet",
-    surface: "from-[#9b5cff] to-[#5b21b6]",
-    glow: "shadow-[0_0_38px_rgba(155,92,255,0.34)]",
+    surface: "from-[#ede9fe] to-[#ddd6fe]",
+    glow: "shadow-[0_14px_28px_rgba(110,70,185,0.12)]",
   },
 ];
 
@@ -128,16 +128,14 @@ export function GamePage() {
 
   return (
     <AppShell title="Color Prediction">
-      <section className="relative min-h-[calc(100vh-176px)] overflow-hidden rounded-[34px] border border-white/10 bg-[#0b0f1d] p-4 text-white shadow-[0_24px_80px_rgba(0,0,0,0.46)]">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(31,216,122,0.22),transparent_34%),radial-gradient(circle_at_100%_40%,rgba(139,92,246,0.18),transparent_30%)]" />
-
-        <div className="relative grid gap-5 pb-28">
+      <section className="min-h-[calc(100vh-176px)] rounded-3xl border border-line bg-white p-4 text-ink shadow-[0_18px_48px_rgba(23,32,26,0.10)]">
+        <div className="grid gap-5 pb-28">
           <header className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-black uppercase text-white/42">Round #{currentRound?.roundNumber ?? "--"}</p>
-              <h1 className="mt-1 text-3xl font-black">{statusLabel(currentRound)}</h1>
+              <p className="text-xs font-black uppercase text-muted">Round #{currentRound?.roundNumber ?? "--"}</p>
+              <h1 className="mt-1 text-2xl font-black sm:text-3xl">{statusLabel(currentRound)}</h1>
             </div>
-            <span className={`rounded-full px-3 py-1 text-xs font-black ${canPredict ? "bg-[#1fd87a]/18 text-[#83ffc3]" : "bg-[#ffc857]/15 text-[#ffd477]"}`}>
+            <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${canPredict ? "bg-[#dff8e9] text-[#106b3d]" : "bg-[#fff3cd] text-[#8a5a00]"}`}>
               {canPredict ? "OPEN" : "LOCKED"}
             </span>
           </header>
@@ -148,12 +146,12 @@ export function GamePage() {
             <motion.div
               initial={{ opacity: 0, y: 12, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              className="rounded-[28px] border border-white/10 bg-white/[0.07] p-4 backdrop-blur-xl"
+              className="rounded-3xl border border-line bg-[#f8faf7] p-4"
             >
-              <p className="text-xs font-black uppercase text-white/42">Result</p>
+              <p className="text-xs font-black uppercase text-muted">Result</p>
               <div className="mt-2 flex items-center justify-between">
                 <strong className="text-2xl font-black">{roundResult}</strong>
-                <span className={`rounded-full px-3 py-1 text-xs font-black ${outcome === "WIN" ? "bg-[#1fd87a]/18 text-[#83ffc3]" : outcome === "LOSS" ? "bg-[#ff3b4f]/18 text-[#ff98a4]" : "bg-white/10 text-white/58"}`}>
+                <span className={`rounded-full px-3 py-1 text-xs font-black ${outcome === "WIN" ? "bg-[#dff8e9] text-[#106b3d]" : outcome === "LOSS" ? "bg-[#fee2e2] text-[#991b1b]" : "bg-[#eef1ef] text-muted"}`}>
                   {outcome}
                 </span>
               </div>
@@ -163,7 +161,7 @@ export function GamePage() {
           <section className="grid gap-3">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-black">Choose color</h2>
-              <span className="text-xs font-black uppercase text-white/42">{hasBetForRound ? `Placed ${currentBet?.choice}` : "Tap to select"}</span>
+              <span className="text-xs font-black uppercase text-muted">{hasBetForRound ? `Placed ${currentBet?.choice}` : "Tap to select"}</span>
             </div>
             <div className="grid gap-3">
               {choices.map((choice) => {
@@ -179,19 +177,19 @@ export function GamePage() {
                       setSelectedRoundId(currentRound?.id ?? null);
                       setConfirming(false);
                     }}
-                    className={`min-h-24 rounded-[28px] border bg-gradient-to-br ${choice.surface} p-4 text-left transition disabled:opacity-45 ${
-                      active ? `border-white/70 ring-4 ring-white/15 ${choice.glow}` : "border-white/10"
+                    className={`min-h-20 rounded-3xl border bg-gradient-to-br ${choice.surface} p-4 text-left text-ink transition disabled:opacity-45 ${
+                      active ? `border-ink ring-4 ring-ink/10 ${choice.glow}` : "border-line"
                     }`}
                   >
                     <span className="flex items-center justify-between">
                       <span>
                         <span className="block text-2xl font-black">{choice.label}</span>
-                        <span className="mt-1 block text-xs font-black uppercase text-white/58">
+                        <span className="mt-1 block text-xs font-black uppercase text-muted">
                           {active ? "Selected" : "Prediction"}
                         </span>
                       </span>
                       {active ? (
-                        <span className="grid size-12 place-items-center rounded-full bg-white text-[#090b16]">
+                        <span className="grid size-12 place-items-center rounded-full bg-white text-ink shadow-sm">
                           <Check size={24} aria-hidden="true" />
                         </span>
                       ) : null}
@@ -217,8 +215,8 @@ export function GamePage() {
                   }}
                   className={`min-h-12 rounded-2xl border text-sm font-black ${
                     amount === value
-                      ? "border-[#76ffb8] bg-[#1fd87a]/20 text-[#9dffd0]"
-                      : "border-white/10 bg-white/[0.07] text-white/58"
+                      ? "border-[#16874f] bg-[#dff8e9] text-[#106b3d]"
+                      : "border-line bg-[#f8faf7] text-muted"
                   }`}
                 >
                   {value}
@@ -226,7 +224,7 @@ export function GamePage() {
               ))}
             </div>
             <input
-              className="min-h-14 rounded-2xl border border-white/10 bg-black/24 px-4 text-xl font-black text-white outline-none focus:border-[#76ffb8]"
+              className="min-h-14 rounded-2xl border border-line bg-white px-4 text-xl font-black text-ink outline-none focus:border-[#16874f]"
               type="number"
               min={1}
               inputMode="numeric"
@@ -241,17 +239,17 @@ export function GamePage() {
         </div>
 
         <div className="fixed inset-x-0 bottom-[82px] z-20 px-4 md:sticky md:bottom-4 md:px-0">
-          <div className="mx-auto max-w-5xl rounded-[28px] border border-white/10 bg-[#090b16]/92 p-3 shadow-[0_-18px_46px_rgba(0,0,0,0.48)] backdrop-blur-xl">
+          <div className="mx-auto max-w-5xl rounded-3xl border border-line bg-white/96 p-3 shadow-[0_-10px_30px_rgba(23,32,26,0.12)] backdrop-blur">
             {confirming && selectedForRound ? (
               <div className="grid gap-3">
-                <div className="flex items-center justify-between rounded-2xl bg-white/[0.07] px-4 py-3">
+                <div className="flex items-center justify-between rounded-2xl bg-[#f8faf7] px-4 py-3">
                   <span className="font-black">{selectedForRound}</span>
                   <span className="font-black">{formatCoinString(safeAmount)} coins</span>
                 </div>
                 <div className="grid grid-cols-[0.8fr_1.2fr] gap-2">
                   <button
                     type="button"
-                    className="min-h-14 rounded-2xl border border-white/10 bg-white/[0.07] text-sm font-black"
+                    className="min-h-14 rounded-2xl border border-line bg-white text-sm font-black text-ink"
                     disabled={mutation.isPending}
                     onClick={() => setConfirming(false)}
                   >
@@ -259,7 +257,7 @@ export function GamePage() {
                   </button>
                   <button
                     type="button"
-                    className="min-h-14 rounded-2xl bg-gradient-to-r from-[#1fd87a] to-[#8b5cf6] text-sm font-black text-white shadow-[0_0_34px_rgba(31,216,122,0.28)] disabled:opacity-45"
+                    className="min-h-14 rounded-2xl bg-ink text-sm font-black text-white shadow-[0_12px_28px_rgba(23,32,26,0.18)] disabled:opacity-45"
                     disabled={actionDisabled}
                     onClick={() => mutation.mutate(selectedForRound)}
                   >
@@ -271,7 +269,7 @@ export function GamePage() {
               <motion.button
                 type="button"
                 whileTap={{ scale: 0.98 }}
-                className="flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#1fd87a] via-[#21c5e8] to-[#8b5cf6] text-base font-black text-white shadow-[0_0_38px_rgba(31,216,122,0.32)] disabled:opacity-45"
+                className="flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl bg-ink text-base font-black text-white shadow-[0_12px_28px_rgba(23,32,26,0.18)] disabled:opacity-45"
                 disabled={actionDisabled}
                 onClick={() => setConfirming(true)}
               >
@@ -280,7 +278,7 @@ export function GamePage() {
               </motion.button>
             )}
             {notice ? (
-              <p className={`mt-2 rounded-2xl px-3 py-2 text-center text-xs font-black ${mutation.isError ? "bg-[#ff3b4f]/18 text-[#ff98a4]" : "bg-[#1fd87a]/16 text-[#83ffc3]"}`}>
+              <p className={`mt-2 rounded-2xl px-3 py-2 text-center text-xs font-black ${mutation.isError ? "bg-[#fee2e2] text-[#991b1b]" : "bg-[#dff8e9] text-[#106b3d]"}`}>
                 {notice}
               </p>
             ) : null}
@@ -299,16 +297,16 @@ function CountdownRing({ remainingSeconds, isOpen }: { remainingSeconds: number;
   return (
     <div className="grid place-items-center py-2">
       <div
-        className="grid size-60 place-items-center rounded-full p-3 shadow-[inset_0_0_34px_rgba(255,255,255,0.05),0_0_58px_rgba(31,216,122,0.18)]"
+        className="grid size-56 place-items-center rounded-full p-3 shadow-[inset_0_0_28px_rgba(23,32,26,0.04),0_12px_32px_rgba(23,32,26,0.10)] sm:size-60"
         style={{
-          background: `conic-gradient(${isOpen ? "#1fd87a" : "#ffc857"} ${angle}deg, rgba(255,255,255,0.08) 0deg)`,
+          background: `conic-gradient(${isOpen ? "#16874f" : "#ffc857"} ${angle}deg, #e8eee8 0deg)`,
         }}
       >
-        <div className="grid size-full place-items-center rounded-full border border-white/10 bg-[#070812]">
+        <div className="grid size-full place-items-center rounded-full border border-line bg-white">
           <div className="text-center">
-            <Timer className="mx-auto mb-2 text-white/44" size={24} aria-hidden="true" />
-            <p className="text-6xl font-black tabular-nums">{remainingSeconds > 0 ? remainingSeconds : "--"}</p>
-            <p className="mt-1 text-xs font-black uppercase text-white/42">seconds</p>
+            <Timer className="mx-auto mb-2 text-muted" size={24} aria-hidden="true" />
+            <p className="text-6xl font-black tabular-nums text-ink">{remainingSeconds > 0 ? remainingSeconds : "--"}</p>
+            <p className="mt-1 text-xs font-black uppercase text-muted">seconds</p>
           </div>
         </div>
       </div>

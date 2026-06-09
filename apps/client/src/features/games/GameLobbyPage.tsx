@@ -1,16 +1,15 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Bell, ChevronRight, Flame, Gamepad2, Sparkles, Trophy, Users, WalletCards } from "lucide-react";
+import { ChevronRight, Flame, Gamepad2, Sparkles, Trophy, Users, WalletCards } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/layout/AppShell";
-import { ConnectionPill } from "@/components/ui/ConnectionPill";
 import { useWallet } from "@/hooks/useWallet";
 import { fetchRoundHistory } from "@/services/api-client";
-import { useAuthStore } from "@/store/auth-store";
+import { useGameStore } from "@/store/game-store";
 import { formatCoinString } from "@/utils/format-coins";
 import { gameModules } from "./modules/registry";
 import type { GameModule } from "./modules/types";
@@ -24,8 +23,8 @@ const activity = [
 ];
 
 export function GameLobbyPage({ showAllGames = false }: { showAllGames?: boolean }) {
-  const user = useAuthStore((state) => state.user);
   const { wallet, isLoading } = useWallet();
+  const liveActivity = useGameStore((state) => state.liveActivity);
   const roundsQuery = useQuery({
     queryKey: ["round-history", "lobby"],
     queryFn: fetchRoundHistory,
@@ -34,52 +33,39 @@ export function GameLobbyPage({ showAllGames = false }: { showAllGames?: boolean
   const latestResult = roundsQuery.data?.rounds[0]?.result ?? null;
   const games = showAllGames ? gameModules : gameModules.slice(0, 4);
   const onlinePlayers = games.reduce((total, game) => total + game.activePlayers, 0);
+  const activityItems = liveActivity.length > 0 ? [...liveActivity, ...activity].slice(0, 10) : activity;
 
   return (
     <AppShell title={showAllGames ? "Games" : "Game Lobby"}>
       <section className="grid gap-4">
-        <div className="grid gap-3 rounded-[30px] border border-white/10 bg-white/[0.07] p-4 text-white shadow-[0_20px_70px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="grid size-13 shrink-0 place-items-center rounded-3xl bg-gradient-to-br from-[#1fd87a] to-[#8b5cf6] text-lg font-black text-white shadow-[0_0_32px_rgba(31,216,122,0.25)]">
-                {(user?.displayName ?? user?.email ?? "P").slice(0, 1).toUpperCase()}
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-xs font-black uppercase text-white/42">Welcome back</p>
-                <h1 className="truncate text-2xl font-black">{user?.displayName ?? "Player"}</h1>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <ConnectionPill />
-              <button
-                type="button"
-                className="grid size-11 place-items-center rounded-2xl border border-white/10 bg-white/10 active:scale-95"
-                aria-label="Notifications"
-              >
-                <Bell size={19} aria-hidden="true" />
-              </button>
-            </div>
+        <div className="grid gap-3 rounded-3xl border border-line bg-white p-4 text-ink shadow-[0_18px_48px_rgba(23,32,26,0.10)]">
+          <div>
+            <p className="text-xs font-black uppercase text-muted">Lobby</p>
+            <h1 className="mt-1 text-2xl font-black">Choose your game</h1>
+            <p className="mt-1 text-sm font-semibold leading-6 text-muted">
+              Live virtual coin games and upcoming modules in one place.
+            </p>
           </div>
 
-          <div className="grid grid-cols-[1.2fr_0.8fr] gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <Link
               href="/wallet"
-              className="rounded-[24px] border border-white/10 bg-black/24 p-4 active:scale-[0.98]"
+              className="min-w-0 rounded-2xl border border-line bg-[#f8faf7] p-4 active:scale-[0.98]"
             >
-              <span className="flex items-center gap-2 text-xs font-black uppercase text-white/45">
+              <span className="flex items-center gap-2 text-xs font-black uppercase text-muted">
                 <WalletCards size={16} aria-hidden="true" />
                 Wallet
               </span>
-              <strong className="mt-2 block text-2xl font-black">
+              <strong className="mt-2 block truncate text-xl font-black sm:text-2xl">
                 {isLoading && !wallet ? "..." : formatCoinString(wallet?.totalBalance)}
               </strong>
             </Link>
-            <div className="rounded-[24px] border border-white/10 bg-black/24 p-4">
-              <span className="flex items-center gap-2 text-xs font-black uppercase text-white/45">
+            <div className="min-w-0 rounded-2xl border border-line bg-[#f8faf7] p-4">
+              <span className="flex items-center gap-2 text-xs font-black uppercase text-muted">
                 <Users size={16} aria-hidden="true" />
                 Online
               </span>
-              <strong className="mt-2 block text-2xl font-black">{onlinePlayers.toLocaleString()}</strong>
+              <strong className="mt-2 block truncate text-xl font-black sm:text-2xl">{onlinePlayers.toLocaleString()}</strong>
             </div>
           </div>
         </div>
@@ -87,11 +73,11 @@ export function GameLobbyPage({ showAllGames = false }: { showAllGames?: boolean
         <section id="games" className="grid gap-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-black uppercase text-white/38">Featured</p>
-              <h2 className="text-xl font-black text-white">Games</h2>
+              <p className="text-xs font-black uppercase text-muted">Featured</p>
+              <h2 className="text-xl font-black text-ink">Games</h2>
             </div>
             {!showAllGames ? (
-              <Link href="/games" className="text-xs font-black uppercase text-[#76ffb8]">
+              <Link href="/games" className="text-xs font-black uppercase text-[#16874f]">
                 View all
               </Link>
             ) : null}
@@ -103,20 +89,20 @@ export function GameLobbyPage({ showAllGames = false }: { showAllGames?: boolean
           </div>
         </section>
 
-        <section className="grid gap-3 rounded-[28px] border border-white/10 bg-white/[0.07] p-4 text-white shadow-[0_18px_48px_rgba(0,0,0,0.26)] backdrop-blur-xl">
+        <section className="grid gap-3 rounded-3xl border border-line bg-white p-4 text-ink shadow-[0_14px_34px_rgba(23,32,26,0.08)]">
           <div className="flex items-center gap-2">
             <Flame size={18} className="text-[#ffc857]" aria-hidden="true" />
             <h2 className="font-black">Live activity</h2>
           </div>
           <div className="max-h-36 overflow-hidden">
             <motion.div
-              animate={{ y: [0, -96, 0] }}
-              transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+              animate={{ y: ["0%", "-50%"] }}
+              transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
               className="grid gap-2"
             >
-              {[...activity, ...activity].map((item, index) => (
-                <div key={`${item}-${index}`} className="flex min-h-10 items-center gap-2 rounded-2xl bg-black/24 px-3 text-sm font-bold text-white/70">
-                  <Sparkles size={15} className="text-[#76ffb8]" aria-hidden="true" />
+              {[...activityItems, ...activityItems].map((item, index) => (
+                <div key={`${item}-${index}`} className="flex min-h-10 items-center gap-2 rounded-2xl bg-[#f8faf7] px-3 text-sm font-bold text-muted">
+                  <Sparkles size={15} className="text-[#16874f]" aria-hidden="true" />
                   {item}
                 </div>
               ))}
@@ -150,39 +136,39 @@ function GameCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28, delay: index * 0.05 }}
       whileTap={{ scale: 0.975 }}
-      className={`relative min-h-52 overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br ${game.accent.from} ${game.accent.via} ${game.accent.to} p-4 text-white ${game.accent.glow}`}
+      className={`relative min-h-48 overflow-hidden rounded-3xl border border-line bg-gradient-to-br ${game.accent.from} ${game.accent.via} ${game.accent.to} p-4 text-ink shadow-[0_14px_34px_rgba(23,32,26,0.10)]`}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.22),transparent_32%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.72),transparent_38%)]" />
       <div className="relative flex h-full min-h-44 flex-col justify-between">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase ${live ? "bg-[#1fd87a]/20 text-[#9dffd0]" : "bg-white/14 text-white/62"}`}>
+            <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase ${live ? "bg-[#dff8e9] text-[#106b3d]" : "bg-white/65 text-muted"}`}>
               {live ? "Live" : "Coming soon"}
             </span>
-            <h3 className="mt-3 text-2xl font-black">{game.name}</h3>
-            <p className="mt-1 line-clamp-2 text-xs font-bold leading-5 text-white/58">{game.tagline}</p>
+            <h3 className="mt-3 text-xl font-black sm:text-2xl">{game.name}</h3>
+            <p className="mt-1 line-clamp-2 text-xs font-bold leading-5 text-[#4f5f56]">{game.tagline}</p>
           </div>
-          <span className="grid size-12 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/12">
+          <span className="grid size-12 shrink-0 place-items-center rounded-2xl border border-white/55 bg-white/65 text-ink">
             <Trophy size={22} aria-hidden="true" />
           </span>
         </div>
 
         <div className="grid gap-3">
-          <div className="grid grid-cols-2 gap-2 text-xs font-black text-white/58">
-            <div className="rounded-2xl bg-black/20 p-3">
+          <div className="grid grid-cols-2 gap-2 text-xs font-black text-muted">
+            <div className="min-w-0 rounded-2xl bg-white/65 p-3">
               <span className="block uppercase">Players</span>
-              <strong className="mt-1 block text-base text-white">{game.activePlayers.toLocaleString()}</strong>
+              <strong className="mt-1 block truncate text-base text-ink">{game.activePlayers.toLocaleString()}</strong>
             </div>
-            <div className="rounded-2xl bg-black/20 p-3">
+            <div className="min-w-0 rounded-2xl bg-white/65 p-3">
               <span className="block uppercase">Last result</span>
-              <strong className="mt-1 block text-base text-white">{latestResult ?? "--"}</strong>
+              <strong className="mt-1 block truncate text-base text-ink">{latestResult ?? "--"}</strong>
             </div>
           </div>
 
           <Link
             href={game.route}
             className={`flex min-h-12 items-center justify-center gap-2 rounded-2xl text-sm font-black transition active:scale-[0.98] ${
-              live ? "bg-white text-[#080a14]" : "border border-white/12 bg-white/10 text-white/65"
+              live ? "bg-ink text-white" : "border border-line bg-white/75 text-muted"
             }`}
           >
             {live ? "Play Now" : "Preview"}
@@ -196,8 +182,8 @@ function GameCard({
 
 function StatTile({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-white/[0.07] p-4 text-white backdrop-blur-xl">
-      <span className="flex items-center gap-2 text-xs font-black uppercase text-white/42">
+    <div className="rounded-2xl border border-line bg-white p-4 text-ink shadow-[0_10px_24px_rgba(23,32,26,0.06)]">
+      <span className="flex items-center gap-2 text-xs font-black uppercase text-muted">
         {icon}
         {label}
       </span>
