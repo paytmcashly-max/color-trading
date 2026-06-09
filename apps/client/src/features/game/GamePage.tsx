@@ -1,45 +1,49 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, Loader2, Timer, Zap } from "lucide-react";
+import { Check, Loader2, ShieldCheck, Timer, Zap } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { PredictionColor } from "@color-trading/shared";
 
 import { AppShell } from "@/components/layout/AppShell";
-import { fetchCurrentRound, fetchMyBetHistory, placePrediction } from "@/services/api-client";
+import { fetchCurrentRound, fetchMyBetHistory, fetchRoundHistory, placePrediction } from "@/services/api-client";
 import { getActiveSocket, placeBetOverSocket } from "@/services/socket";
 import { useAuthStore } from "@/store/auth-store";
 import { useGameStore } from "@/store/game-store";
 import { useWallet } from "@/hooks/useWallet";
-import type { BetDto, RoundDto } from "@/types/api";
+import type { BetDto, RoundDto, RoundHistoryDto, UserBetHistoryDto } from "@/types/api";
 import { formatCoinString } from "@/utils/format-coins";
 
-const quickAmounts = [10, 50, 100, 500, 1000];
+const quickAmounts = [10, 50, 100, 200, 500, 1000];
 
 const choices: Array<{
   color: PredictionColor;
   label: string;
   surface: string;
   glow: string;
+  ratio: string;
 }> = [
   {
     color: "GREEN",
     label: "Green",
     surface: "from-[#dcfce7] to-[#bbf7d0]",
     glow: "shadow-[0_14px_28px_rgba(22,135,79,0.14)]",
-  },
-  {
-    color: "RED",
-    label: "Red",
-    surface: "from-[#fee2e2] to-[#fecaca]",
-    glow: "shadow-[0_14px_28px_rgba(201,42,42,0.12)]",
+    ratio: "1:2",
   },
   {
     color: "VIOLET",
     label: "Violet",
     surface: "from-[#ede9fe] to-[#ddd6fe]",
     glow: "shadow-[0_14px_28px_rgba(110,70,185,0.12)]",
+    ratio: "1:4.5",
+  },
+  {
+    color: "RED",
+    label: "Red",
+    surface: "from-[#fee2e2] to-[#fecaca]",
+    glow: "shadow-[0_14px_28px_rgba(201,42,42,0.12)]",
+    ratio: "1:2",
   },
 ];
 
@@ -59,9 +63,15 @@ export function GamePage() {
   const [amount, setAmount] = useState(50);
   const [confirming, setConfirming] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [ordersTab, setOrdersTab] = useState<"everyone" | "mine">("everyone");
   const userId = user?.id;
 
   const roundQuery = useQuery({ queryKey: ["current-round"], queryFn: fetchCurrentRound });
+  const roundHistoryQuery = useQuery({
+    queryKey: ["round-history", "game"],
+    queryFn: fetchRoundHistory,
+    refetchInterval: 20_000,
+  });
   const myBetsQuery = useQuery({
     queryKey: ["my-bet-history"],
     queryFn: () => fetchMyBetHistory(token!),
@@ -97,6 +107,9 @@ export function GamePage() {
   const hasBetForRound = Boolean(currentBet);
   const roundResult = currentRound?.result ?? lastResult;
   const outcome = getOutcome(roundResult, currentBet);
+  const roundHistory = roundHistoryQuery.data?.rounds ?? [];
+  const latestBets = activeBets.slice(0, 8);
+  const myBets = myBetsQuery.data?.bets.slice(0, 8) ?? [];
 
   const mutation = useMutation({
     mutationFn: (choice: PredictionColor) => {
@@ -128,42 +141,27 @@ export function GamePage() {
 
   return (
     <AppShell title="Color Prediction">
-      <section className="min-h-[calc(100vh-176px)] rounded-3xl border border-line bg-white p-4 text-ink shadow-[0_18px_48px_rgba(23,32,26,0.10)]">
-        <div className="grid gap-5 pb-28">
-          <header className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase text-muted">Round #{currentRound?.roundNumber ?? "--"}</p>
-              <h1 className="mt-1 text-2xl font-black sm:text-3xl">{statusLabel(currentRound)}</h1>
+      <section className="grid gap-4 pb-28">
+        <section className="rounded-3xl border border-line bg-white p-4 shadow-[0_14px_34px_rgba(23,32,26,0.08)]">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-black text-muted">Period</p>
+              <h1 className="mt-1 truncate text-2xl font-black tabular-nums text-ink">
+                {currentRound?.roundNumber ?? "--"}
+              </h1>
+              <span className={`mt-2 inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase ${canPredict ? "bg-[#dff8e9] text-[#106b3d]" : "bg-[#fff3cd] text-[#8a5a00]"}`}>
+                {statusLabel(currentRound)}
+              </span>
             </div>
-            <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${canPredict ? "bg-[#dff8e9] text-[#106b3d]" : "bg-[#fff3cd] text-[#8a5a00]"}`}>
-              {canPredict ? "OPEN" : "LOCKED"}
-            </span>
-          </header>
-
-          <CountdownRing remainingSeconds={timer} isOpen={canPredict} />
-
-          {roundResult ? (
-            <motion.div
-              initial={{ opacity: 0, y: 12, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              className="rounded-3xl border border-line bg-[#f8faf7] p-4"
-            >
-              <p className="text-xs font-black uppercase text-muted">Result</p>
-              <div className="mt-2 flex items-center justify-between">
-                <strong className="text-2xl font-black">{roundResult}</strong>
-                <span className={`rounded-full px-3 py-1 text-xs font-black ${outcome === "WIN" ? "bg-[#dff8e9] text-[#106b3d]" : outcome === "LOSS" ? "bg-[#fee2e2] text-[#991b1b]" : "bg-[#eef1ef] text-muted"}`}>
-                  {outcome}
-                </span>
-              </div>
-            </motion.div>
-          ) : null}
-
-          <section className="grid gap-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black">Choose color</h2>
-              <span className="text-xs font-black uppercase text-muted">{hasBetForRound ? `Placed ${currentBet?.choice}` : "Tap to select"}</span>
+            <div className="text-right">
+              <p className="text-xs font-black text-muted">Count Down</p>
+              <CountdownBoxes remainingSeconds={timer} />
             </div>
-            <div className="grid gap-3">
+          </div>
+        </section>
+
+        <section className="grid gap-2">
+          <div className="grid grid-cols-3 gap-2">
               {choices.map((choice) => {
                 const active = selectedForRound === choice.color;
                 return (
@@ -177,20 +175,17 @@ export function GamePage() {
                       setSelectedRoundId(currentRound?.id ?? null);
                       setConfirming(false);
                     }}
-                    className={`min-h-20 rounded-3xl border bg-gradient-to-br ${choice.surface} p-4 text-left text-ink transition disabled:opacity-45 ${
+                    className={`min-h-24 rounded-2xl border bg-gradient-to-br ${choice.surface} p-3 text-center text-ink transition disabled:opacity-45 ${
                       active ? `border-ink ring-4 ring-ink/10 ${choice.glow}` : "border-line"
                     }`}
                   >
-                    <span className="flex items-center justify-between">
-                      <span>
-                        <span className="block text-2xl font-black">{choice.label}</span>
-                        <span className="mt-1 block text-xs font-black uppercase text-muted">
-                          {active ? "Selected" : "Prediction"}
-                        </span>
-                      </span>
+                    <span className="grid justify-items-center gap-1">
+                      <ShieldCheck size={20} aria-hidden="true" />
+                      <span className="text-xs font-black uppercase">Join {choice.label}</span>
+                      <span className="text-[11px] font-black text-muted">{choice.ratio}</span>
                       {active ? (
-                        <span className="grid size-12 place-items-center rounded-full bg-white text-ink shadow-sm">
-                          <Check size={24} aria-hidden="true" />
+                        <span className="mt-1 grid size-7 place-items-center rounded-full bg-white text-ink shadow-sm">
+                          <Check size={16} aria-hidden="true" />
                         </span>
                       ) : null}
                     </span>
@@ -198,11 +193,18 @@ export function GamePage() {
                 );
               })}
             </div>
-          </section>
+          <p className="text-center text-xs font-black text-muted">
+            {hasBetForRound ? `Prediction locked: ${currentBet?.choice}` : "Choose one color before countdown closes"}
+          </p>
+        </section>
 
-          <section className="grid gap-3">
-            <h2 className="text-lg font-black">Amount</h2>
-            <div className="grid grid-cols-5 gap-2">
+        <section className="rounded-3xl border border-line bg-white p-4 shadow-[0_14px_34px_rgba(23,32,26,0.08)]">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-black">Coins</h2>
+            <p className="text-xs font-black text-muted">Balance {formatCoinString(wallet?.totalBalance)}</p>
+          </div>
+          <div className="grid gap-3">
+            <div className="grid grid-cols-3 gap-2">
               {quickAmounts.map((value) => (
                 <motion.button
                   key={value}
@@ -213,13 +215,13 @@ export function GamePage() {
                     setAmount(value);
                     setConfirming(false);
                   }}
-                  className={`min-h-12 rounded-2xl border text-sm font-black ${
+                  className={`min-h-11 rounded-xl border text-sm font-black ${
                     amount === value
                       ? "border-[#16874f] bg-[#dff8e9] text-[#106b3d]"
                       : "border-line bg-[#f8faf7] text-muted"
                   }`}
                 >
-                  {value}
+                  {formatCoinString(value)}
                 </motion.button>
               ))}
             </div>
@@ -235,8 +237,16 @@ export function GamePage() {
               }}
               aria-label="Custom amount"
             />
-          </section>
-        </div>
+          </div>
+        </section>
+
+        <RecordPanel rounds={roundHistory} currentResult={roundResult} outcome={outcome} />
+        <OrdersPanel
+          tab={ordersTab}
+          onTabChange={setOrdersTab}
+          everyoneBets={latestBets}
+          myBets={myBets}
+        />
 
         <div className="fixed inset-x-0 bottom-[82px] z-20 px-4 md:sticky md:bottom-4 md:px-0">
           <div className="mx-auto max-w-5xl rounded-3xl border border-line bg-white/96 p-3 shadow-[0_-10px_30px_rgba(23,32,26,0.12)] backdrop-blur">
@@ -289,29 +299,145 @@ export function GamePage() {
   );
 }
 
-function CountdownRing({ remainingSeconds, isOpen }: { remainingSeconds: number; isOpen: boolean }) {
-  const max = isOpen ? 45 : 15;
-  const progress = Math.max(0, Math.min(1, remainingSeconds / max));
-  const angle = Math.round(progress * 360);
+function CountdownBoxes({ remainingSeconds }: { remainingSeconds: number }) {
+  const safe = Math.max(0, remainingSeconds);
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+  const digits = `${minutes.toString().padStart(2, "0")}${seconds.toString().padStart(2, "0")}`.split("");
 
   return (
-    <div className="grid place-items-center py-2">
-      <div
-        className="grid size-56 place-items-center rounded-full p-3 shadow-[inset_0_0_28px_rgba(23,32,26,0.04),0_12px_32px_rgba(23,32,26,0.10)] sm:size-60"
-        style={{
-          background: `conic-gradient(${isOpen ? "#16874f" : "#ffc857"} ${angle}deg, #e8eee8 0deg)`,
-        }}
-      >
-        <div className="grid size-full place-items-center rounded-full border border-line bg-white">
-          <div className="text-center">
-            <Timer className="mx-auto mb-2 text-muted" size={24} aria-hidden="true" />
-            <p className="text-6xl font-black tabular-nums text-ink">{remainingSeconds > 0 ? remainingSeconds : "--"}</p>
-            <p className="mt-1 text-xs font-black uppercase text-muted">seconds</p>
-          </div>
-        </div>
-      </div>
+    <div className="mt-2 flex items-center justify-end gap-1">
+      <Timer size={16} className="mr-1 text-muted" aria-hidden="true" />
+      {digits.map((digit, index) => (
+        <span
+          key={`${digit}-${index}`}
+          className="grid size-8 place-items-center rounded-md bg-[#eef3ee] text-lg font-black tabular-nums text-ink"
+        >
+          {digit}
+        </span>
+      ))}
     </div>
   );
+}
+
+function RecordPanel({
+  rounds,
+  currentResult,
+  outcome,
+}: {
+  rounds: RoundHistoryDto[];
+  currentResult: string | null | undefined;
+  outcome: "WIN" | "LOSS" | "WAITING";
+}) {
+  const displayRounds = rounds.slice(0, 15);
+
+  return (
+    <section className="rounded-3xl border border-line bg-white p-4 shadow-[0_14px_34px_rgba(23,32,26,0.08)]">
+      <div className="flex items-center justify-between">
+        <h2 className="font-black">Record</h2>
+        <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase ${outcome === "WIN" ? "bg-[#dff8e9] text-[#106b3d]" : outcome === "LOSS" ? "bg-[#fee2e2] text-[#991b1b]" : "bg-[#eef1ef] text-muted"}`}>
+          {currentResult ? `Last ${currentResult}` : "Waiting"}
+        </span>
+      </div>
+      {displayRounds.length === 0 ? (
+        <p className="mt-3 text-sm font-bold text-muted">Round results will appear here.</p>
+      ) : (
+        <div className="mt-4 grid grid-cols-5 gap-3">
+          {displayRounds.map((round) => (
+            <div key={round.id} className="grid justify-items-center gap-1">
+              <ResultDot result={round.result} />
+              <span className="text-[10px] font-bold text-muted">{round.roundNumber.slice(-3)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function OrdersPanel({
+  tab,
+  onTabChange,
+  everyoneBets,
+  myBets,
+}: {
+  tab: "everyone" | "mine";
+  onTabChange: (tab: "everyone" | "mine") => void;
+  everyoneBets: BetDto[];
+  myBets: UserBetHistoryDto[];
+}) {
+  const rows = tab === "everyone" ? everyoneBets : myBets;
+
+  return (
+    <section className="overflow-hidden rounded-3xl border border-line bg-white shadow-[0_14px_34px_rgba(23,32,26,0.08)]">
+      <div className="grid grid-cols-2 border-b border-line text-sm font-black">
+        <button
+          type="button"
+          className={`min-h-12 ${tab === "everyone" ? "border-b-2 border-[#16874f] text-ink" : "text-muted"}`}
+          onClick={() => onTabChange("everyone")}
+        >
+          Everyone&apos;s Order
+        </button>
+        <button
+          type="button"
+          className={`min-h-12 ${tab === "mine" ? "border-b-2 border-[#16874f] text-ink" : "text-muted"}`}
+          onClick={() => onTabChange("mine")}
+        >
+          My Order
+        </button>
+      </div>
+      <div className="grid grid-cols-[1fr_0.8fr_0.7fr] gap-2 px-4 py-3 text-[11px] font-black uppercase text-muted">
+        <span>{tab === "everyone" ? "User" : "Period"}</span>
+        <span>Select</span>
+        <span className="text-right">Point</span>
+      </div>
+      <div className="grid gap-1 px-4 pb-4">
+        {rows.length === 0 ? (
+          <p className="rounded-2xl bg-[#f8faf7] px-3 py-4 text-center text-sm font-bold text-muted">
+            {tab === "everyone" ? "Live orders will appear here." : "Your orders will appear here."}
+          </p>
+        ) : (
+          rows.map((bet) => (
+            <div key={bet.id} className="grid grid-cols-[1fr_0.8fr_0.7fr] items-center gap-2 rounded-2xl bg-[#f8faf7] px-3 py-2 text-sm font-bold">
+              <span className="truncate text-muted">
+                {tab === "everyone" ? maskUser(bet.userId) : getBetPeriodLabel(bet)}
+              </span>
+              <span className="flex items-center gap-2">
+                <ResultDot result={bet.choice} small />
+                {bet.choice.slice(0, 1)}
+              </span>
+              <span className="truncate text-right text-ink">{formatCoinString(bet.coinsStaked)}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ResultDot({ result, small = false }: { result: string | null | undefined; small?: boolean }) {
+  const className =
+    result === "GREEN"
+      ? "bg-[#16a34a]"
+      : result === "RED"
+        ? "bg-[#ef4444]"
+        : result === "VIOLET"
+          ? "bg-[#8b5cf6]"
+          : "bg-[#dfe6df] text-muted";
+
+  return (
+    <span className={`grid ${small ? "size-7 text-[10px]" : "size-9 text-xs"} place-items-center rounded-full ${className} font-black text-white shadow-sm`}>
+      {result?.slice(0, 1) ?? "--"}
+    </span>
+  );
+}
+
+function maskUser(userId: string) {
+  return `***${userId.slice(-4).toUpperCase()}`;
+}
+
+function getBetPeriodLabel(bet: BetDto | UserBetHistoryDto) {
+  return `#${"round" in bet && bet.round?.roundNumber ? bet.round.roundNumber : bet.roundId.slice(0, 6)}`;
 }
 
 function getOutcome(

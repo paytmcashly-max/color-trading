@@ -1,14 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ChevronRight, Flame, Gamepad2, Sparkles, Trophy, Users, WalletCards } from "lucide-react";
+import { CircleDot, Dice5, Flame, Gamepad2, Palette, Sparkles, TrendingUp, Users, WalletCards } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { useWallet } from "@/hooks/useWallet";
-import { fetchRoundHistory } from "@/services/api-client";
 import { useGameStore } from "@/store/game-store";
 import { formatCoinString } from "@/utils/format-coins";
 import { gameModules } from "./modules/registry";
@@ -25,12 +24,6 @@ const activity = [
 export function GameLobbyPage({ showAllGames = false }: { showAllGames?: boolean }) {
   const { wallet, isLoading } = useWallet();
   const liveActivity = useGameStore((state) => state.liveActivity);
-  const roundsQuery = useQuery({
-    queryKey: ["round-history", "lobby"],
-    queryFn: fetchRoundHistory,
-    refetchInterval: 20_000,
-  });
-  const latestResult = roundsQuery.data?.rounds[0]?.result ?? null;
   const games = showAllGames ? gameModules : gameModules.slice(0, 4);
   const onlinePlayers = games.reduce((total, game) => total + game.activePlayers, 0);
   const activityItems = liveActivity.length > 0 ? [...liveActivity, ...activity].slice(0, 10) : activity;
@@ -82,9 +75,9 @@ export function GameLobbyPage({ showAllGames = false }: { showAllGames?: boolean
               </Link>
             ) : null}
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {games.map((game, index) => (
-              <GameCard key={game.id} game={game} index={index} latestResult={game.id === "color-prediction" ? latestResult : null} />
+              <GameCard key={game.id} game={game} index={index} />
             ))}
           </div>
         </section>
@@ -122,62 +115,64 @@ export function GameLobbyPage({ showAllGames = false }: { showAllGames?: boolean
 function GameCard({
   game,
   index,
-  latestResult,
 }: {
   game: GameModule;
   index: number;
-  latestResult: string | null;
 }) {
   const live = game.status === "LIVE";
+  const Icon = gameIcons[game.id] ?? Gamepad2;
 
   return (
-    <motion.article
+    <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28, delay: index * 0.05 }}
       whileTap={{ scale: 0.975 }}
-      className={`relative min-h-48 overflow-hidden rounded-3xl border border-line bg-gradient-to-br ${game.accent.from} ${game.accent.via} ${game.accent.to} p-4 text-ink shadow-[0_14px_34px_rgba(23,32,26,0.10)]`}
+      className="min-w-0"
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.72),transparent_38%)]" />
-      <div className="relative flex h-full min-h-44 flex-col justify-between">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase ${live ? "bg-[#dff8e9] text-[#106b3d]" : "bg-white/65 text-muted"}`}>
-              {live ? "Live" : "Coming soon"}
+      <Link
+        href={game.route}
+        className={`relative block min-h-36 overflow-hidden rounded-2xl border border-line bg-gradient-to-br ${game.accent.from} ${game.accent.via} ${game.accent.to} p-3 text-ink shadow-[0_10px_24px_rgba(23,32,26,0.08)] active:scale-[0.98]`}
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.78),transparent_42%)]" />
+        <div className="relative grid min-h-30 content-between gap-3">
+          <div className="flex items-start justify-between gap-2">
+            <span className="grid size-14 shrink-0 place-items-center rounded-2xl border border-white/70 bg-white/75 text-ink shadow-sm">
+              <Icon size={28} aria-hidden={true} />
             </span>
-            <h3 className="mt-3 text-xl font-black sm:text-2xl">{game.name}</h3>
-            <p className="mt-1 line-clamp-2 text-xs font-bold leading-5 text-[#4f5f56]">{game.tagline}</p>
+            <span className="inline-flex max-w-[72px] shrink-0 items-center justify-end gap-1 rounded-full bg-white/75 px-2 py-1 text-[10px] font-black text-[#4f5f56]">
+              <Users size={11} aria-hidden="true" />
+              <span className="truncate">{compactPlayers(game.activePlayers)}</span>
+            </span>
           </div>
-          <span className="grid size-12 shrink-0 place-items-center rounded-2xl border border-white/55 bg-white/65 text-ink">
-            <Trophy size={22} aria-hidden="true" />
-          </span>
-        </div>
-
-        <div className="grid gap-3">
-          <div className="grid grid-cols-2 gap-2 text-xs font-black text-muted">
-            <div className="min-w-0 rounded-2xl bg-white/65 p-3">
-              <span className="block uppercase">Players</span>
-              <strong className="mt-1 block truncate text-base text-ink">{game.activePlayers.toLocaleString()}</strong>
-            </div>
-            <div className="min-w-0 rounded-2xl bg-white/65 p-3">
-              <span className="block uppercase">Last result</span>
-              <strong className="mt-1 block truncate text-base text-ink">{latestResult ?? "--"}</strong>
+          <div className="min-w-0">
+            <h3 className="truncate text-sm font-black leading-5 text-ink">{game.name}</h3>
+            <div className="mt-1 flex items-center justify-between gap-2">
+              <span className="truncate text-[11px] font-extrabold text-muted">{game.category}</span>
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${live ? "bg-[#dff8e9] text-[#106b3d]" : "bg-white/70 text-muted"}`}>
+                {live ? "Live" : "Soon"}
+              </span>
             </div>
           </div>
-
-          <Link
-            href={game.route}
-            className={`flex min-h-12 items-center justify-center gap-2 rounded-2xl text-sm font-black transition active:scale-[0.98] ${
-              live ? "bg-ink text-white" : "border border-line bg-white/75 text-muted"
-            }`}
-          >
-            {live ? "Play Now" : "Preview"}
-            <ChevronRight size={18} aria-hidden="true" />
-          </Link>
         </div>
-      </div>
-    </motion.article>
+      </Link>
+    </motion.div>
   );
+}
+
+const gameIcons: Record<string, LucideIcon> = {
+  "color-prediction": Palette,
+  "crash-game": TrendingUp,
+  roulette: CircleDot,
+  "dice-game": Dice5,
+};
+
+function compactPlayers(players: number) {
+  if (players >= 1000) {
+    return `${(players / 1000).toFixed(players >= 10_000 ? 0 : 1)}K`;
+  }
+
+  return players.toLocaleString();
 }
 
 function StatTile({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
