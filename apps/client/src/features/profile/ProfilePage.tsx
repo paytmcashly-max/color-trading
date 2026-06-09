@@ -33,7 +33,10 @@ export function ProfilePage() {
       </Card>
       <Card>
         <p className="text-sm font-bold text-muted">Wallet summary</p>
-        <p className="mt-2 text-3xl font-black">{formatCoinString(wallet?.balanceCoins)}</p>
+        <p className="mt-2 text-3xl font-black">{formatCoinString(wallet?.totalBalance)}</p>
+        <p className="mt-2 text-sm font-semibold text-muted">
+          Deposit {formatCoinString(wallet?.depositBalance)} | Winning {formatCoinString(wallet?.winningBalance)}
+        </p>
       </Card>
       <Button
         variant="secondary"

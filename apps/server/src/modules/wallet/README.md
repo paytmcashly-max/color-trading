@@ -37,7 +37,9 @@ Response:
   "wallet": {
     "id": "uuid",
     "userId": "uuid",
-    "balanceCoins": "1000",
+    "depositBalance": "1000",
+    "winningBalance": "0",
+    "totalBalance": "1000",
     "ledgerVersion": "4",
     "status": "ACTIVE",
     "createdAt": "2026-06-09T00:00:00.000Z",

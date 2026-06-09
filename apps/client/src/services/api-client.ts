@@ -17,6 +17,12 @@ import type {
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 interface ApiErrorBody {
+  success?: boolean;
+  message?: string;
+  data?: {
+    code?: string;
+    message?: string;
+  };
   error?: {
     code?: string;
     message?: string;
@@ -40,10 +46,29 @@ async function request<TResponse>(
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ApiErrorBody | null;
-    throw new Error(body?.error?.message ?? `Request failed with status ${response.status}`);
+    throw new Error(
+      body?.error?.message ??
+        body?.data?.message ??
+        body?.message ??
+        `Request failed with status ${response.status}`,
+    );
   }
 
-  return response.json() as Promise<TResponse>;
+  const body = await response.json();
+
+  if (isEnvelope(body)) {
+    if (body.success === false) {
+      throw new Error(body.message ?? "Request failed.");
+    }
+
+    return body.data as TResponse;
+  }
+
+  return body as TResponse;
+}
+
+function isEnvelope(value: unknown): value is { success: boolean; message?: string; data: unknown } {
+  return typeof value === "object" && value !== null && "success" in value && "data" in value;
 }
 
 export function fetchHealth() {

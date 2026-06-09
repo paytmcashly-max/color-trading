@@ -47,8 +47,11 @@ export function DashboardPage() {
               <p className="text-sm font-bold text-muted">Wallet balance</p>
               <div className="mt-2 flex items-center gap-2 text-3xl font-black">
                 <Coins size={28} aria-hidden="true" />
-                {formatCoinString(wallet?.balanceCoins)}
+                {formatCoinString(wallet?.totalBalance)}
               </div>
+              <p className="mt-2 text-xs font-semibold text-muted">
+                Deposit {formatCoinString(wallet?.depositBalance)} | Winning {formatCoinString(wallet?.winningBalance)}
+              </p>
             </div>
             <span className="rounded-full bg-[#dff4e8] px-3 py-1 text-xs font-black text-[#0f5b38]">
               Virtual

@@ -8,6 +8,7 @@ import { useAuthStore } from "@/store/auth-store";
 
 const adminInvalidationMap: Record<string, string[][]> = {
   "round:created": [["admin", "rounds"], ["admin", "active-round"], ["admin", "health"]],
+  "round:lock": [["admin", "rounds"], ["admin", "active-round"], ["admin", "health"]],
   "round:locked": [["admin", "rounds"], ["admin", "active-round"], ["admin", "health"]],
   "round:result": [["admin", "rounds"], ["admin", "active-round"], ["admin", "bets"], ["admin", "health"]],
   "round:completed": [["admin", "rounds"], ["admin", "active-round"], ["admin", "health"]],
@@ -41,6 +42,7 @@ export function AdminRealtimeBridge() {
     });
 
     socket.on("connect", () => {
+      socket.emit("join:room", { room: "game" });
       socket.emit("state:sync");
       void queryClient.invalidateQueries({ queryKey: ["admin"] });
     });

@@ -10,7 +10,7 @@ export class RedisLockService {
     handler: () => Promise<TResult>,
   ) {
     if (!this.redis) {
-      return null;
+      return handler();
     }
 
     const token = crypto.randomUUID();

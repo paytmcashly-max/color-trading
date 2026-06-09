@@ -10,6 +10,7 @@ import {
 import { HttpError } from "../../common/errors/http-error.js";
 import { hashToken } from "../../common/utils/token-hash.js";
 import { logger } from "../../common/utils/logger.js";
+import { publishRealtimeEvent } from "../../sockets/socket.events.js";
 import type { WalletRepository, LedgerRecord, LockedWallet } from "./wallet.repository.js";
 import { serializeLedgerEntry, serializeWallet } from "./wallet.serializer.js";
 
@@ -110,20 +111,18 @@ export class WalletService {
         this.assertWalletCanTransact(wallet);
 
         const amountCoins = BigInt(input.amountCoins);
-        const nextBalance = this.calculateNextBalance(
-          wallet.balanceCoins,
-          amountCoins,
-          input.direction,
-        );
+        const currentTotalBalance = wallet.depositBalance + wallet.winningBalance;
+        const nextBalances = this.calculateNextBalances(wallet, amountCoins, input);
+        const nextTotalBalance = nextBalances.depositBalance + nextBalances.winningBalance;
 
-        if (nextBalance < 0n) {
+        if (nextBalances.insufficientFunds) {
           const ledgerEntry = await this.walletRepository.createLedgerEntry(tx, {
             userId: input.userId,
             walletId: wallet.id,
             type: input.type,
             direction: input.direction,
             amountCoins,
-            balanceAfterCoins: wallet.balanceCoins,
+            balanceAfterCoins: currentTotalBalance,
             idempotencyKey: input.idempotencyKey,
             referenceType: input.referenceType,
             referenceId: input.referenceId,
@@ -145,17 +144,21 @@ export class WalletService {
           type: input.type,
           direction: input.direction,
           amountCoins,
-          balanceAfterCoins: nextBalance,
+          balanceAfterCoins: nextTotalBalance,
           idempotencyKey: input.idempotencyKey,
           referenceType: input.referenceType,
           referenceId: input.referenceId,
           status: CoinLedgerStatus.SUCCESS,
+          metadata: this.buildLedgerMetadata(wallet, nextBalances, currentTotalBalance, nextTotalBalance),
         });
 
         const updatedWallet = await this.walletRepository.updateWalletSnapshot(
           tx,
           wallet.id,
-          nextBalance,
+          {
+            depositBalance: nextBalances.depositBalance,
+            winningBalance: nextBalances.winningBalance,
+          },
         );
 
         return {
@@ -176,14 +179,20 @@ export class WalletService {
       this.logLedgerMovement("wallet_ledger_success", input, {
         ledgerEntryId: result.ledgerEntry.id,
         walletId: result.wallet.id,
-        nextBalanceCoins: result.wallet.balanceCoins,
+        nextDepositBalance: result.wallet.depositBalance,
+        nextWinningBalance: result.wallet.winningBalance,
+        nextTotalBalance: result.wallet.depositBalance + result.wallet.winningBalance,
       });
 
-      return {
+      const response = {
         idempotentReplay: false,
         wallet: serializeWallet(result.wallet),
         ledgerEntry: serializeLedgerEntry(result.ledgerEntry),
       };
+
+      this.publishWalletUpdate(input.userId, response.wallet, response.ledgerEntry);
+
+      return response;
     } catch (error) {
       if (isUniqueConstraintError(error)) {
         const replay = await this.walletRepository.findLedgerByIdempotencyKeyForUser(
@@ -220,16 +229,76 @@ export class WalletService {
     }
   }
 
-  private calculateNextBalance(
-    currentBalance: bigint,
+  private calculateNextBalances(
+    wallet: LockedWallet,
     amountCoins: bigint,
-    direction: CoinLedgerDirection,
+    input: MovementInput,
   ) {
-    if (direction === CoinLedgerDirection.CREDIT) {
-      return currentBalance + amountCoins;
+    if (input.direction === CoinLedgerDirection.CREDIT) {
+      if (input.type === CoinLedgerType.BET_WIN_CREDIT) {
+        return {
+          depositBalance: wallet.depositBalance,
+          winningBalance: wallet.winningBalance + amountCoins,
+          insufficientFunds: false,
+        } as const;
+      }
+
+      return {
+        depositBalance: wallet.depositBalance + amountCoins,
+        winningBalance: wallet.winningBalance,
+        insufficientFunds: false,
+      } as const;
     }
 
-    return currentBalance - amountCoins;
+    if (input.type === CoinLedgerType.ADMIN_ADJUSTMENT) {
+      const nextDepositBalance = wallet.depositBalance - amountCoins;
+
+      return {
+        depositBalance: nextDepositBalance,
+        winningBalance: wallet.winningBalance,
+        insufficientFunds: nextDepositBalance < 0n,
+      } as const;
+    }
+
+    const depositDebit = amountCoins <= wallet.depositBalance ? amountCoins : wallet.depositBalance;
+    const remainingDebit = amountCoins - depositDebit;
+    const nextWinningBalance = wallet.winningBalance - remainingDebit;
+
+    return {
+      depositBalance: wallet.depositBalance - depositDebit,
+      winningBalance: nextWinningBalance,
+      insufficientFunds: nextWinningBalance < 0n,
+    } as const;
+  }
+
+  private buildLedgerMetadata(
+    wallet: LockedWallet,
+    nextBalances: { depositBalance: bigint; winningBalance: bigint },
+    previousTotalBalance: bigint,
+    nextTotalBalance: bigint,
+  ) {
+    return {
+      previousDepositBalance: wallet.depositBalance.toString(),
+      previousWinningBalance: wallet.winningBalance.toString(),
+      previousTotalBalance: previousTotalBalance.toString(),
+      nextDepositBalance: nextBalances.depositBalance.toString(),
+      nextWinningBalance: nextBalances.winningBalance.toString(),
+      nextTotalBalance: nextTotalBalance.toString(),
+      depositDelta: (nextBalances.depositBalance - wallet.depositBalance).toString(),
+      winningDelta: (nextBalances.winningBalance - wallet.winningBalance).toString(),
+    };
+  }
+
+  private publishWalletUpdate(
+    userId: string,
+    wallet: ReturnType<typeof serializeWallet>,
+    ledgerEntry: ReturnType<typeof serializeLedgerEntry>,
+  ) {
+    publishRealtimeEvent("wallet:update", {
+      userId,
+      wallet,
+      ledgerEntry,
+    });
   }
 
   private assertIdempotentReplay(existingLedger: LedgerRecord, input: MovementInput) {

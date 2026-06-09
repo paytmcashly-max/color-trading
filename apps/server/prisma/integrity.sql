@@ -2,8 +2,10 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS citext;
 
 ALTER TABLE wallets
-  ADD CONSTRAINT wallets_balance_non_negative
-  CHECK (balance_coins >= 0);
+  ADD CONSTRAINT wallets_deposit_balance_non_negative
+  CHECK (deposit_balance >= 0),
+  ADD CONSTRAINT wallets_winning_balance_non_negative
+  CHECK (winning_balance >= 0);
 
 ALTER TABLE coin_ledger
   ADD CONSTRAINT coin_ledger_amount_positive

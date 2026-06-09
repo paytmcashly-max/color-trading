@@ -23,7 +23,9 @@ export interface User {
 export interface Wallet {
   id: EntityId;
   userId: EntityId;
-  balanceCoins: number;
+  depositBalance: number;
+  winningBalance: number;
+  totalBalance: number;
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }

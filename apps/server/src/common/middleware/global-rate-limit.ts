@@ -7,9 +7,10 @@ export const globalApiRateLimiter = rateLimit({
   legacyHeaders: false,
   skip: (req) => req.path.startsWith("/health"),
   message: {
-    error: {
+    success: false,
+    message: "Too many requests. Please retry shortly.",
+    data: {
       code: "GLOBAL_RATE_LIMITED",
-      message: "Too many requests. Please retry shortly.",
     },
   },
 });

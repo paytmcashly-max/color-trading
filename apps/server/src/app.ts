@@ -34,9 +34,10 @@ export function createApp() {
 
   app.use((_req, res) => {
     res.status(404).json({
-      error: {
+      success: false,
+      message: "Route not found",
+      data: {
         code: "NOT_FOUND",
-        message: "Route not found",
       },
     });
   });

@@ -140,7 +140,8 @@ CREATE TABLE "auth_sessions" (
 CREATE TABLE "wallets" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "user_id" UUID NOT NULL,
-    "balance_coins" BIGINT NOT NULL DEFAULT 0,
+    "deposit_balance" BIGINT NOT NULL DEFAULT 1000,
+    "winning_balance" BIGINT NOT NULL DEFAULT 0,
     "ledger_version" BIGINT NOT NULL DEFAULT 0,
     "status" "WalletStatus" NOT NULL DEFAULT 'ACTIVE',
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -193,6 +194,7 @@ CREATE TABLE "bets" (
     "round_id" UUID NOT NULL,
     "choice" "PredictionColor" NOT NULL,
     "coins_staked" BIGINT NOT NULL,
+    "idempotency_key" VARCHAR(160),
     "status" "BetStatus" NOT NULL DEFAULT 'PENDING',
     "payout_amount" BIGINT NOT NULL DEFAULT 0,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -325,6 +327,9 @@ CREATE INDEX "bets_round_id_status_idx" ON "bets"("round_id", "status");
 
 -- CreateIndex
 CREATE INDEX "bets_status_created_at_idx" ON "bets"("status", "created_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "bets_idempotency_key_key" ON "bets"("idempotency_key");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "bets_user_id_round_id_key" ON "bets"("user_id", "round_id");

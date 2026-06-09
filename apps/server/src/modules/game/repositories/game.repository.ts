@@ -23,6 +23,7 @@ interface PendingBetInput {
   roundId: string;
   choice: PredictionColor;
   coinsStaked: bigint;
+  idempotencyKey: string;
 }
 
 export class GameRepository {
@@ -138,7 +139,14 @@ export class GameRepository {
         roundId: input.roundId,
         choice: input.choice,
         coinsStaked: input.coinsStaked,
+        idempotencyKey: input.idempotencyKey,
       },
+    });
+  }
+
+  findBetByIdempotencyKey(idempotencyKey: string) {
+    return this.prisma.bet.findUnique({
+      where: { idempotencyKey },
     });
   }
 
@@ -149,6 +157,15 @@ export class GameRepository {
           userId,
           roundId,
         },
+      },
+    });
+  }
+
+  deletePendingBet(betId: string) {
+    return this.prisma.bet.deleteMany({
+      where: {
+        id: betId,
+        status: BetStatus.PENDING,
       },
     });
   }

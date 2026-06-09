@@ -56,7 +56,7 @@ export function AdminUsersPage() {
                 </div>
                 <p className="mt-1 text-xs text-muted">{user.id}</p>
                 <p className="mt-2 text-sm text-muted">
-                  Wallet: <span className="font-bold text-ink">{formatCoinString(user.wallet?.balanceCoins)}</span>
+                  Wallet: <span className="font-bold text-ink">{formatCoinString(user.wallet?.totalBalance)}</span>
                   {" "} | Bets: {user.counts?.bets ?? 0}
                 </p>
               </div>

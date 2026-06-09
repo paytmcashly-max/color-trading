@@ -14,7 +14,8 @@ export class BetService {
   ) {}
 
   async placeBet(userId: string, dto: PlaceBetDto) {
-    const bet = await this.reservePendingBet(userId, dto);
+    const reservation = await this.reservePendingBet(userId, dto);
+    const { bet } = reservation;
 
     try {
       const walletResult = await this.walletService.debitCoins({
@@ -23,23 +24,23 @@ export class BetService {
         referenceId: bet.id,
         idempotencyKey: `bet:${bet.id}:debit:${dto.idempotencyKey}`,
       });
+      const wallet = await this.resolveWalletSnapshot(userId, walletResult);
 
-      publishGameEvent("bet:placed", {
-        bet: serializeBet(bet),
-      });
-      publishGameEvent("wallet:update", {
-        userId,
-        wallet: "wallet" in walletResult ? walletResult.wallet : undefined,
-        ledgerEntry: walletResult.ledgerEntry,
-      });
+      if (reservation.created) {
+        publishGameEvent("bet:placed", {
+          bet: serializeBet(bet),
+        });
+      }
 
       return {
         bet: serializeBet(bet),
-        wallet: "wallet" in walletResult ? walletResult.wallet : undefined,
+        wallet,
         ledgerEntry: walletResult.ledgerEntry,
       };
     } catch (error) {
-      await this.gameRepository.updateBetStatus(bet.id, "CANCELLED");
+      if (reservation.created) {
+        await this.gameRepository.deletePendingBet(bet.id);
+      }
       throw error;
     }
   }
@@ -53,24 +54,62 @@ export class BetService {
           throw new HttpError(
             409,
             "ROUND_NOT_OPEN",
-            "Bets are accepted only while the round is OPEN.",
+            "Bets are accepted only while the round phase is BETTING_OPEN.",
           );
         }
 
-        return this.gameRepository.createPendingBet(tx, {
+        const bet = await this.gameRepository.createPendingBet(tx, {
           userId,
           roundId: dto.roundId,
           choice: dto.choice,
           coinsStaked: BigInt(dto.coinsStaked),
+          idempotencyKey: dto.idempotencyKey,
         });
+
+        return { bet, created: true } as const;
       });
     } catch (error) {
       if (isUniqueConstraintError(error)) {
-        throw new HttpError(409, "DUPLICATE_BET", "User already placed a bet for this round.");
+        return this.handleDuplicateBet(userId, dto);
       }
 
       throw error;
     }
+  }
+
+  private async handleDuplicateBet(userId: string, dto: PlaceBetDto) {
+    const idempotentBet = await this.gameRepository.findBetByIdempotencyKey(dto.idempotencyKey);
+
+    if (this.isSameBet(idempotentBet, userId, dto)) {
+      return { bet: idempotentBet!, created: false } as const;
+    }
+
+    throw new HttpError(409, "DUPLICATE_BET", "User already placed a bet for this round.");
+  }
+
+  private isSameBet(
+    bet: Awaited<ReturnType<GameRepository["findBetByIdempotencyKey"]>>,
+    userId: string,
+    dto: PlaceBetDto,
+  ) {
+    return (
+      Boolean(bet) &&
+      bet!.userId === userId &&
+      bet!.roundId === dto.roundId &&
+      bet!.choice === dto.choice &&
+      bet!.coinsStaked === BigInt(dto.coinsStaked)
+    );
+  }
+
+  private async resolveWalletSnapshot(
+    userId: string,
+    walletResult: Awaited<ReturnType<WalletService["debitCoins"]>>,
+  ) {
+    if ("wallet" in walletResult) {
+      return walletResult.wallet;
+    }
+
+    return (await this.walletService.getWalletBalance(userId)).wallet;
   }
 }
 

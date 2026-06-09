@@ -30,7 +30,7 @@ export class RoundService {
   }
 
   async ensureLifecycle() {
-    const currentRound = await this.gameRepository.findCurrentRound();
+    let currentRound = await this.gameRepository.findCurrentRound();
 
     if (!currentRound) {
       return this.createNextRound();
@@ -39,11 +39,11 @@ export class RoundService {
     const now = new Date();
 
     if (currentRound.status === RoundStatus.INIT) {
-      return this.openRound(currentRound);
+      currentRound = await this.openRound(currentRound);
     }
 
     if (currentRound.status === RoundStatus.OPEN && now >= currentRound.lockTime) {
-      return this.lockRound(currentRound);
+      currentRound = await this.lockRound(currentRound);
     }
 
     if (currentRound.status === RoundStatus.LOCKED && now >= currentRound.endTime) {
@@ -92,6 +92,7 @@ export class RoundService {
     }
 
     const openRound = await this.openRound(round);
+    publishGameEvent("round:start", { round: serializeRound(openRound) });
     publishGameEvent("round:created", { round: serializeRound(openRound) });
 
     return openRound;
@@ -119,6 +120,7 @@ export class RoundService {
     if (updated.count > 0) {
       const lockedRound = await this.gameRepository.findRoundById(round.id);
       if (lockedRound) {
+        publishGameEvent("round:lock", { round: serializeRound(lockedRound) });
         publishGameEvent("round:locked", { round: serializeRound(lockedRound) });
         this.emitTimer(lockedRound);
         return lockedRound;
@@ -133,8 +135,8 @@ export class RoundService {
       throw new HttpError(500, "GAME_ENGINE_NOT_CONFIGURED", "Game engine services are not configured.");
     }
 
-    const result = round.result ?? this.resultService.generateResult();
     const seedReveal = round.seedReveal ?? (await this.getSeedReveal(round.id));
+    const result = round.result ?? this.resultService.generateResult(seedReveal);
 
     if (round.status === RoundStatus.LOCKED) {
       const updated = await this.gameRepository.updateRoundStatus(
@@ -172,9 +174,16 @@ export class RoundService {
         round: serializeRound(completedRound),
         result,
       });
+      publishGameEvent("round:state", {
+        round: serializeRound(completedRound),
+        result,
+        remainingSeconds: 0,
+      });
       publishGameEvent("round:completed", {
         round: serializeRound(completedRound),
       });
+
+      return this.createNextRound();
     }
 
     return completedRound;
@@ -199,7 +208,7 @@ export class RoundService {
       throw new HttpError(500, "PAYOUT_TOO_LARGE", "Payout exceeds safe service limits.");
     }
 
-    const walletResult = await this.walletService!.creditBetWinnings({
+    await this.walletService!.creditBetWinnings({
       userId: bet.userId,
       amountCoins: Number(payoutAmount),
       referenceId: roundId,
@@ -207,12 +216,6 @@ export class RoundService {
     });
 
     await this.gameRepository.updateBetStatus(bet.id, "WON", payoutAmount);
-
-    publishGameEvent("wallet:update", {
-      userId: bet.userId,
-      wallet: "wallet" in walletResult ? walletResult.wallet : undefined,
-      ledgerEntry: walletResult.ledgerEntry,
-    });
   }
 
   private async getSeedReveal(roundId: string) {
@@ -226,11 +229,18 @@ export class RoundService {
     const now = Date.now();
     const targetTime =
       round.status === RoundStatus.OPEN ? round.lockTime.getTime() : round.endTime.getTime();
+    const remainingSeconds = Math.max(0, Math.ceil((targetTime - now) / 1000));
 
     publishGameEvent("round:timer", {
       roundId: round.id,
       status: round.status,
-      remainingSeconds: Math.max(0, Math.ceil((targetTime - now) / 1000)),
+      remainingSeconds,
+      lockTime: round.lockTime.toISOString(),
+      endTime: round.endTime.toISOString(),
+    });
+    publishGameEvent("round:state", {
+      round: serializeRound(round),
+      remainingSeconds,
       lockTime: round.lockTime.toISOString(),
       endTime: round.endTime.toISOString(),
     });

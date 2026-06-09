@@ -2,11 +2,17 @@ import type { Server as HttpServer } from "node:http";
 import { Server, type Socket } from "socket.io";
 
 import { env } from "../config/env.js";
+import { HttpError } from "../common/errors/http-error.js";
 import { logger } from "../common/utils/logger.js";
 import { getPrismaClient } from "../database/prisma.client.js";
 import { getFraudService } from "../modules/fraud/fraud.module.js";
 import { getObservability } from "../modules/observability/observability.module.js";
 import { serializeRound } from "../modules/game/game.serializer.js";
+import { placeBetSchema } from "../modules/game/dto/place-bet.dto.js";
+import { GameRepository } from "../modules/game/repositories/game.repository.js";
+import { BetService } from "../modules/game/services/bet.service.js";
+import { WalletRepository } from "../modules/wallet/wallet.repository.js";
+import { WalletService } from "../modules/wallet/wallet.service.js";
 import { configureRedisAdapter } from "./redis.adapter.js";
 import { authenticateSocket, type SocketUserContext } from "./socket.auth.js";
 import {
@@ -20,7 +26,12 @@ const SOCKET_RATE_LIMIT_WINDOW_MS = 10_000;
 const SOCKET_RATE_LIMIT_MAX_EVENTS = 40;
 const SOCKET_PING_INTERVAL_MS = 25_000;
 const SOCKET_PING_TIMEOUT_MS = 20_000;
+const GLOBAL_GAME_ROOM = "game:global";
 const activeUserSocketCounts = new Map<string, number>();
+const prisma = getPrismaClient();
+const gameRepository = new GameRepository(prisma);
+const walletService = new WalletService(new WalletRepository(prisma));
+const betService = new BetService(gameRepository, walletService);
 
 export function createSocketServer(httpServer: HttpServer) {
   const io = new Server(httpServer, {
@@ -71,6 +82,7 @@ async function handleConnection(socket: Socket) {
 
   const user = getSocketUser(socket);
   socket.join(`user:${user.userId}`);
+  socket.join(GLOBAL_GAME_ROOM);
   socket.join("system");
 
   if (user.role === "ADMIN") {
@@ -102,29 +114,43 @@ async function handleConnection(socket: Socket) {
 
   await syncLatestState(socket);
 
-  socket.on("round:join", async (roundId: unknown, ack?: (response: unknown) => void) => {
-    if (!(await consumeSocketToken(socket, "round:join"))) {
+  socket.on("join:room", (payload: unknown, ack?: (response: unknown) => void) => {
+    void joinRequestedRoom(socket, payload, ack);
+  });
+
+  socket.on("round:join", (roundId: unknown, ack?: (response: unknown) => void) => {
+    void joinRoundRoom(socket, roundId, ack, "round:join");
+  });
+
+  socket.on("join:round", (roundId: unknown, ack?: (response: unknown) => void) => {
+    void joinRoundRoom(socket, roundId, ack, "join:round");
+  });
+
+  socket.on("bet:place", async (payload: unknown, ack?: (response: unknown) => void) => {
+    if (!(await consumeSocketToken(socket, "bet:place"))) {
       ack?.({ ok: false, error: "RATE_LIMITED" });
       return;
     }
 
-    if (typeof roundId !== "string") {
-      ack?.({ ok: false, error: "INVALID_ROUND_ID" });
+    const parsed = placeBetSchema.safeParse(payload);
+
+    if (!parsed.success) {
+      ack?.({
+        ok: false,
+        error: "INVALID_BET_PAYLOAD",
+        details: parsed.error.flatten().fieldErrors,
+      });
       return;
     }
 
-    const roundExists = await getPrismaClient().gameRound.findUnique({
-      where: { id: roundId },
-      select: { id: true },
-    });
-
-    if (!roundExists) {
-      ack?.({ ok: false, error: "ROUND_NOT_FOUND" });
-      return;
+    try {
+      const result = await betService.placeBet(user.userId, parsed.data);
+      ack?.({ ok: true, ...result });
+    } catch (error) {
+      const response = toSocketError(error);
+      socket.emit("system:error", response);
+      ack?.({ ok: false, ...response });
     }
-
-    socket.join(`round:${roundId}`);
-    ack?.({ ok: true, room: `round:${roundId}` });
   });
 
   socket.on("state:sync", async (ack?: (response: unknown) => void) => {
@@ -135,6 +161,7 @@ async function handleConnection(socket: Socket) {
 
     const snapshot = await buildStateSnapshot(user.userId);
     socket.emit("system:sync", snapshot);
+    emitRoundStateSnapshot(socket, snapshot);
     ack?.({ ok: true, snapshot });
   });
 
@@ -155,6 +182,7 @@ async function syncLatestState(socket: Socket) {
   }
 
   socket.emit("system:sync", snapshot);
+  emitRoundStateSnapshot(socket, snapshot);
 
   if (snapshot.wallet) {
     socket.emit("user:balance_sync", {
@@ -163,6 +191,67 @@ async function syncLatestState(socket: Socket) {
       syncedAt: snapshot.syncedAt,
     });
   }
+}
+
+async function joinRequestedRoom(
+  socket: Socket,
+  payload: unknown,
+  ack?: (response: unknown) => void,
+) {
+  if (!(await consumeSocketToken(socket, "join:room"))) {
+    ack?.({ ok: false, error: "RATE_LIMITED" });
+    return;
+  }
+
+  const roomName = parseRoomName(payload);
+
+  if (roomName !== "game" && roomName !== GLOBAL_GAME_ROOM) {
+    ack?.({ ok: false, error: "ROOM_NOT_ALLOWED" });
+    return;
+  }
+
+  socket.join(GLOBAL_GAME_ROOM);
+
+  const user = getSocketUser(socket);
+  const snapshot = await buildStateSnapshot(user.userId);
+  socket.emit("system:sync", snapshot);
+  emitRoundStateSnapshot(socket, snapshot);
+
+  ack?.({
+    ok: true,
+    room: GLOBAL_GAME_ROOM,
+    snapshot,
+  });
+}
+
+async function joinRoundRoom(
+  socket: Socket,
+  roundId: unknown,
+  ack: ((response: unknown) => void) | undefined,
+  eventName: string,
+) {
+  if (!(await consumeSocketToken(socket, eventName))) {
+    ack?.({ ok: false, error: "RATE_LIMITED" });
+    return;
+  }
+
+  if (typeof roundId !== "string") {
+    ack?.({ ok: false, error: "INVALID_ROUND_ID" });
+    return;
+  }
+
+  const roundExists = await getPrismaClient().gameRound.findUnique({
+    where: { id: roundId },
+    select: { id: true },
+  });
+
+  if (!roundExists) {
+    ack?.({ ok: false, error: "ROUND_NOT_FOUND" });
+    return;
+  }
+
+  socket.join(`round:${roundId}`);
+  ack?.({ ok: true, room: `round:${roundId}` });
 }
 
 async function buildStateSnapshot(userId: string) {
@@ -181,7 +270,8 @@ async function buildStateSnapshot(userId: string) {
       select: {
         id: true,
         userId: true,
-        balanceCoins: true,
+        depositBalance: true,
+        winningBalance: true,
         ledgerVersion: true,
         status: true,
         updatedAt: true,
@@ -195,7 +285,9 @@ async function buildStateSnapshot(userId: string) {
       ? {
           id: wallet.id,
           userId: wallet.userId,
-          balanceCoins: wallet.balanceCoins.toString(),
+          depositBalance: wallet.depositBalance.toString(),
+          winningBalance: wallet.winningBalance.toString(),
+          totalBalance: (wallet.depositBalance + wallet.winningBalance).toString(),
           ledgerVersion: wallet.ledgerVersion.toString(),
           status: wallet.status,
           updatedAt: wallet.updatedAt.toISOString(),
@@ -206,12 +298,12 @@ async function buildStateSnapshot(userId: string) {
 }
 
 function routeRealtimeEvent(io: Server, event: RealtimeEvent) {
-  const roundId = extractRoundId(event.payload);
   const userId = extractUserId(event.payload);
 
   if (event.name === "wallet:update" || event.name === "user:balance_sync") {
     if (userId) {
-      io.to(`user:${userId}`).emit(event.name, event.payload);
+      io.to(`user:${userId}`).to("admin").emit(event.name, event.payload);
+      return;
     }
     io.to("admin").emit(event.name, event.payload);
     return;
@@ -235,23 +327,12 @@ function routeRealtimeEvent(io: Server, event: RealtimeEvent) {
   }
 
   if (event.name === "bet:placed") {
-    if (roundId) {
-      io.to(`round:${roundId}`).emit(event.name, event.payload);
-    }
-    io.to("admin").emit(event.name, event.payload);
+    io.to(GLOBAL_GAME_ROOM).to("admin").emit(event.name, event.payload);
     return;
   }
 
   if (event.name.startsWith("round:")) {
-    if (roundId) {
-      io.to(`round:${roundId}`).emit(event.name, event.payload);
-    }
-
-    if (event.name === "round:created" || event.name === "round:completed") {
-      io.emit(event.name, event.payload);
-    } else {
-      io.to("admin").emit(event.name, event.payload);
-    }
+    io.to(GLOBAL_GAME_ROOM).to("admin").emit(event.name, event.payload);
     return;
   }
 
@@ -314,26 +395,6 @@ function getSocketUser(socket: Socket) {
   return socket.data.user as SocketUserContext;
 }
 
-function extractRoundId(payload: unknown) {
-  if (!isRecord(payload)) {
-    return null;
-  }
-
-  if (typeof payload.roundId === "string") {
-    return payload.roundId;
-  }
-
-  if (isRecord(payload.round) && typeof payload.round.id === "string") {
-    return payload.round.id;
-  }
-
-  if (isRecord(payload.bet) && typeof payload.bet.roundId === "string") {
-    return payload.bet.roundId;
-  }
-
-  return null;
-}
-
 function extractUserId(payload: unknown) {
   if (!isRecord(payload)) {
     return null;
@@ -352,6 +413,49 @@ function extractUserId(payload: unknown) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function parseRoomName(payload: unknown) {
+  if (typeof payload === "string") {
+    return payload;
+  }
+
+  if (isRecord(payload) && typeof payload.room === "string") {
+    return payload.room;
+  }
+
+  return null;
+}
+
+function emitRoundStateSnapshot(
+  socket: Socket,
+  snapshot: Awaited<ReturnType<typeof buildStateSnapshot>>,
+) {
+  socket.emit("round:state", {
+    round: snapshot.currentRound,
+    remainingSeconds: snapshot.currentRound ? calculateRemainingSeconds(snapshot.currentRound) : 0,
+    syncedAt: snapshot.syncedAt,
+  });
+}
+
+function toSocketError(error: unknown) {
+  if (error instanceof HttpError) {
+    return {
+      code: error.code,
+      message: error.message,
+    };
+  }
+
+  logger.error("socket_event_failed", { error });
+  return {
+    code: "SOCKET_EVENT_FAILED",
+    message: "Realtime request failed.",
+  };
+}
+
+function calculateRemainingSeconds(round: { status: string; lockTime: string; endTime: string }) {
+  const target = round.status === "OPEN" ? round.lockTime : round.endTime;
+  return Math.max(0, Math.ceil((new Date(target).getTime() - Date.now()) / 1000));
 }
 
 function incrementSocketGauge(delta: number) {

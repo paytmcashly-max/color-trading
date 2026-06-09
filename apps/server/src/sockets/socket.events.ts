@@ -6,8 +6,11 @@ import { logger } from "../common/utils/logger.js";
 import { getRedisClient } from "../database/redis.client.js";
 
 export type RealtimeEventName =
+  | "round:start"
   | "round:created"
+  | "round:state"
   | "round:timer"
+  | "round:lock"
   | "round:locked"
   | "round:result"
   | "round:completed"
@@ -146,7 +149,12 @@ async function cacheEventState(redis: Redis, event: RealtimeEvent) {
       await redis.set(`round:${roundId}:state`, JSON.stringify(event.payload), "EX", 180);
     }
 
-    if (event.name === "round:created" || event.name === "round:timer") {
+    if (
+      event.name === "round:start" ||
+      event.name === "round:created" ||
+      event.name === "round:state" ||
+      event.name === "round:timer"
+    ) {
       await redis.set("current_round", JSON.stringify(event.payload), "EX", 180);
     }
   }

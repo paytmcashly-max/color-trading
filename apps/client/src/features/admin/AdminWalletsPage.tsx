@@ -64,7 +64,11 @@ export function AdminWalletsPage() {
         <div className="mt-4 grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
           <Card>
             <p className="text-xs font-bold uppercase text-muted">Wallet balance</p>
-            <div className="mt-2 text-3xl font-extrabold">{formatCoinString(walletQuery.data.wallet.balanceCoins)}</div>
+            <div className="mt-2 text-3xl font-extrabold">{formatCoinString(walletQuery.data.wallet.totalBalance)}</div>
+            <p className="mt-2 text-sm font-semibold text-muted">
+              Deposit {formatCoinString(walletQuery.data.wallet.depositBalance)} | Winning{" "}
+              {formatCoinString(walletQuery.data.wallet.winningBalance)}
+            </p>
             <p className="mt-1 text-sm text-muted">Status: {walletQuery.data.wallet.status}</p>
 
             <div className="mt-5 grid gap-3">

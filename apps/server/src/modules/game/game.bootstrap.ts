@@ -12,8 +12,7 @@ export function startGameEngine() {
   const redis = getRedisClient();
 
   if (!redis) {
-    console.warn("Game engine scheduler disabled: REDIS_URL is not configured.");
-    return null;
+    console.warn("Game engine scheduler running in single-instance mode: REDIS_URL is not configured.");
   }
 
   const prisma = getPrismaClient();

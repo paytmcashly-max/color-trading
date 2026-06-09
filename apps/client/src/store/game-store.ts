@@ -7,7 +7,9 @@ import type { BetDto, RoundDto, WalletDto } from "@/types/api";
 type EventName =
   | "system:sync"
   | "round:created"
+  | "round:state"
   | "round:timer"
+  | "round:lock"
   | "round:locked"
   | "round:result"
   | "round:completed"
@@ -52,8 +54,19 @@ export const useGameStore = create<GameState>((set, get) => ({
       return;
     }
 
-    if ((name === "round:created" || name === "round:locked" || name === "round:completed") && isRecord(payload) && isRound(payload.round)) {
+    if (
+      (name === "round:created" ||
+        name === "round:state" ||
+        name === "round:lock" ||
+        name === "round:locked" ||
+        name === "round:completed") &&
+      isRecord(payload) &&
+      isRound(payload.round)
+    ) {
       set({ currentRound: payload.round });
+      if (typeof payload.remainingSeconds === "number") {
+        set({ timerRemainingSeconds: payload.remainingSeconds });
+      }
       return;
     }
 
@@ -102,7 +115,7 @@ function isRound(value: unknown): value is RoundDto {
 }
 
 function isWallet(value: unknown): value is WalletDto {
-  return isRecord(value) && typeof value.balanceCoins === "string";
+  return isRecord(value) && typeof value.totalBalance === "string";
 }
 
 function isBet(value: unknown): value is BetDto {

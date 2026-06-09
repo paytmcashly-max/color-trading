@@ -210,7 +210,8 @@ model AuthSession {
 model Wallet {
   id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId        String       @unique @map("user_id") @db.Uuid
-  balanceCoins  BigInt       @default(0) @map("balance_coins")
+  depositBalance BigInt      @default(1000) @map("deposit_balance")
+  winningBalance BigInt      @default(0) @map("winning_balance")
   ledgerVersion BigInt       @default(0) @map("ledger_version")
   status        WalletStatus @default(ACTIVE)
   createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -278,6 +279,7 @@ model Bet {
   roundId      String          @map("round_id") @db.Uuid
   choice       PredictionColor
   coinsStaked  BigInt          @map("coins_staked")
+  idempotencyKey String?       @unique @map("idempotency_key") @db.VarChar(160)
   status       BetStatus       @default(PENDING)
   payoutAmount BigInt          @default(0) @map("payout_amount")
   createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)

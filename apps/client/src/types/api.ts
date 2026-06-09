@@ -25,7 +25,9 @@ export interface AuthResponse {
 export interface WalletDto {
   id: string;
   userId: string;
-  balanceCoins: string;
+  depositBalance: string;
+  winningBalance: string;
+  totalBalance: string;
   ledgerVersion: string;
   status: string;
   createdAt?: string;
@@ -39,6 +41,7 @@ export interface RoundDto {
   lockTime: string;
   endTime: string;
   status: RoundStatus;
+  phase?: "IDLE" | "BETTING_OPEN" | "BETTING_CLOSED" | "RESULT_CALCULATING" | "RESULT_DECLARED";
   result: PredictionColor | null;
   seedHash: string;
   seedReveal: string | null;
@@ -78,7 +81,9 @@ export interface LedgerEntryDto {
 export interface AdminUserDto extends UserDto {
   lastLoginAt: string | null;
   wallet: {
-    balanceCoins: string;
+    depositBalance: string;
+    winningBalance: string;
+    totalBalance: string;
     status: string;
     ledgerVersion: string;
   } | null;

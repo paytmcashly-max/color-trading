@@ -1,14 +1,14 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 
-import { authGuard } from "../../common/guards/auth.guard.js";
 import { asyncHandler } from "../../common/middleware/async-handler.js";
 import { validateBody } from "../../common/middleware/validate-request.js";
 import { getPrismaClient } from "../../database/prisma.client.js";
+import { authMiddleware } from "../../middlewares/auth.middleware.js";
 import { fraudAuthRateLimit } from "../fraud/fraud.middleware.js";
-import { AuthController } from "./controllers/auth.controller.js";
-import { loginSchema, registerSchema } from "./dto/validators/auth.validators.js";
-import { AuthService } from "./services/auth.service.js";
+import { AuthController } from "./auth.controller.js";
+import { loginSchema, registerSchema } from "./auth.dto.js";
+import { AuthService } from "./auth.service.js";
 
 export const authRouter = Router();
 
@@ -21,9 +21,10 @@ const authRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: {
-    error: {
+    success: false,
+    message: "Too many authentication attempts. Please try again later.",
+    data: {
       code: "RATE_LIMITED",
-      message: "Too many authentication attempts. Please try again later.",
     },
   },
 });
@@ -42,5 +43,5 @@ authRouter.post(
   validateBody(loginSchema),
   asyncHandler(authController.login),
 );
-authRouter.post("/logout", authGuard, asyncHandler(authController.logout));
-authRouter.get("/me", authGuard, asyncHandler(authController.me));
+authRouter.post("/logout", authMiddleware, asyncHandler(authController.logout));
+authRouter.get("/me", authMiddleware, asyncHandler(authController.me));

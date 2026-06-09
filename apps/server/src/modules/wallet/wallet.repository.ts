@@ -11,11 +11,13 @@ import {
 } from "@prisma/client";
 
 type TxClient = Prisma.TransactionClient;
+const INITIAL_VIRTUAL_COINS = 1000n;
 
 interface LockedWalletRow {
   id: string;
   userId: string;
-  balanceCoins: bigint;
+  depositBalance: bigint;
+  winningBalance: bigint;
   ledgerVersion: bigint;
   status: WalletStatus;
   createdAt: Date;
@@ -57,7 +59,27 @@ export class WalletRepository {
     await tx.wallet.upsert({
       where: { userId },
       update: {},
-      create: { userId },
+      create: {
+        userId,
+        depositBalance: INITIAL_VIRTUAL_COINS,
+        winningBalance: 0n,
+        ledgerEntries: {
+          create: {
+            userId,
+            type: CoinLedgerType.BONUS_CREDIT,
+            direction: CoinLedgerDirection.CREDIT,
+            amountCoins: INITIAL_VIRTUAL_COINS,
+            balanceAfterCoins: INITIAL_VIRTUAL_COINS,
+            idempotencyKey: `user:${userId}:initial-virtual-coins`,
+            referenceType: LedgerReferenceType.ADMIN_ACTION,
+            referenceId: userId,
+            status: CoinLedgerStatus.SUCCESS,
+            metadata: {
+              reason: "INITIAL_SIGNUP_BALANCE",
+            },
+          },
+        },
+      },
       select: { id: true },
     });
 
@@ -75,7 +97,8 @@ export class WalletRepository {
       SELECT
         id,
         user_id AS "userId",
-        balance_coins AS "balanceCoins",
+        deposit_balance AS "depositBalance",
+        winning_balance AS "winningBalance",
         ledger_version AS "ledgerVersion",
         status,
         created_at AS "createdAt",
@@ -109,11 +132,16 @@ export class WalletRepository {
     });
   }
 
-  updateWalletSnapshot(tx: TxClient, walletId: string, balanceCoins: bigint) {
+  updateWalletSnapshot(
+    tx: TxClient,
+    walletId: string,
+    balances: { depositBalance: bigint; winningBalance: bigint },
+  ) {
     return tx.wallet.update({
       where: { id: walletId },
       data: {
-        balanceCoins,
+        depositBalance: balances.depositBalance,
+        winningBalance: balances.winningBalance,
         ledgerVersion: {
           increment: 1,
         },

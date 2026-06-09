@@ -11,7 +11,7 @@ import type {
 
 export function serializeAdminUser(
   user: Pick<User, "id" | "email" | "displayName" | "role" | "status" | "lastLoginAt" | "createdAt" | "updatedAt"> & {
-    wallet?: Pick<Wallet, "balanceCoins" | "status" | "ledgerVersion"> | null;
+    wallet?: Pick<Wallet, "depositBalance" | "winningBalance" | "status" | "ledgerVersion"> | null;
     _count?: { bets: number; ledgerEntries: number };
   },
 ) {
@@ -26,7 +26,9 @@ export function serializeAdminUser(
     updatedAt: user.updatedAt.toISOString(),
     wallet: user.wallet
       ? {
-          balanceCoins: user.wallet.balanceCoins.toString(),
+          depositBalance: user.wallet.depositBalance.toString(),
+          winningBalance: user.wallet.winningBalance.toString(),
+          totalBalance: (user.wallet.depositBalance + user.wallet.winningBalance).toString(),
           status: user.wallet.status,
           ledgerVersion: user.wallet.ledgerVersion.toString(),
         }

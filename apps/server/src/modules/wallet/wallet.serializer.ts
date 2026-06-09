@@ -1,10 +1,26 @@
 import type { CoinLedger, Wallet } from "@prisma/client";
 
-export function serializeWallet(wallet: Pick<Wallet, "id" | "userId" | "balanceCoins" | "ledgerVersion" | "status" | "createdAt" | "updatedAt">) {
+export function serializeWallet(
+  wallet: Pick<
+    Wallet,
+    | "id"
+    | "userId"
+    | "depositBalance"
+    | "winningBalance"
+    | "ledgerVersion"
+    | "status"
+    | "createdAt"
+    | "updatedAt"
+  >,
+) {
+  const totalBalance = wallet.depositBalance + wallet.winningBalance;
+
   return {
     id: wallet.id,
     userId: wallet.userId,
-    balanceCoins: wallet.balanceCoins.toString(),
+    depositBalance: wallet.depositBalance.toString(),
+    winningBalance: wallet.winningBalance.toString(),
+    totalBalance: totalBalance.toString(),
     ledgerVersion: wallet.ledgerVersion.toString(),
     status: wallet.status,
     createdAt: wallet.createdAt.toISOString(),

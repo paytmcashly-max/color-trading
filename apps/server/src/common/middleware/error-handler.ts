@@ -18,9 +18,10 @@ export function errorHandler(
       captureRequestError(error, req);
     }
     res.status(error.statusCode).json({
-      error: {
+      success: false,
+      message: error.message,
+      data: {
         code: error.code,
-        message: error.message,
       },
     });
     return;
@@ -28,9 +29,10 @@ export function errorHandler(
 
   if (error instanceof ZodError) {
     res.status(400).json({
-      error: {
+      success: false,
+      message: "Invalid request payload",
+      data: {
         code: "VALIDATION_ERROR",
-        message: "Invalid request payload",
         details: error.flatten().fieldErrors,
       },
     });
@@ -39,9 +41,10 @@ export function errorHandler(
 
   if (isHttpParserError(error)) {
     res.status(error.statusCode).json({
-      error: {
+      success: false,
+      message: "Request body must be valid JSON.",
+      data: {
         code: "INVALID_JSON",
-        message: "Request body must be valid JSON.",
       },
     });
     return;
@@ -50,9 +53,10 @@ export function errorHandler(
   captureRequestError(error, req);
   logger.error("unhandled_request_error", { error });
   res.status(500).json({
-    error: {
+    success: false,
+    message: "Unexpected server error",
+    data: {
       code: "INTERNAL_SERVER_ERROR",
-      message: "Unexpected server error",
     },
   });
 }

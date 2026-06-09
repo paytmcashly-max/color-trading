@@ -11,8 +11,10 @@ export class ResultService {
     return { seedHash, seedReveal };
   }
 
-  generateResult() {
-    const index = crypto.randomInt(0, COLORS.length);
+  generateResult(seedReveal?: string | null) {
+    const index = seedReveal
+      ? crypto.createHash("sha256").update(seedReveal).digest().readUInt32BE(0) % COLORS.length
+      : crypto.randomInt(0, COLORS.length);
     const color = COLORS[index];
 
     if (!color) {

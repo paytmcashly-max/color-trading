@@ -15,7 +15,6 @@ import { serializeRound } from "../game/game.serializer.js";
 import { BET_LOCK_AFTER_MS, ROUND_DURATION_MS } from "../game/game.constants.js";
 import { ResultService } from "../game/services/result.service.js";
 import type { WalletService } from "../wallet/wallet.service.js";
-import { serializeWallet } from "../wallet/wallet.serializer.js";
 import {
   serializeAdminBet,
   serializeAdminLedger,
@@ -55,7 +54,8 @@ export class AdminService {
       include: {
         wallet: {
           select: {
-            balanceCoins: true,
+            depositBalance: true,
+            winningBalance: true,
             status: true,
             ledgerVersion: true,
           },
@@ -83,7 +83,8 @@ export class AdminService {
       include: {
         wallet: {
           select: {
-            balanceCoins: true,
+            depositBalance: true,
+            winningBalance: true,
             status: true,
             ledgerVersion: true,
           },
@@ -111,7 +112,8 @@ export class AdminService {
       include: {
         wallet: {
           select: {
-            balanceCoins: true,
+            depositBalance: true,
+            winningBalance: true,
             status: true,
             ledgerVersion: true,
           },
@@ -255,19 +257,7 @@ export class AdminService {
   }
 
   async getWallet(userId: string) {
-    const wallet =
-      (await this.prisma.wallet.findUnique({
-        where: { userId },
-      })) ??
-      (await this.prisma.$transaction((tx) =>
-        tx.wallet.upsert({
-          where: { userId },
-          update: {},
-          create: { userId },
-        }),
-      ));
-
-    return { wallet: serializeWallet(wallet) };
+    return this.walletService.getWalletBalance(userId);
   }
 
   async getLedger(userId: string) {
@@ -293,12 +283,6 @@ export class AdminService {
       referenceId: auditLog.id,
       idempotencyKey: dto.idempotencyKey ?? `admin:${auditLog.id}:wallet-adjustment`,
       direction: dto.direction as CoinLedgerDirection,
-    });
-
-    publishGameEvent("wallet:update", {
-      userId,
-      wallet: "wallet" in result ? result.wallet : undefined,
-      ledgerEntry: result.ledgerEntry,
     });
 
     return result;

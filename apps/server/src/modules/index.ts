@@ -8,6 +8,7 @@ import { walletRouter } from "./wallet/wallet.routes.js";
 
 export function registerModuleRoutes(app: Express) {
   registerRoutesAt(app, "");
+  registerRoutesAt(app, "/api");
   registerRoutesAt(app, "/v1");
 }
 

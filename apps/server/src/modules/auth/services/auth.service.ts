@@ -1,5 +1,12 @@
 import crypto from "node:crypto";
-import { UserStatus, type PrismaClient } from "@prisma/client";
+import {
+  CoinLedgerDirection,
+  CoinLedgerStatus,
+  CoinLedgerType,
+  LedgerReferenceType,
+  UserStatus,
+  type PrismaClient,
+} from "@prisma/client";
 
 import { HttpError } from "../../../common/errors/http-error.js";
 import { signAccessToken, signRefreshToken } from "../../../common/utils/jwt.js";
@@ -7,6 +14,8 @@ import { hashToken } from "../../../common/utils/token-hash.js";
 import { env } from "../../../config/env.js";
 import type { LoginDto, RegisterDto } from "../dto/auth.dto.js";
 import { hashPassword, verifyPassword } from "./password.service.js";
+
+const INITIAL_VIRTUAL_COINS = 1000n;
 
 interface RequestMetadata {
   ipAddress?: string;
@@ -28,13 +37,44 @@ export class AuthService {
 
     const passwordHash = await hashPassword(dto.password);
 
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        passwordHash,
-        displayName: dto.displayName,
-      },
-      select: safeUserSelect,
+    const user = await this.prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          email: dto.email,
+          passwordHash,
+          displayName: dto.displayName,
+        },
+        select: safeUserSelect,
+      });
+
+      const wallet = await tx.wallet.create({
+        data: {
+          userId: createdUser.id,
+          depositBalance: INITIAL_VIRTUAL_COINS,
+          winningBalance: 0n,
+        },
+        select: { id: true },
+      });
+
+      await tx.coinLedger.create({
+        data: {
+          userId: createdUser.id,
+          walletId: wallet.id,
+          type: CoinLedgerType.BONUS_CREDIT,
+          direction: CoinLedgerDirection.CREDIT,
+          amountCoins: INITIAL_VIRTUAL_COINS,
+          balanceAfterCoins: INITIAL_VIRTUAL_COINS,
+          idempotencyKey: `user:${createdUser.id}:initial-virtual-coins`,
+          referenceType: LedgerReferenceType.ADMIN_ACTION,
+          referenceId: createdUser.id,
+          status: CoinLedgerStatus.SUCCESS,
+          metadata: {
+            reason: "INITIAL_SIGNUP_BALANCE",
+          },
+        },
+      });
+
+      return createdUser;
     });
 
     return this.createTokenPair(user, metadata);
