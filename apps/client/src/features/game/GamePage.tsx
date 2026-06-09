@@ -129,6 +129,7 @@ export function GamePage() {
     ? Math.max(0, Math.ceil((new Date(currentRound.endTime).getTime() - now) / 1000))
     : timer;
   const showLockOverlay = Boolean(currentRound) && !canPredict && !roundResult;
+  const roundProgress = currentRound ? calculateRoundProgress(currentRound, now) : 0;
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -182,12 +183,12 @@ export function GamePage() {
 
   return (
     <AppShell title="Color Prediction">
-      <section className="grid gap-4 pb-28">
-        <section className="rounded-2xl border border-line bg-white p-3 shadow-[0_10px_24px_rgba(23,32,26,0.07)]">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+      <section className="grid gap-3 pb-28">
+        <section className="rounded-3xl border border-line bg-[linear-gradient(135deg,#ffffff,#f1faf4)] p-3 shadow-[0_10px_24px_rgba(23,32,26,0.07)]">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
             <div className="min-w-0">
-              <p className="text-xs font-black text-muted">Period</p>
-              <h1 className="mt-0.5 truncate text-xl font-black tabular-nums text-ink">
+              <p className="text-[11px] font-black uppercase text-muted">Current period</p>
+              <h1 className="mt-0.5 truncate text-xl font-black tabular-nums text-ink sm:text-2xl">
                 {currentRound?.roundNumber ?? "--"}
               </h1>
               <span className={`mt-1.5 inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${canPredict ? "bg-[#dff8e9] text-[#106b3d]" : "bg-[#fff3cd] text-[#8a5a00]"}`}>
@@ -195,13 +196,31 @@ export function GamePage() {
               </span>
             </div>
             <div className="text-right">
-              <p className="text-xs font-black text-muted">Count Down</p>
+              <p className="text-[11px] font-black uppercase text-muted">Round timer</p>
               <CountdownBoxes remainingSeconds={roundRemainingSeconds} locked={showLockOverlay} />
             </div>
           </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#dfe6df]">
+            <motion.div
+              className={`h-full rounded-full ${showLockOverlay ? "bg-[#ffc857]" : "bg-[#16874f]"}`}
+              animate={{ width: `${roundProgress}%` }}
+              transition={{ duration: 0.25 }}
+            />
+          </div>
         </section>
 
-        <section className="grid gap-2">
+        <section className="grid gap-2 rounded-3xl border border-line bg-white p-3 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-black text-ink">Pick a color</h2>
+              <p className="text-[11px] font-bold text-muted">One choice per prediction</p>
+            </div>
+            {selectedForRound.length > 0 ? (
+              <span className="rounded-full bg-[#eef3ee] px-3 py-1 text-[10px] font-black uppercase text-ink">
+                {selectedForRound[0]}
+              </span>
+            ) : null}
+          </div>
           <div className="relative grid grid-cols-3 gap-2">
               {showLockOverlay ? (
                 <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-2xl bg-white/50 backdrop-blur-[1px]">
@@ -224,19 +243,19 @@ export function GamePage() {
                       setSelectedChoices((current) => (current.includes(choice.color) ? [] : [choice.color]));
                       setConfirming(false);
                     }}
-                    className={`min-h-24 rounded-2xl border bg-gradient-to-br ${choice.surface} p-3 text-center text-white transition disabled:opacity-45 ${
+                    className={`min-h-20 rounded-2xl border bg-gradient-to-br ${choice.surface} p-2.5 text-center text-white transition disabled:opacity-45 ${
                       active ? `border-white ring-4 ring-ink/10 ${choice.glow}` : "border-white/70 shadow-[0_10px_22px_rgba(23,32,26,0.10)]"
                     }`}
                   >
-                    <span className="grid justify-items-center gap-1">
-                      <span className="grid size-9 place-items-center rounded-full bg-white/20 text-white">
-                        <Icon size={21} aria-hidden="true" />
+                    <span className="grid justify-items-center gap-1.5">
+                      <span className="grid size-8 place-items-center rounded-full bg-white/20 text-white">
+                        <Icon size={19} aria-hidden="true" />
                       </span>
-                      <span className="text-xs font-black uppercase">Join {choice.label}</span>
-                      <span className="text-[11px] font-black text-white/85">{choice.ratio}</span>
+                      <span className="text-sm font-black">{choice.label}</span>
+                      <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-black text-white">{choice.ratio}</span>
                       {active ? (
-                        <span className="mt-1 grid size-7 place-items-center rounded-full bg-white text-ink shadow-sm">
-                          <Check size={16} aria-hidden="true" />
+                        <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-white text-ink shadow-sm">
+                          <Check size={14} aria-hidden="true" />
                         </span>
                       ) : null}
                     </span>
@@ -251,13 +270,16 @@ export function GamePage() {
           </p>
         </section>
 
-        <section className="rounded-3xl border border-line bg-white p-4 shadow-[0_14px_34px_rgba(23,32,26,0.08)]">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-black">Coins</h2>
+        <section className="rounded-3xl border border-line bg-white p-3 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
+          <div className="mb-2 flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-black">Stake</h2>
+              <p className="text-[11px] font-bold text-muted">Amount per prediction</p>
+            </div>
             <p className="text-xs font-black text-muted">Balance {formatCoinString(wallet?.totalBalance)}</p>
           </div>
-          <div className="grid gap-3">
-            <div className="grid grid-cols-3 gap-2">
+          <div className="grid gap-2">
+            <div className="grid grid-cols-6 gap-1.5">
               {quickAmounts.map((value) => (
                 <motion.button
                   key={value}
@@ -275,47 +297,52 @@ export function GamePage() {
                       : "border-line bg-[#f8faf7] text-muted"
                   }`}
                 >
-                  {formatCoinString(value)}
+                  {value >= 1000 ? "1K" : value}
                 </motion.button>
               ))}
             </div>
-            <input
-              className="min-h-14 rounded-2xl border border-line bg-white px-4 text-xl font-black text-ink outline-none focus:border-[#16874f]"
-              type="number"
-              min={1}
-              inputMode="numeric"
-              value={amountInput}
-              onChange={(event) => {
-                const nextValue = event.target.value;
-                setAmountInput(nextValue);
-                setAmount(nextValue === "" ? Number.NaN : Number(nextValue));
-                setConfirming(false);
-              }}
-              aria-label="Custom amount"
-            />
-            <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-2xl border border-line bg-[#f8faf7] p-2">
-              <button
-                type="button"
-                className="grid size-10 place-items-center rounded-xl bg-white text-xl font-black text-ink shadow-sm disabled:opacity-45"
-                disabled={!canPredict || quantity <= 1}
-                onClick={() => setQuantity((current) => Math.max(1, current - 1))}
-                aria-label="Decrease quantity"
-              >
-                -
-              </button>
-              <div className="text-center">
-                <p className="text-[10px] font-black uppercase text-muted">Quantity</p>
-                <p className="text-lg font-black text-ink">x{safeQuantity}</p>
+            <div className="grid grid-cols-[minmax(0,1fr)_126px] gap-2">
+              <label className="grid gap-1">
+                <span className="text-[10px] font-black uppercase text-muted">Custom</span>
+                <input
+                  className="min-h-12 w-full rounded-2xl border border-line bg-white px-3 text-lg font-black text-ink outline-none focus:border-[#16874f]"
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  value={amountInput}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setAmountInput(nextValue);
+                    setAmount(nextValue === "" ? Number.NaN : Number(nextValue));
+                    setConfirming(false);
+                  }}
+                  aria-label="Custom amount"
+                />
+              </label>
+              <div className="grid gap-1">
+                <span className="text-center text-[10px] font-black uppercase text-muted">Quantity</span>
+                <div className="grid grid-cols-[32px_1fr_32px] items-center gap-1 rounded-2xl border border-line bg-[#f8faf7] p-1.5">
+                  <button
+                    type="button"
+                    className="grid size-8 place-items-center rounded-xl bg-white text-lg font-black text-ink shadow-sm disabled:opacity-45"
+                    disabled={!canPredict || quantity <= 1}
+                    onClick={() => setQuantity((current) => Math.max(1, current - 1))}
+                    aria-label="Decrease quantity"
+                  >
+                    -
+                  </button>
+                  <p className="text-center text-base font-black text-ink">x{safeQuantity}</p>
+                  <button
+                    type="button"
+                    className="grid size-8 place-items-center rounded-xl bg-white text-lg font-black text-ink shadow-sm disabled:opacity-45"
+                    disabled={!canPredict}
+                    onClick={() => setQuantity((current) => Math.min(20, current + 1))}
+                    aria-label="Increase quantity"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                className="grid size-10 place-items-center rounded-xl bg-white text-xl font-black text-ink shadow-sm disabled:opacity-45"
-                disabled={!canPredict}
-                onClick={() => setQuantity((current) => Math.min(20, current + 1))}
-                aria-label="Increase quantity"
-              >
-                +
-              </button>
             </div>
             <div className="flex items-center justify-between rounded-2xl bg-[#eef3ee] px-3 py-2 text-sm font-black">
               <span className="text-muted">Total stake</span>
@@ -417,6 +444,17 @@ function CountdownBoxes({ remainingSeconds, locked }: { remainingSeconds: number
       ))}
     </div>
   );
+}
+
+function calculateRoundProgress(round: RoundDto, now: number) {
+  const start = new Date(round.startTime).getTime();
+  const end = new Date(round.endTime).getTime();
+
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(100, ((now - start) / (end - start)) * 100));
 }
 
 function RecordPanel({
