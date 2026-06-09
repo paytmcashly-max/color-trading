@@ -26,12 +26,15 @@ interface ApiErrorBody {
   data?: {
     code?: string;
     message?: string;
+    details?: Record<string, string[] | undefined>;
   };
   error?: {
     code?: string;
     message?: string;
   };
 }
+
+type ValidationDetails = Record<string, string[] | undefined>;
 
 async function request<TResponse>(
   path: string,
@@ -53,6 +56,7 @@ async function request<TResponse>(
     throw new Error(
       body?.error?.message ??
         body?.data?.message ??
+        formatValidationDetails(body?.data?.details) ??
         body?.message ??
         `Request failed with status ${response.status}`,
     );
@@ -73,6 +77,25 @@ async function request<TResponse>(
 
 function isEnvelope(value: unknown): value is { success: boolean; message?: string; data: unknown } {
   return typeof value === "object" && value !== null && "success" in value && "data" in value;
+}
+
+function formatValidationDetails(details: ValidationDetails | undefined) {
+  if (!details) {
+    return null;
+  }
+
+  const messages = Object.entries(details)
+    .flatMap(([field, fieldMessages]) =>
+      (fieldMessages ?? []).map((message) => `${formatFieldName(field)}: ${message}`),
+    );
+
+  return messages.length > 0 ? messages.join(" ") : null;
+}
+
+function formatFieldName(field: string) {
+  return field
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (letter) => letter.toUpperCase());
 }
 
 export function fetchHealth() {

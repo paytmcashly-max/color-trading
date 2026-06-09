@@ -19,7 +19,7 @@ export function RegisterPage() {
   const [password, setPassword] = useState("");
 
   const mutation = useMutation({
-    mutationFn: () => register(email, password, displayName || undefined),
+    mutationFn: () => register(email.trim(), password, displayName.trim() || undefined),
     onSuccess: (response) => {
       setSession(response.user, response.tokens);
       router.push(getSafeNextPath(searchParams.get("next")));
@@ -53,6 +53,8 @@ export function RegisterPage() {
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
             autoComplete="nickname"
+            minLength={2}
+            maxLength={80}
           />
         </label>
         <label className="grid gap-2 text-sm font-bold text-ink">
@@ -74,6 +76,10 @@ export function RegisterPage() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             autoComplete="new-password"
+            minLength={12}
+            maxLength={128}
+            pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{12,}"
+            title="Use 12 or more characters with uppercase, lowercase, a number, and a symbol."
             required
           />
         </label>

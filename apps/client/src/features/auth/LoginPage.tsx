@@ -18,7 +18,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
 
   const mutation = useMutation({
-    mutationFn: () => login(email, password),
+    mutationFn: () => login(email.trim(), password),
     onSuccess: (response) => {
       setSession(response.user, response.tokens);
       router.push(getSafeNextPath(searchParams.get("next")));

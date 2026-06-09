@@ -12,7 +12,11 @@ const passwordSchema = z
 export const registerSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: passwordSchema,
-  displayName: z.string().trim().min(2).max(80).optional(),
+  displayName: z
+    .preprocess(
+      (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+      z.string().trim().min(2, "Display name must be at least 2 characters long.").max(80).optional(),
+    ),
 });
 
 export const loginSchema = z.object({
