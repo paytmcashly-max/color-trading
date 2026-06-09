@@ -123,7 +123,12 @@ export function GamePage() {
   const roundResult = currentRound?.result ?? lastResult;
   const outcome = getOutcome(roundResult, currentBets);
   const roundHistory = roundHistoryQuery.data?.rounds ?? [];
-  const latestBets = activeBets.slice(0, 8);
+  const latestBets = currentRound
+    ? activeBets
+        .filter((bet) => bet.roundId === currentRound.id)
+        .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime())
+        .slice(-4)
+    : [];
   const myBets = myBetsQuery.data?.bets.slice(0, 8) ?? [];
   const roundRemainingSeconds = currentRound
     ? Math.max(0, Math.ceil((new Date(currentRound.endTime).getTime() - now) / 1000))
@@ -234,7 +239,7 @@ export function GamePage() {
                       setSelectedChoices((current) => (current.includes(choice.color) ? [] : [choice.color]));
                       setConfirming(false);
                     }}
-                    className={`min-h-20 rounded-2xl border bg-gradient-to-br ${choice.surface} p-2.5 text-center text-white transition disabled:opacity-45 ${
+                    className={`relative min-h-20 rounded-2xl border bg-gradient-to-br ${choice.surface} p-2.5 text-center text-white transition disabled:opacity-45 ${
                       active ? `border-white ring-4 ring-ink/10 ${choice.glow}` : "border-white/70 shadow-[0_10px_22px_rgba(23,32,26,0.10)]"
                     }`}
                   >
@@ -497,7 +502,6 @@ function OrdersPanel({
           amount: bet.coinsStaked,
           period: bet.roundId.slice(0, 6),
           outcome: getOrderOutcome(bet.status),
-          real: true,
         }))
       : myBets.map((bet) => ({
           id: bet.id,
@@ -506,9 +510,8 @@ function OrdersPanel({
           amount: bet.coinsStaked,
           period: getBetPeriodLabel(bet),
           outcome: getOrderOutcome(bet.status),
-          real: true,
         }));
-  const rows = tab === "everyone" ? [...liveRows, ...dummyOrders].slice(0, 24) : liveRows;
+  const rows = liveRows;
 
   return (
     <section className="overflow-hidden rounded-3xl border border-line bg-white shadow-[0_14px_34px_rgba(23,32,26,0.08)]">
@@ -533,13 +536,19 @@ function OrdersPanel({
         <span>Select</span>
         <span className="text-right">Point</span>
       </div>
-      <div className="max-h-[430px] overflow-hidden px-4 pb-4">
+      <div className="max-h-[178px] overflow-hidden px-4 pb-4">
         {rows.length === 0 ? (
           <p className="rounded-2xl bg-[#f8faf7] px-3 py-4 text-center text-sm font-bold text-muted">
-            Your orders will appear here.
+            {tab === "everyone" ? "No current round orders." : "Your orders will appear here."}
           </p>
         ) : (
-          <div className="grid gap-1">
+          <motion.div
+            key={`${tab}-${rows.map((row) => row.id).join("-")}`}
+            initial={{ y: 16 }}
+            animate={{ y: 0 }}
+            transition={{ duration: 0.22 }}
+            className="grid gap-1"
+          >
           {rows.map((order, index) => (
             <motion.div
               key={order.id}
@@ -558,7 +567,7 @@ function OrdersPanel({
               <OrderAmount amount={order.amount} outcome={order.outcome} />
             </motion.div>
           ))}
-          </div>
+          </motion.div>
         )}
       </div>
     </section>
@@ -615,31 +624,7 @@ interface OrderRow {
   choice: PredictionColor;
   amount: string | number;
   outcome: "WIN" | "LOSS";
-  real: boolean;
 }
-
-const dummyOrders: OrderRow[] = [
-  { id: "dummy-1", user: "***114", period: "#849", choice: "GREEN", amount: 50, outcome: "WIN", real: false },
-  { id: "dummy-2", user: "***821", period: "#848", choice: "RED", amount: 100, outcome: "LOSS", real: false },
-  { id: "dummy-3", user: "***309", period: "#847", choice: "VIOLET", amount: 20, outcome: "WIN", real: false },
-  { id: "dummy-4", user: "***640", period: "#846", choice: "GREEN", amount: 200, outcome: "LOSS", real: false },
-  { id: "dummy-5", user: "***512", period: "#845", choice: "RED", amount: 50, outcome: "LOSS", real: false },
-  { id: "dummy-6", user: "***778", period: "#844", choice: "VIOLET", amount: 500, outcome: "WIN", real: false },
-  { id: "dummy-7", user: "***291", period: "#843", choice: "GREEN", amount: 30, outcome: "WIN", real: false },
-  { id: "dummy-8", user: "***604", period: "#842", choice: "RED", amount: 80, outcome: "LOSS", real: false },
-  { id: "dummy-9", user: "***018", period: "#841", choice: "VIOLET", amount: 150, outcome: "LOSS", real: false },
-  { id: "dummy-10", user: "***935", period: "#840", choice: "GREEN", amount: 300, outcome: "WIN", real: false },
-  { id: "dummy-11", user: "***472", period: "#839", choice: "RED", amount: 25, outcome: "LOSS", real: false },
-  { id: "dummy-12", user: "***706", period: "#838", choice: "VIOLET", amount: 70, outcome: "WIN", real: false },
-  { id: "dummy-13", user: "***560", period: "#837", choice: "GREEN", amount: 120, outcome: "LOSS", real: false },
-  { id: "dummy-14", user: "***822", period: "#836", choice: "RED", amount: 60, outcome: "WIN", real: false },
-  { id: "dummy-15", user: "***197", period: "#835", choice: "VIOLET", amount: 250, outcome: "LOSS", real: false },
-  { id: "dummy-16", user: "***449", period: "#834", choice: "GREEN", amount: 90, outcome: "WIN", real: false },
-  { id: "dummy-17", user: "***730", period: "#833", choice: "RED", amount: 400, outcome: "LOSS", real: false },
-  { id: "dummy-18", user: "***316", period: "#832", choice: "VIOLET", amount: 40, outcome: "WIN", real: false },
-  { id: "dummy-19", user: "***688", period: "#831", choice: "GREEN", amount: 600, outcome: "LOSS", real: false },
-  { id: "dummy-20", user: "***052", period: "#830", choice: "RED", amount: 10, outcome: "WIN", real: false },
-];
 
 function getOutcome(
   result: string | null | undefined,

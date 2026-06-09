@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Flame, Sparkles, Users, WalletCards } from "lucide-react";
+import { Flame, Sparkles, Trophy, Users, WalletCards } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -59,14 +59,16 @@ export function GameLobbyPage({ showAllGames = false }: { showAllGames?: boolean
               </strong>
             </Link>
             <Link
-              href="/game/color-prediction"
+              href="/wallet"
               className="min-w-0 rounded-2xl border border-[#c8e9d5] bg-[#e9f8ef] px-3 py-2.5 active:scale-[0.98]"
             >
               <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-[#106b3d]">
-                <Flame size={14} aria-hidden="true" />
-                Fast play
+                <Trophy size={14} aria-hidden="true" />
+                Winning
               </span>
-              <strong className="mt-1 block truncate text-lg font-black text-ink">Color Prediction</strong>
+              <strong className="mt-1 block truncate text-lg font-black text-ink">
+                {isLoading && !wallet ? "..." : formatCoinString(wallet?.winningBalance)}
+              </strong>
             </Link>
           </div>
         </div>
