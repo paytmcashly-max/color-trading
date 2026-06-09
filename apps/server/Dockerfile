@@ -27,7 +27,8 @@ COPY apps/server/src ./apps/server/src
 COPY packages/shared/tsconfig.json ./packages/shared/tsconfig.json
 COPY packages/shared/src ./packages/shared/src
 
-RUN npm run db:validate -w @color-trading/server \
+RUN npx prisma generate --schema apps/server/prisma/schema.prisma \
+  && npm run db:validate -w @color-trading/server \
   && npm run build -w @color-trading/shared \
   && npm run build -w @color-trading/server
 
@@ -51,6 +52,8 @@ RUN npm ci --omit=dev \
 COPY --from=builder /app/apps/server/dist ./apps/server/dist
 COPY --from=builder /app/apps/server/prisma ./apps/server/prisma
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 
 USER nodejs
 EXPOSE 4000
