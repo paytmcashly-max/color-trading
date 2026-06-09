@@ -56,7 +56,7 @@ export function AppShell({
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-5xl gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)] md:py-6">
+      <main className="mx-auto grid max-w-5xl gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)] md:py-5">
         {children}
       </main>
 

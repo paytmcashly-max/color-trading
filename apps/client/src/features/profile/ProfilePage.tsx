@@ -28,15 +28,20 @@ export function ProfilePage() {
 
   return (
     <AppShell title="Profile">
-      <section className="rounded-[32px] border border-line bg-white p-5 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
-        <div className="flex items-center gap-4">
-          <span className="grid size-20 place-items-center rounded-full bg-gradient-to-br from-[#1fd87a] to-[#8b5cf6] text-3xl font-black text-white shadow-[0_0_36px_rgba(31,216,122,0.28)]">
+      <section className="rounded-3xl border border-line bg-white p-4 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
+        <div className="flex items-center gap-3">
+          <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#16874f] to-[#6e46b9] text-2xl font-black text-white shadow-[0_10px_24px_rgba(22,135,79,0.16)]">
             {avatar}
           </span>
           <div className="min-w-0">
-            <h2 className="truncate text-2xl font-black text-ink">{user?.displayName ?? "Player"}</h2>
-            <p className="mt-1 truncate text-sm font-bold text-muted">{user?.email ?? "Not signed in"}</p>
-            <p className="mt-2 text-xs font-black uppercase text-muted">ID {user?.id.slice(0, 12).toUpperCase() ?? "--"}</p>
+            <div className="flex min-w-0 items-center gap-2">
+              <h2 className="truncate text-xl font-black text-ink">{user?.displayName ?? "Player"}</h2>
+              <span className="shrink-0 rounded-full bg-[#e9f8ef] px-2 py-0.5 text-[10px] font-black uppercase text-[#106b3d]">
+                {user?.role ?? "USER"}
+              </span>
+            </div>
+            <p className="mt-0.5 truncate text-sm font-bold text-muted">{user?.email ?? "Not signed in"}</p>
+            <p className="mt-1 text-[10px] font-black uppercase text-muted">ID {user?.id.slice(0, 10).toUpperCase() ?? "--"}</p>
           </div>
         </div>
       </section>
@@ -44,8 +49,13 @@ export function ProfilePage() {
       <StatsCard stats={stats} />
       <WalletCard wallet={wallet} isLoading={isLoading} />
 
-      <section className="grid gap-3 rounded-[28px] border border-line bg-white p-4 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
-        <h2 className="font-black">Settings</h2>
+      <section className="grid gap-2 rounded-3xl border border-line bg-white p-3 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
+        <div className="flex items-center justify-between">
+          <h2 className="font-black">Settings</h2>
+          <span className="rounded-full bg-[#eef3ee] px-2.5 py-1 text-[10px] font-black uppercase text-muted">
+            Account
+          </span>
+        </div>
         <SettingRow icon={<Bell size={18} />} label="Notifications" value="Live alerts" />
         <SettingRow icon={<ShieldCheck size={18} />} label="Security" value={user?.role ?? "USER"} />
         <SettingRow icon={<SlidersHorizontal size={18} />} label="Preferences" value="Light mode" />
@@ -53,7 +63,7 @@ export function ProfilePage() {
 
       <button
         type="button"
-        className="flex min-h-14 items-center justify-center gap-2 rounded-[24px] border border-[#ff3b4f]/25 bg-[#ff3b4f]/12 text-sm font-black text-[#ff98a4]"
+        className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#fecaca] bg-[#fee2e2] text-sm font-black text-[#991b1b]"
         onClick={async () => {
           if (token) {
             await logout(token).catch(() => undefined);
@@ -71,12 +81,17 @@ export function ProfilePage() {
 
 function StatsCard({ stats }: { stats: ReturnType<typeof buildStats> }) {
   return (
-    <section className="rounded-[28px] border border-line bg-white p-4 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
-      <div className="flex items-center gap-2">
-        <UserRound size={18} className="text-[#5dffae]" aria-hidden="true" />
-        <h2 className="font-black">Statistics</h2>
+    <section className="rounded-3xl border border-line bg-white p-3 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <UserRound size={18} className="text-[#16874f]" aria-hidden="true" />
+          <h2 className="font-black">Statistics</h2>
+        </div>
+        <span className="rounded-full bg-[#eef3ee] px-2.5 py-1 text-[10px] font-black uppercase text-muted">
+          Live
+        </span>
       </div>
-      <div className="mt-4 grid grid-cols-5 gap-2">
+      <div className="mt-3 grid grid-cols-5 gap-1.5">
         <Stat label="Games" value={stats.totalGames} />
         <Stat label="Wins" value={stats.wins} />
         <Stat label="Losses" value={stats.losses} />
@@ -89,21 +104,21 @@ function StatsCard({ stats }: { stats: ReturnType<typeof buildStats> }) {
 
 function SettingRow({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl bg-canvas px-4 py-3">
-      <span className="flex items-center gap-3 font-bold text-ink">
+    <div className="flex items-center justify-between gap-3 rounded-2xl bg-[#f8faf7] px-3 py-2.5">
+      <span className="flex min-w-0 items-center gap-2 text-sm font-bold text-ink">
         <span className="text-muted">{icon}</span>
-        {label}
+        <span className="truncate">{label}</span>
       </span>
-      <span className="text-xs font-black uppercase text-muted">{value}</span>
+      <span className="shrink-0 text-[10px] font-black uppercase text-muted">{value}</span>
     </div>
   );
 }
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-2xl bg-canvas p-2 text-center">
+    <div className="rounded-xl bg-[#f8faf7] px-1.5 py-2 text-center">
       <p className="text-base font-black text-ink">{value}</p>
-      <p className="mt-1 text-[10px] font-black uppercase text-muted">{label}</p>
+      <p className="mt-0.5 text-[9px] font-black uppercase text-muted">{label}</p>
     </div>
   );
 }

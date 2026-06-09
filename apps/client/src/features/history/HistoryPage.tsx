@@ -26,29 +26,38 @@ export function HistoryPage() {
 
   return (
     <AppShell title="History">
-      <section className="rounded-[28px] border border-line bg-white p-4 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
-        <div className="flex items-center gap-2">
-          <Trophy size={18} className="text-[#5dffae]" aria-hidden="true" />
-          <h2 className="font-black">Game history</h2>
+      <section className="rounded-3xl border border-line bg-white p-3 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Trophy size={18} className="text-[#16874f]" aria-hidden="true" />
+            <h2 className="font-black">Game history</h2>
+          </div>
+          <span className="rounded-full bg-[#eef3ee] px-2.5 py-1 text-[10px] font-black uppercase text-muted">
+            {bets.length} bets
+          </span>
         </div>
-        <div className="mt-4 grid gap-3">
+        <div className="mt-3 grid gap-2">
           {betsQuery.isLoading ? <p className="text-sm font-bold text-muted">Loading predictions...</p> : null}
           {!betsQuery.isLoading && bets.length === 0 ? (
             <p className="text-sm font-bold text-muted">Your predictions will appear here.</p>
           ) : null}
           {bets.map((bet) => (
-            <article key={bet.id} className="rounded-[26px] border border-line bg-canvas p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-black uppercase text-muted">
+            <article key={bet.id} className="rounded-2xl border border-line bg-[#f8faf7] px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-[11px] font-black uppercase text-muted">
                     Round #{bet.round?.roundNumber ?? bet.roundId.slice(0, 8)}
                   </p>
-                  <h3 className="mt-1 text-xl font-black text-ink">{bet.choice}</h3>
+                  <div className="mt-1 flex items-center gap-2">
+                    <ResultBadge result={bet.choice} small />
+                    <h3 className="text-base font-black text-ink">{bet.choice}</h3>
+                    <span className="text-xs font-bold text-muted">picked</span>
+                  </div>
                 </div>
                 <OutcomePill status={bet.status} />
               </div>
 
-              <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="mt-2 grid grid-cols-3 gap-1.5">
                 <MiniMetric label="Result" value={bet.round?.result ?? "--"} />
                 <MiniMetric label="Amount" value={formatCoinString(bet.coinsStaked)} />
                 <MiniMetric label="Payout" value={formatCoinString(bet.payoutAmount)} />
@@ -58,22 +67,27 @@ export function HistoryPage() {
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-line bg-white p-4 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
-        <div className="flex items-center gap-2">
-          <Clock3 size={18} className="text-[#ffc857]" aria-hidden="true" />
-          <h2 className="font-black">Round results</h2>
+      <section className="rounded-3xl border border-line bg-white p-3 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Clock3 size={18} className="text-[#ffc857]" aria-hidden="true" />
+            <h2 className="font-black">Round results</h2>
+          </div>
+          <span className="rounded-full bg-[#eef3ee] px-2.5 py-1 text-[10px] font-black uppercase text-muted">
+            Live log
+          </span>
         </div>
-        <div className="mt-4 grid gap-3">
+        <div className="mt-3 grid gap-2">
           {roundsQuery.isLoading ? <p className="text-sm font-bold text-muted">Loading rounds...</p> : null}
           {!roundsQuery.isLoading && rounds.length === 0 ? (
             <p className="text-sm font-bold text-muted">Completed rounds will appear here.</p>
           ) : null}
           {rounds.map((round) => (
-            <article key={round.id} className="flex items-center justify-between rounded-[24px] border border-line bg-canvas p-4">
-              <div>
-                <p className="font-black text-ink">Round #{round.roundNumber}</p>
-                <p className="mt-1 text-xs font-bold text-muted">
-                  {round.betCount} predictions | {new Date(round.endTime).toLocaleString()}
+            <article key={round.id} className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-[#f8faf7] px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black text-ink">Round #{round.roundNumber}</p>
+                <p className="mt-0.5 truncate text-[11px] font-bold text-muted">
+                  {round.betCount} predictions · {formatHistoryDate(round.endTime)}
                 </p>
               </div>
               <ResultBadge result={round.result} />
@@ -87,9 +101,9 @@ export function HistoryPage() {
 
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-white p-3 text-center">
-      <p className="text-sm font-black text-ink">{value}</p>
-      <p className="mt-1 text-[10px] font-black uppercase text-muted">{label}</p>
+    <div className="rounded-xl bg-white px-2 py-2 text-center">
+      <p className="truncate text-sm font-black text-ink">{value}</p>
+      <p className="mt-0.5 text-[9px] font-black uppercase text-muted">{label}</p>
     </div>
   );
 }
@@ -97,27 +111,36 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
 function OutcomePill({ status }: { status: string }) {
   const className =
     status === "WON"
-      ? "bg-[#1fd87a]/18 text-[#77ffc0]"
+      ? "bg-[#dff8e9] text-[#106b3d]"
       : status === "LOST"
-        ? "bg-[#ff3b4f]/18 text-[#ff98a4]"
-        : "bg-[#ffc857]/15 text-[#ffd477]";
+        ? "bg-[#fee2e2] text-[#991b1b]"
+        : "bg-[#fff3cd] text-[#8a5a00]";
 
-  return <span className={`rounded-full px-3 py-1 text-xs font-black ${className}`}>{status}</span>;
+  return <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${className}`}>{status}</span>;
 }
 
-function ResultBadge({ result }: { result: string | null }) {
+function ResultBadge({ result, small = false }: { result: string | null; small?: boolean }) {
   const className =
     result === "GREEN"
-      ? "bg-[#19d879] shadow-[0_0_20px_rgba(25,216,121,0.45)]"
+      ? "bg-[#16a34a]"
       : result === "RED"
-        ? "bg-[#ff3b4f] shadow-[0_0_20px_rgba(255,59,79,0.45)]"
+        ? "bg-[#ef4444]"
         : result === "VIOLET"
-          ? "bg-[#9b5cff] shadow-[0_0_20px_rgba(155,92,255,0.45)]"
+          ? "bg-[#8b5cf6]"
           : "bg-[#dfe6df]";
 
   return (
-    <span className={`grid size-12 place-items-center rounded-full ${className} text-[10px] font-black text-white`}>
+    <span className={`grid ${small ? "size-8" : "size-10"} shrink-0 place-items-center rounded-full ${className} text-[10px] font-black text-white shadow-sm`}>
       {result?.slice(0, 1) ?? "--"}
     </span>
   );
+}
+
+function formatHistoryDate(value: string) {
+  return new Date(value).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

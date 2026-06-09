@@ -1,10 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Flame, Gamepad2, Sparkles, Users, WalletCards } from "lucide-react";
+import { Flame, Sparkles, Users, WalletCards } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { useWallet } from "@/hooks/useWallet";
@@ -30,36 +29,45 @@ export function GameLobbyPage({ showAllGames = false }: { showAllGames?: boolean
 
   return (
     <AppShell title={showAllGames ? "Games" : "Game Lobby"}>
-      <section className="grid gap-4">
-        <div className="grid gap-3 rounded-3xl border border-line bg-white p-4 text-ink shadow-[0_18px_48px_rgba(23,32,26,0.10)]">
-          <div>
-            <p className="text-xs font-black uppercase text-muted">Lobby</p>
-            <h1 className="mt-1 text-2xl font-black">Choose your game</h1>
-            <p className="mt-1 text-sm font-semibold leading-6 text-muted">
-              Live virtual coin games and upcoming modules in one place.
-            </p>
+      <section className="grid gap-3">
+        <div className="rounded-3xl border border-line bg-white p-3 text-ink shadow-[0_14px_34px_rgba(23,32,26,0.08)]">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase text-muted">Lobby</p>
+              <h1 className="mt-0.5 truncate text-xl font-black">Choose your game</h1>
+              <p className="mt-1 line-clamp-1 text-xs font-bold text-muted">
+                Live virtual coin games in one place.
+              </p>
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#e9f8ef] px-2.5 py-1 text-[11px] font-black text-[#106b3d]">
+              <Users size={13} aria-hidden="true" />
+              {compactPlayers(onlinePlayers)} online
+            </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="mt-3 grid grid-cols-2 gap-2">
             <Link
               href="/wallet"
-              className="min-w-0 rounded-2xl border border-line bg-[#f8faf7] p-4 active:scale-[0.98]"
+              className="min-w-0 rounded-2xl border border-line bg-[#f8faf7] px-3 py-2.5 active:scale-[0.98]"
             >
-              <span className="flex items-center gap-2 text-xs font-black uppercase text-muted">
-                <WalletCards size={16} aria-hidden="true" />
+              <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-muted">
+                <WalletCards size={14} aria-hidden="true" />
                 Wallet
               </span>
-              <strong className="mt-2 block truncate text-xl font-black sm:text-2xl">
+              <strong className="mt-1 block truncate text-lg font-black">
                 {isLoading && !wallet ? "..." : formatCoinString(wallet?.totalBalance)}
               </strong>
             </Link>
-            <div className="min-w-0 rounded-2xl border border-line bg-[#f8faf7] p-4">
-              <span className="flex items-center gap-2 text-xs font-black uppercase text-muted">
-                <Users size={16} aria-hidden="true" />
-                Online
+            <Link
+              href="/game/color-prediction"
+              className="min-w-0 rounded-2xl border border-[#c8e9d5] bg-[#e9f8ef] px-3 py-2.5 active:scale-[0.98]"
+            >
+              <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-[#106b3d]">
+                <Flame size={14} aria-hidden="true" />
+                Fast play
               </span>
-              <strong className="mt-2 block truncate text-xl font-black sm:text-2xl">{onlinePlayers.toLocaleString()}</strong>
-            </div>
+              <strong className="mt-1 block truncate text-lg font-black text-ink">Color Prediction</strong>
+            </Link>
           </div>
         </div>
 
@@ -82,7 +90,7 @@ export function GameLobbyPage({ showAllGames = false }: { showAllGames?: boolean
           </div>
         </section>
 
-        <section className="grid gap-3 rounded-3xl border border-line bg-white p-4 text-ink shadow-[0_14px_34px_rgba(23,32,26,0.08)]">
+        <section className="grid gap-3 rounded-3xl border border-line bg-white p-3 text-ink shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
           <div className="flex items-center gap-2">
             <Flame size={18} className="text-[#ffc857]" aria-hidden="true" />
             <h2 className="font-black">Live activity</h2>
@@ -101,11 +109,6 @@ export function GameLobbyPage({ showAllGames = false }: { showAllGames?: boolean
               ))}
             </motion.div>
           </div>
-        </section>
-
-        <section className="grid grid-cols-2 gap-3">
-          <StatTile icon={<Users size={18} />} label="Players online" value={onlinePlayers.toLocaleString()} />
-          <StatTile icon={<Gamepad2 size={18} />} label="Games today" value="18.4K" />
         </section>
       </section>
     </AppShell>
@@ -171,16 +174,4 @@ function compactPlayers(players: number) {
   }
 
   return players.toLocaleString();
-}
-
-function StatTile({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-line bg-white p-4 text-ink shadow-[0_10px_24px_rgba(23,32,26,0.06)]">
-      <span className="flex items-center gap-2 text-xs font-black uppercase text-muted">
-        {icon}
-        {label}
-      </span>
-      <strong className="mt-2 block text-2xl font-black">{value}</strong>
-    </div>
-  );
 }
