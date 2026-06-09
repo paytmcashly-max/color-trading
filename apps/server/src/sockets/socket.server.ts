@@ -210,12 +210,18 @@ async function joinRequestedRoom(
     return;
   }
 
-  socket.join(GLOBAL_GAME_ROOM);
+  const alreadyJoined = socket.rooms.has(GLOBAL_GAME_ROOM);
+  if (!alreadyJoined) {
+    socket.join(GLOBAL_GAME_ROOM);
+  }
 
   const user = getSocketUser(socket);
   const snapshot = await buildStateSnapshot(user.userId);
-  socket.emit("system:sync", snapshot);
-  emitRoundStateSnapshot(socket, snapshot);
+
+  if (!alreadyJoined) {
+    socket.emit("system:sync", snapshot);
+    emitRoundStateSnapshot(socket, snapshot);
+  }
 
   ack?.({
     ok: true,

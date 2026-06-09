@@ -22,7 +22,6 @@ export function SocketBridge() {
     socket.on("connect", () => {
       setConnected(true);
       joinGameRoomOverSocket();
-      socket.emit("state:sync");
     });
     socket.on("disconnect", () => setConnected(false));
     socket.on("system:sync", (payload) => {
