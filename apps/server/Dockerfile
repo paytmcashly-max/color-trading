@@ -60,4 +60,4 @@ COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/clie
 USER nodejs
 EXPOSE 4000
 
-CMD ["node", "apps/server/dist/main.js"]
+CMD ["sh", "-c", "node apps/server/scripts/apply-schema.mjs && node apps/server/dist/main.js"]
