@@ -23,6 +23,7 @@ FROM deps AS builder
 COPY tsconfig.base.json ./
 COPY apps/server/tsconfig.json ./apps/server/tsconfig.json
 COPY apps/server/prisma ./apps/server/prisma
+COPY apps/server/scripts ./apps/server/scripts
 COPY apps/server/src ./apps/server/src
 COPY packages/shared/tsconfig.json ./packages/shared/tsconfig.json
 COPY packages/shared/src ./packages/shared/src
@@ -51,6 +52,7 @@ RUN npm ci --omit=dev \
 
 COPY --from=builder /app/apps/server/dist ./apps/server/dist
 COPY --from=builder /app/apps/server/prisma ./apps/server/prisma
+COPY --from=builder /app/apps/server/scripts ./apps/server/scripts
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client

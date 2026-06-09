@@ -5,6 +5,7 @@ services:
     plan: free
     dockerfilePath: ./apps/server/Dockerfile
     dockerContext: .
+    preDeployCommand: node apps/server/scripts/apply-schema.mjs
     healthCheckPath: /health
     autoDeploy: false
     envVars:
