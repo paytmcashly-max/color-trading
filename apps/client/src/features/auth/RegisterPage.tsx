@@ -76,15 +76,14 @@ export function RegisterPage() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             autoComplete="new-password"
-            minLength={12}
-            maxLength={128}
-            pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{12,}"
-            title="Use 12 or more characters with uppercase, lowercase, a number, and a symbol."
+            minLength={6}
+            maxLength={12}
+            title="Use 6 to 12 characters."
             required
           />
         </label>
         <p className="text-xs font-semibold leading-5 text-muted">
-          Use 12+ characters with upper/lowercase letters, a number, and a symbol.
+          Use 6 to 12 characters.
         </p>
         {mutation.error ? (
           <p className="rounded-md bg-[#fee2e2] px-3 py-2 text-sm font-semibold text-[#991b1b]">
