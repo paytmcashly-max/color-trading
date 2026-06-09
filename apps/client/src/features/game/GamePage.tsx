@@ -129,7 +129,6 @@ export function GamePage() {
     ? Math.max(0, Math.ceil((new Date(currentRound.endTime).getTime() - now) / 1000))
     : timer;
   const showLockOverlay = Boolean(currentRound) && !canPredict && !roundResult;
-  const roundProgress = currentRound ? calculateRoundProgress(currentRound, now) : 0;
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -200,20 +199,12 @@ export function GamePage() {
               <CountdownBoxes remainingSeconds={roundRemainingSeconds} locked={showLockOverlay} />
             </div>
           </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#dfe6df]">
-            <motion.div
-              className={`h-full rounded-full ${showLockOverlay ? "bg-[#ffc857]" : "bg-[#16874f]"}`}
-              animate={{ width: `${roundProgress}%` }}
-              transition={{ duration: 0.25 }}
-            />
-          </div>
         </section>
 
         <section className="grid gap-2 rounded-3xl border border-line bg-white p-3 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-black text-ink">Pick a color</h2>
-              <p className="text-[11px] font-bold text-muted">One choice per prediction</p>
             </div>
             {selectedForRound.length > 0 ? (
               <span className="rounded-full bg-[#eef3ee] px-3 py-1 text-[10px] font-black uppercase text-ink">
@@ -263,18 +254,12 @@ export function GamePage() {
                 );
               })}
             </div>
-          <p className="text-center text-xs font-black text-muted">
-            {currentBets.length > 0
-              ? `${currentBets.length} prediction${currentBets.length === 1 ? "" : "s"} placed this round`
-              : "Choose one color before countdown closes"}
-          </p>
         </section>
 
         <section className="rounded-3xl border border-line bg-white p-3 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
           <div className="mb-2 flex items-center justify-between">
             <div>
               <h2 className="text-base font-black">Stake</h2>
-              <p className="text-[11px] font-bold text-muted">Amount per prediction</p>
             </div>
             <p className="text-xs font-black text-muted">Balance {formatCoinString(wallet?.totalBalance)}</p>
           </div>
@@ -446,17 +431,6 @@ function CountdownBoxes({ remainingSeconds, locked }: { remainingSeconds: number
   );
 }
 
-function calculateRoundProgress(round: RoundDto, now: number) {
-  const start = new Date(round.startTime).getTime();
-  const end = new Date(round.endTime).getTime();
-
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
-    return 0;
-  }
-
-  return Math.max(0, Math.min(100, ((now - start) / (end - start)) * 100));
-}
-
 function RecordPanel({
   rounds,
   recentResults,
@@ -522,6 +496,7 @@ function OrdersPanel({
           choice: bet.choice,
           amount: bet.coinsStaked,
           period: bet.roundId.slice(0, 6),
+          outcome: getOrderOutcome(bet.status),
           real: true,
         }))
       : myBets.map((bet) => ({
@@ -530,9 +505,10 @@ function OrdersPanel({
           choice: bet.choice,
           amount: bet.coinsStaked,
           period: getBetPeriodLabel(bet),
+          outcome: getOrderOutcome(bet.status),
           real: true,
         }));
-  const rows = tab === "everyone" ? [...liveRows, ...dummyOrders].slice(0, 8) : liveRows;
+  const rows = tab === "everyone" ? [...liveRows, ...dummyOrders].slice(0, 24) : liveRows;
 
   return (
     <section className="overflow-hidden rounded-3xl border border-line bg-white shadow-[0_14px_34px_rgba(23,32,26,0.08)]">
@@ -552,19 +528,26 @@ function OrdersPanel({
           My Order
         </button>
       </div>
-      <div className="grid grid-cols-[1fr_0.8fr_0.7fr] gap-2 px-4 py-3 text-[11px] font-black uppercase text-muted">
+      <div className="grid grid-cols-[1fr_0.8fr_0.8fr] gap-2 px-4 py-3 text-[11px] font-black uppercase text-muted">
         <span>{tab === "everyone" ? "User" : "Period"}</span>
         <span>Select</span>
         <span className="text-right">Point</span>
       </div>
-      <div className="grid gap-1 px-4 pb-4">
+      <div className="max-h-[430px] overflow-hidden px-4 pb-4">
         {rows.length === 0 ? (
           <p className="rounded-2xl bg-[#f8faf7] px-3 py-4 text-center text-sm font-bold text-muted">
             Your orders will appear here.
           </p>
         ) : (
-          rows.map((order) => (
-            <div key={order.id} className="grid grid-cols-[1fr_0.8fr_0.7fr] items-center gap-2 rounded-2xl bg-[#f8faf7] px-3 py-2 text-sm font-bold">
+          <div className="grid gap-1">
+          {rows.map((order, index) => (
+            <motion.div
+              key={order.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.18, delay: Math.min(index, 10) * 0.035 }}
+              className="grid grid-cols-[1fr_0.8fr_0.8fr] items-center gap-2 rounded-2xl bg-[#f8faf7] px-3 py-2 text-sm font-bold"
+            >
               <span className="truncate text-muted">
                 {tab === "everyone" ? order.user : order.period}
               </span>
@@ -572,12 +555,23 @@ function OrdersPanel({
                 <ResultDot result={order.choice} small />
                 {order.choice.slice(0, 1)}
               </span>
-              <span className="truncate text-right text-ink">{formatCoinString(order.amount)}</span>
-            </div>
-          ))
+              <OrderAmount amount={order.amount} outcome={order.outcome} />
+            </motion.div>
+          ))}
+          </div>
         )}
       </div>
     </section>
+  );
+}
+
+function OrderAmount({ amount, outcome }: { amount: string | number; outcome: "WIN" | "LOSS" }) {
+  const win = outcome === "WIN";
+
+  return (
+    <span className={`truncate text-right font-black tabular-nums ${win ? "text-[#106b3d]" : "text-[#991b1b]"}`}>
+      {win ? "+" : "-"}{formatCoinString(amount)}
+    </span>
   );
 }
 
@@ -610,22 +604,41 @@ function dedupeBets<TBet extends BetDto>(bets: TBet[]) {
   return bets.filter((bet, index, all) => all.findIndex((item) => item.id === bet.id) === index);
 }
 
+function getOrderOutcome(status: string): "WIN" | "LOSS" {
+  return status === "WON" ? "WIN" : "LOSS";
+}
+
 interface OrderRow {
   id: string;
   user: string;
   period: string;
   choice: PredictionColor;
   amount: string | number;
+  outcome: "WIN" | "LOSS";
   real: boolean;
 }
 
 const dummyOrders: OrderRow[] = [
-  { id: "dummy-1", user: "***114", period: "#849", choice: "GREEN", amount: 50, real: false },
-  { id: "dummy-2", user: "***821", period: "#848", choice: "RED", amount: 100, real: false },
-  { id: "dummy-3", user: "***309", period: "#847", choice: "VIOLET", amount: 20, real: false },
-  { id: "dummy-4", user: "***640", period: "#846", choice: "GREEN", amount: 200, real: false },
-  { id: "dummy-5", user: "***512", period: "#845", choice: "RED", amount: 50, real: false },
-  { id: "dummy-6", user: "***778", period: "#844", choice: "VIOLET", amount: 500, real: false },
+  { id: "dummy-1", user: "***114", period: "#849", choice: "GREEN", amount: 50, outcome: "WIN", real: false },
+  { id: "dummy-2", user: "***821", period: "#848", choice: "RED", amount: 100, outcome: "LOSS", real: false },
+  { id: "dummy-3", user: "***309", period: "#847", choice: "VIOLET", amount: 20, outcome: "WIN", real: false },
+  { id: "dummy-4", user: "***640", period: "#846", choice: "GREEN", amount: 200, outcome: "LOSS", real: false },
+  { id: "dummy-5", user: "***512", period: "#845", choice: "RED", amount: 50, outcome: "LOSS", real: false },
+  { id: "dummy-6", user: "***778", period: "#844", choice: "VIOLET", amount: 500, outcome: "WIN", real: false },
+  { id: "dummy-7", user: "***291", period: "#843", choice: "GREEN", amount: 30, outcome: "WIN", real: false },
+  { id: "dummy-8", user: "***604", period: "#842", choice: "RED", amount: 80, outcome: "LOSS", real: false },
+  { id: "dummy-9", user: "***018", period: "#841", choice: "VIOLET", amount: 150, outcome: "LOSS", real: false },
+  { id: "dummy-10", user: "***935", period: "#840", choice: "GREEN", amount: 300, outcome: "WIN", real: false },
+  { id: "dummy-11", user: "***472", period: "#839", choice: "RED", amount: 25, outcome: "LOSS", real: false },
+  { id: "dummy-12", user: "***706", period: "#838", choice: "VIOLET", amount: 70, outcome: "WIN", real: false },
+  { id: "dummy-13", user: "***560", period: "#837", choice: "GREEN", amount: 120, outcome: "LOSS", real: false },
+  { id: "dummy-14", user: "***822", period: "#836", choice: "RED", amount: 60, outcome: "WIN", real: false },
+  { id: "dummy-15", user: "***197", period: "#835", choice: "VIOLET", amount: 250, outcome: "LOSS", real: false },
+  { id: "dummy-16", user: "***449", period: "#834", choice: "GREEN", amount: 90, outcome: "WIN", real: false },
+  { id: "dummy-17", user: "***730", period: "#833", choice: "RED", amount: 400, outcome: "LOSS", real: false },
+  { id: "dummy-18", user: "***316", period: "#832", choice: "VIOLET", amount: 40, outcome: "WIN", real: false },
+  { id: "dummy-19", user: "***688", period: "#831", choice: "GREEN", amount: 600, outcome: "LOSS", real: false },
+  { id: "dummy-20", user: "***052", period: "#830", choice: "RED", amount: 10, outcome: "WIN", real: false },
 ];
 
 function getOutcome(
