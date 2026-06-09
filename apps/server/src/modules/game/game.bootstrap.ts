@@ -1,0 +1,28 @@
+import { getRedisClient } from "../../database/redis.client.js";
+import { getPrismaClient } from "../../database/prisma.client.js";
+import { WalletRepository } from "../wallet/wallet.repository.js";
+import { WalletService } from "../wallet/wallet.service.js";
+import { GameRepository } from "./repositories/game.repository.js";
+import { RedisLockService } from "./services/redis-lock.service.js";
+import { ResultService } from "./services/result.service.js";
+import { RoundService } from "./services/round.service.js";
+import { SchedulerService } from "./services/scheduler.service.js";
+
+export function startGameEngine() {
+  const redis = getRedisClient();
+
+  if (!redis) {
+    console.warn("Game engine scheduler disabled: REDIS_URL is not configured.");
+    return null;
+  }
+
+  const prisma = getPrismaClient();
+  const gameRepository = new GameRepository(prisma);
+  const walletService = new WalletService(new WalletRepository(prisma));
+  const roundService = new RoundService(gameRepository, new ResultService(), walletService);
+  const scheduler = new SchedulerService(roundService, new RedisLockService(redis));
+
+  scheduler.start();
+
+  return scheduler;
+}

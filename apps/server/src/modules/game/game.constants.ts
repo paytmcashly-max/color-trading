@@ -1,0 +1,8 @@
+import { BET_LOCK_TIME_SECONDS, GAME_TIME_SECONDS } from "@color-trading/shared";
+
+export const ROUND_DURATION_MS = GAME_TIME_SECONDS * 1000;
+export const BET_LOCK_AFTER_MS = BET_LOCK_TIME_SECONDS * 1000;
+export const ROUND_LOCK_TTL_MS = 5000;
+export const ROUND_SCHEDULER_TICK_MS = 1000;
+export const WIN_PAYOUT_MULTIPLIER = 2;
+export const WINNER_SETTLEMENT_CONCURRENCY = 100;

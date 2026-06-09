@@ -1,0 +1,13 @@
+node_modules
+.next
+.turbo
+coverage
+dist
+build
+*.log
+.env
+.env.*
+apps/client/.next
+apps/server/dist
+apps/server/node_modules
+packages/shared/dist

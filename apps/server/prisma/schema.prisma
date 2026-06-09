@@ -1,0 +1,309 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [citext, pgcrypto]
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum WalletStatus {
+  ACTIVE
+  FROZEN
+  CLOSED
+}
+
+enum CoinLedgerType {
+  BET_DEBIT
+  BET_WIN_CREDIT
+  PURCHASE_CREDIT
+  BONUS_CREDIT
+  ADMIN_ADJUSTMENT
+}
+
+enum CoinLedgerDirection {
+  DEBIT
+  CREDIT
+}
+
+enum CoinLedgerStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum LedgerReferenceType {
+  BET
+  ROUND
+  COIN_PACKAGE
+  ADMIN_ACTION
+  EXTERNAL_PURCHASE
+}
+
+enum RoundStatus {
+  INIT
+  OPEN
+  LOCKED
+  RESOLVING
+  COMPLETED
+  CANCELLED
+}
+
+enum PredictionColor {
+  RED
+  GREEN
+  VIOLET
+}
+
+enum BetStatus {
+  PENDING
+  WON
+  LOST
+  CANCELLED
+}
+
+enum FraudSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+}
+
+model User {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String     @unique @db.Citext
+  passwordHash String     @map("password_hash")
+  displayName  String?    @map("display_name") @db.VarChar(80)
+  status       UserStatus @default(ACTIVE)
+  role         UserRole   @default(USER)
+  lastLoginAt  DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  wallet        Wallet?
+  bets          Bet[]
+  ledgerEntries CoinLedger[]
+  sessions      AuthSession[]
+  auditLogs     AuditLog[]    @relation("AdminAuditLogs")
+  fraudLogs     FraudLog[]
+  riskProfile   UserRiskProfile?
+
+  @@index([role])
+  @@index([status])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model FraudLog {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?       @map("user_id") @db.Uuid
+  eventType String        @map("event_type") @db.VarChar(80)
+  severity  FraudSeverity
+  metadata  Json?
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([severity, createdAt])
+  @@map("fraud_logs")
+}
+
+model LogEntry {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  level     LogLevel
+  message   String   @db.VarChar(240)
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([level, createdAt])
+  @@index([message, createdAt])
+  @@map("logs")
+}
+
+model SystemMetric {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  metricName String   @map("metric_name") @db.VarChar(120)
+  value      Decimal  @db.Decimal(18, 4)
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([metricName, createdAt])
+  @@map("system_metrics")
+}
+
+model UserRiskProfile {
+  userId       String   @id @map("user_id") @db.Uuid
+  riskScore    Int      @default(0) @map("risk_score")
+  isBlocked    Boolean  @default(false) @map("is_blocked")
+  botSuspected Boolean  @default(false) @map("bot_suspected")
+  lastUpdated  DateTime @default(now()) @map("last_updated") @db.Timestamptz(6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([riskScore])
+  @@index([isBlocked])
+  @@index([botSuspected])
+  @@map("user_risk_profiles")
+}
+
+model AuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  adminUserId String?  @map("admin_user_id") @db.Uuid
+  actorId     String?  @map("actor_id") @db.VarChar(120)
+  actorType   String   @default("ADMIN") @map("actor_type") @db.VarChar(40)
+  action      String?  @db.VarChar(120)
+  actionType  String   @map("action_type") @db.VarChar(80)
+  targetType  String?  @map("target_type") @db.VarChar(80)
+  targetId    String?  @map("target_id") @db.VarChar(120)
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  adminUser User? @relation("AdminAuditLogs", fields: [adminUserId], references: [id], onDelete: Restrict)
+
+  @@index([adminUserId, createdAt])
+  @@index([actionType, createdAt])
+  @@index([targetType, targetId])
+  @@map("audit_logs")
+}
+
+model AuthSession {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  refreshTokenHash String    @unique @map("refresh_token_hash") @db.VarChar(128)
+  userAgent        String?   @map("user_agent") @db.VarChar(512)
+  ipAddress        String?   @map("ip_address") @db.Inet
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@map("auth_sessions")
+}
+
+model Wallet {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String       @unique @map("user_id") @db.Uuid
+  balanceCoins  BigInt       @default(0) @map("balance_coins")
+  ledgerVersion BigInt       @default(0) @map("ledger_version")
+  status        WalletStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user          User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  ledgerEntries CoinLedger[]
+
+  @@index([status])
+  @@map("wallets")
+}
+
+model CoinLedger {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String               @map("user_id") @db.Uuid
+  walletId          String               @map("wallet_id") @db.Uuid
+  type              CoinLedgerType
+  direction         CoinLedgerDirection
+  amountCoins       BigInt               @map("amount_coins")
+  balanceAfterCoins BigInt?              @map("balance_after_coins")
+  idempotencyKey    String               @unique @map("idempotency_key") @db.VarChar(160)
+  referenceType     LedgerReferenceType? @map("reference_type")
+  referenceId       String?              @map("reference_id") @db.Uuid
+  status            CoinLedgerStatus     @default(PENDING)
+  metadata          Json?
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([walletId, createdAt])
+  @@index([referenceType, referenceId])
+  @@index([status, createdAt])
+  @@index([type, createdAt])
+  @@map("coin_ledger")
+}
+
+model GameRound {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @map("round_id") @db.Uuid
+  roundNumber BigInt           @unique @map("round_number")
+  startTime   DateTime         @map("start_time") @db.Timestamptz(6)
+  lockTime    DateTime         @map("lock_time") @db.Timestamptz(6)
+  endTime     DateTime         @map("end_time") @db.Timestamptz(6)
+  status      RoundStatus      @default(INIT)
+  result      PredictionColor?
+  seedHash    String           @map("seed_hash") @db.VarChar(128)
+  seedReveal  String?          @map("seed_reveal") @db.VarChar(128)
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  bets Bet[]
+
+  @@index([status, startTime])
+  @@index([startTime])
+  @@index([lockTime])
+  @@index([endTime])
+  @@map("game_rounds")
+}
+
+model Bet {
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String          @map("user_id") @db.Uuid
+  roundId      String          @map("round_id") @db.Uuid
+  choice       PredictionColor
+  coinsStaked  BigInt          @map("coins_staked")
+  status       BetStatus       @default(PENDING)
+  payoutAmount BigInt          @default(0) @map("payout_amount")
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user  User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  round GameRound @relation(fields: [roundId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, roundId])
+  @@index([userId, createdAt])
+  @@index([roundId])
+  @@index([roundId, status])
+  @@index([status, createdAt])
+  @@map("bets")
+}
+
+model CoinPackage {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @db.VarChar(80)
+  coinsAmount Int      @map("coins_amount")
+  price       Decimal? @db.Decimal(12, 2)
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([active, sortOrder])
+  @@map("coin_packages")
+}

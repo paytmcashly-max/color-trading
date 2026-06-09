@@ -1,0 +1,26 @@
+{
+  "name": "color-trading",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Production-grade real-time virtual prediction game SaaS monorepo.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:client": "npm run dev -w @color-trading/client",
+    "dev:server": "npm run dev -w @color-trading/server",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "docker:server:build": "docker build -f apps/server/Dockerfile -t color-trading-api:local .",
+    "compose:up": "docker compose up --build",
+    "compose:down": "docker compose down"
+  },
+  "engines": {
+    "node": ">=20.11.0",
+    "npm": ">=10.0.0"
+  }
+}
