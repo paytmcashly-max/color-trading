@@ -1,47 +1,34 @@
-import type { BetStatus, PredictionColor, RoundStatus, UserRole, UserStatus } from "@color-trading/shared";
+import type {
+  AuthSession,
+  AuthTokenPair,
+  AuthUser,
+  BetStatus,
+  PredictionColor,
+  RoundLifecycleStatus,
+  RoundStatus,
+  WalletBalance,
+  WalletTransaction,
+} from "@color-trading/shared";
 
-export interface UserDto {
-  id: string;
-  email: string;
-  displayName: string | null;
-  role: UserRole;
-  status: UserStatus;
-  createdAt: string;
-  updatedAt: string;
-}
+export type UserDto = AuthUser;
 
-export interface TokenPair {
-  accessToken: string;
-  refreshToken: string;
-  tokenType: "Bearer";
-  expiresInSeconds: number;
-}
+export type TokenPair = AuthTokenPair;
 
-export interface AuthResponse {
-  user: UserDto;
-  tokens: TokenPair;
-}
+export type AuthResponse = AuthSession;
 
-export interface WalletDto {
-  id: string;
-  userId: string;
-  depositBalance: string;
-  winningBalance: string;
-  totalBalance: string;
-  ledgerVersion: string;
-  status: string;
-  createdAt?: string;
-  updatedAt: string;
-}
+export type WalletDto = WalletBalance;
 
 export interface RoundDto {
   id: string;
   roundNumber: string;
+  startedAt?: string;
+  endedAt?: string;
   startTime: string;
   lockTime: string;
   endTime: string;
-  status: RoundStatus;
-  phase?: "IDLE" | "BETTING_OPEN" | "BETTING_CLOSED" | "RESULT_CALCULATING" | "RESULT_DECLARED";
+  status: RoundStatus | RoundLifecycleStatus;
+  dbStatus?: RoundStatus;
+  phase?: RoundLifecycleStatus;
   result: PredictionColor | null;
   seedHash: string;
   seedReveal: string | null;
@@ -54,11 +41,37 @@ export interface BetDto {
   userId: string;
   roundId: string;
   choice: PredictionColor;
+  selection?: PredictionColor;
+  amount?: string;
   coinsStaked: string;
   status: BetStatus;
   payoutAmount: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface UserBetHistoryDto extends BetDto {
+  round?: {
+    roundNumber: string;
+    status: RoundStatus;
+    result: PredictionColor | null;
+    startTime: string;
+    endTime: string;
+  };
+}
+
+export interface RoundHistoryDto extends RoundDto {
+  betCount: number;
+}
+
+export interface LeaderboardUserDto {
+  rank: number;
+  userId: string;
+  email: string;
+  displayName: string | null;
+  depositBalance: string;
+  winningBalance: string;
+  totalBalance: string;
 }
 
 export interface LedgerEntryDto {
@@ -68,6 +81,7 @@ export interface LedgerEntryDto {
   type: string;
   direction: string;
   amountCoins: string;
+  balanceBeforeCoins: string | null;
   balanceAfterCoins: string | null;
   idempotencyKey?: string;
   referenceType?: string | null;
@@ -77,6 +91,8 @@ export interface LedgerEntryDto {
   createdAt: string;
   updatedAt?: string;
 }
+
+export type WalletTransactionDto = WalletTransaction;
 
 export interface AdminUserDto extends UserDto {
   lastLoginAt: string | null;

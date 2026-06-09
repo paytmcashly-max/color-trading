@@ -59,3 +59,28 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
     throw new HttpError(401, "INVALID_TOKEN", "Invalid or expired access token.");
   }
 }
+
+export function verifyRefreshToken(token: string): RefreshTokenPayload {
+  try {
+    const payload = jwt.verify(token, env.JWT_REFRESH_SECRET, {
+      issuer: env.JWT_ISSUER,
+      audience: env.JWT_AUDIENCE,
+    }) as jwt.JwtPayload;
+
+    if (
+      typeof payload.sub !== "string" ||
+      typeof payload.sessionId !== "string" ||
+      payload.tokenType !== "refresh"
+    ) {
+      throw new Error("Invalid refresh token payload");
+    }
+
+    return {
+      sub: payload.sub,
+      sessionId: payload.sessionId,
+      tokenType: "refresh",
+    };
+  } catch {
+    throw new HttpError(401, "INVALID_REFRESH_TOKEN", "Invalid or expired refresh token.");
+  }
+}

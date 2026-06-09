@@ -95,7 +95,7 @@ export function serializeAdminBet(
 }
 
 export function serializeAdminLedger(
-  entry: Pick<CoinLedger, "id" | "userId" | "walletId" | "type" | "direction" | "amountCoins" | "balanceAfterCoins" | "idempotencyKey" | "referenceType" | "referenceId" | "status" | "metadata" | "createdAt" | "updatedAt">,
+  entry: Pick<CoinLedger, "id" | "userId" | "walletId" | "type" | "direction" | "amountCoins" | "balanceBeforeCoins" | "balanceAfterCoins" | "idempotencyKey" | "referenceType" | "referenceId" | "status" | "metadata" | "createdAt" | "updatedAt">,
 ) {
   return {
     id: entry.id,
@@ -104,6 +104,7 @@ export function serializeAdminLedger(
     type: entry.type,
     direction: entry.direction,
     amountCoins: entry.amountCoins.toString(),
+    balanceBeforeCoins: entry.balanceBeforeCoins?.toString() ?? null,
     balanceAfterCoins: entry.balanceAfterCoins?.toString() ?? null,
     idempotencyKey: entry.idempotencyKey,
     referenceType: entry.referenceType,

@@ -14,38 +14,30 @@ export class BetService {
   ) {}
 
   async placeBet(userId: string, dto: PlaceBetDto) {
-    const reservation = await this.reservePendingBet(userId, dto);
-    const { bet } = reservation;
+    const replay = await this.findIdempotentReplay(userId, dto);
 
-    try {
-      const walletResult = await this.walletService.debitCoins({
-        userId,
-        amountCoins: dto.coinsStaked,
-        referenceId: bet.id,
-        idempotencyKey: `bet:${bet.id}:debit:${dto.idempotencyKey}`,
-      });
-      const wallet = await this.resolveWalletSnapshot(userId, walletResult);
-
-      if (reservation.created) {
-        publishGameEvent("bet:placed", {
-          bet: serializeBet(bet),
-        });
-      }
-
-      return {
-        bet: serializeBet(bet),
-        wallet,
-        ledgerEntry: walletResult.ledgerEntry,
-      };
-    } catch (error) {
-      if (reservation.created) {
-        await this.gameRepository.deletePendingBet(bet.id);
-      }
-      throw error;
+    if (replay) {
+      return replay;
     }
+
+    const result = await this.createBetAndDebitWallet(userId, dto);
+
+    if ("ledgerEntry" in result) {
+      publishGameEvent("bet:placed", {
+        bet: result.bet,
+      });
+      this.walletService.publishWalletUpdate(userId, result.wallet, result.ledgerEntry);
+    }
+
+    return {
+      bet: result.bet,
+      wallet: result.wallet,
+      ...("ledgerEntry" in result ? { ledgerEntry: result.ledgerEntry } : {}),
+      ...("idempotentReplay" in result ? { idempotentReplay: result.idempotentReplay } : {}),
+    };
   }
 
-  private async reservePendingBet(userId: string, dto: PlaceBetDto) {
+  private async createBetAndDebitWallet(userId: string, dto: PlaceBetDto) {
     try {
       return await this.gameRepository.transaction(async (tx) => {
         const round = await this.gameRepository.lockOpenRoundForBet(tx, dto.roundId);
@@ -66,7 +58,24 @@ export class BetService {
           idempotencyKey: dto.idempotencyKey,
         });
 
-        return { bet, created: true } as const;
+        const walletResult = await this.walletService.debitCoinsInTransaction(tx, {
+          userId,
+          amountCoins: dto.coinsStaked,
+          referenceId: bet.id,
+          idempotencyKey: `bet:${bet.id}:debit:${dto.idempotencyKey}`,
+        });
+
+        const wallet =
+          "wallet" in walletResult && walletResult.wallet
+            ? walletResult.wallet
+            : (await this.walletService.getWalletBalance(userId)).wallet;
+
+        return {
+          bet: serializeBet(bet),
+          wallet,
+          ledgerEntry: walletResult.ledgerEntry,
+          created: true,
+        };
       });
     } catch (error) {
       if (isUniqueConstraintError(error)) {
@@ -77,11 +86,39 @@ export class BetService {
     }
   }
 
+  private async findIdempotentReplay(userId: string, dto: PlaceBetDto) {
+    const existingBet = await this.gameRepository.findBetByIdempotencyKey(dto.idempotencyKey);
+
+    if (!existingBet) {
+      return null;
+    }
+
+    if (!this.isSameBet(existingBet, userId, dto)) {
+      throw new HttpError(
+        409,
+        "IDEMPOTENCY_KEY_CONFLICT",
+        "Idempotency key was already used for a different bet.",
+      );
+    }
+
+    return {
+      bet: serializeBet(existingBet),
+      wallet: (await this.walletService.getWalletBalance(userId)).wallet,
+      idempotentReplay: true,
+      created: false,
+    };
+  }
+
   private async handleDuplicateBet(userId: string, dto: PlaceBetDto) {
     const idempotentBet = await this.gameRepository.findBetByIdempotencyKey(dto.idempotencyKey);
 
     if (this.isSameBet(idempotentBet, userId, dto)) {
-      return { bet: idempotentBet!, created: false } as const;
+      return {
+        bet: serializeBet(idempotentBet!),
+        wallet: (await this.walletService.getWalletBalance(userId)).wallet,
+        idempotentReplay: true,
+        created: false,
+      };
     }
 
     throw new HttpError(409, "DUPLICATE_BET", "User already placed a bet for this round.");
@@ -101,16 +138,6 @@ export class BetService {
     );
   }
 
-  private async resolveWalletSnapshot(
-    userId: string,
-    walletResult: Awaited<ReturnType<WalletService["debitCoins"]>>,
-  ) {
-    if ("wallet" in walletResult) {
-      return walletResult.wallet;
-    }
-
-    return (await this.walletService.getWalletBalance(userId)).wallet;
-  }
 }
 
 function isUniqueConstraintError(error: unknown) {

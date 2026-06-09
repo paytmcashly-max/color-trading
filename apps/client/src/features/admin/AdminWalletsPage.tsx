@@ -111,7 +111,17 @@ export function AdminWalletsPage() {
 
           <LedgerList entries={ledgerQuery.data?.entries ?? []} />
         </div>
-      ) : null}
+      ) : userId && !walletQuery.isLoading ? (
+        <Card className="mt-4">
+          <p className="font-black">Wallet not found</p>
+          <p className="mt-1 text-sm text-muted">Check the user id and try again.</p>
+        </Card>
+      ) : (
+        <Card className="mt-4">
+          <p className="font-black">Search a user wallet</p>
+          <p className="mt-1 text-sm text-muted">Enter a user id to inspect balances and transaction history.</p>
+        </Card>
+      )}
     </AdminShell>
   );
 }
@@ -121,6 +131,9 @@ function LedgerList({ entries }: { entries: Array<{ id: string; type: string; di
     <Card>
       <p className="text-xs font-bold uppercase text-muted">Ledger audit trail</p>
       <div className="mt-3 grid gap-2">
+        {entries.length === 0 ? (
+          <p className="text-sm text-muted">No ledger entries for this wallet yet.</p>
+        ) : null}
         {entries.map((entry) => (
           <div key={entry.id} className="rounded-md border border-line bg-[#f8fbf8] p-3">
             <div className="flex items-center justify-between gap-3">

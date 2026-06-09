@@ -102,7 +102,7 @@ model User {
   bets          Bet[]
   ledgerEntries CoinLedger[]
   sessions      AuthSession[]
-  auditLogs     AuditLog[]    @relation("AdminAuditLogs")
+  auditLogs     AuditLog[]       @relation("AdminAuditLogs")
   fraudLogs     FraudLog[]
   riskProfile   UserRiskProfile?
 
@@ -208,14 +208,14 @@ model AuthSession {
 }
 
 model Wallet {
-  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId        String       @unique @map("user_id") @db.Uuid
-  depositBalance BigInt      @default(1000) @map("deposit_balance")
-  winningBalance BigInt      @default(0) @map("winning_balance")
-  ledgerVersion BigInt       @default(0) @map("ledger_version")
-  status        WalletStatus @default(ACTIVE)
-  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String       @unique @map("user_id") @db.Uuid
+  depositBalance BigInt       @default(1000) @map("deposit_balance")
+  winningBalance BigInt       @default(0) @map("winning_balance")
+  ledgerVersion  BigInt       @default(0) @map("ledger_version")
+  status         WalletStatus @default(ACTIVE)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user          User         @relation(fields: [userId], references: [id], onDelete: Restrict)
   ledgerEntries CoinLedger[]
@@ -225,20 +225,21 @@ model Wallet {
 }
 
 model CoinLedger {
-  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId            String               @map("user_id") @db.Uuid
-  walletId          String               @map("wallet_id") @db.Uuid
-  type              CoinLedgerType
-  direction         CoinLedgerDirection
-  amountCoins       BigInt               @map("amount_coins")
-  balanceAfterCoins BigInt?              @map("balance_after_coins")
-  idempotencyKey    String               @unique @map("idempotency_key") @db.VarChar(160)
-  referenceType     LedgerReferenceType? @map("reference_type")
-  referenceId       String?              @map("reference_id") @db.Uuid
-  status            CoinLedgerStatus     @default(PENDING)
-  metadata          Json?
-  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String               @map("user_id") @db.Uuid
+  walletId           String               @map("wallet_id") @db.Uuid
+  type               CoinLedgerType
+  direction          CoinLedgerDirection
+  amountCoins        BigInt               @map("amount_coins")
+  balanceBeforeCoins BigInt?              @map("balance_before_coins")
+  balanceAfterCoins  BigInt?              @map("balance_after_coins")
+  idempotencyKey     String               @unique @map("idempotency_key") @db.VarChar(160)
+  referenceType      LedgerReferenceType? @map("reference_type")
+  referenceId        String?              @map("reference_id") @db.Uuid
+  status             CoinLedgerStatus     @default(PENDING)
+  metadata           Json?
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
@@ -274,16 +275,16 @@ model GameRound {
 }
 
 model Bet {
-  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId       String          @map("user_id") @db.Uuid
-  roundId      String          @map("round_id") @db.Uuid
-  choice       PredictionColor
-  coinsStaked  BigInt          @map("coins_staked")
-  idempotencyKey String?       @unique @map("idempotency_key") @db.VarChar(160)
-  status       BetStatus       @default(PENDING)
-  payoutAmount BigInt          @default(0) @map("payout_amount")
-  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String          @map("user_id") @db.Uuid
+  roundId        String          @map("round_id") @db.Uuid
+  choice         PredictionColor
+  coinsStaked    BigInt          @map("coins_staked")
+  idempotencyKey String?         @unique @map("idempotency_key") @db.VarChar(160)
+  status         BetStatus       @default(PENDING)
+  payoutAmount   BigInt          @default(0) @map("payout_amount")
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user  User      @relation(fields: [userId], references: [id], onDelete: Restrict)
   round GameRound @relation(fields: [roundId], references: [id], onDelete: Restrict)

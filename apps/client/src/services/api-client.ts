@@ -7,11 +7,15 @@ import type {
   AuthResponse,
   BetDto,
   LedgerEntryDto,
+  LeaderboardUserDto,
+  RoundHistoryDto,
   RoundDto,
   FraudLogDto,
   RiskProfileDto,
   SuspiciousBettingPatternDto,
+  UserBetHistoryDto,
   WalletDto,
+  WalletTransactionDto,
 } from "@/types/api";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -89,6 +93,13 @@ export function register(email: string, password: string, displayName?: string) 
   });
 }
 
+export function refreshSession(refreshToken: string) {
+  return request<AuthResponse>("/auth/refresh", {
+    method: "POST",
+    body: JSON.stringify({ refreshToken }),
+  });
+}
+
 export function fetchMe(accessToken: string) {
   return request<{ user: AuthResponse["user"] }>("/auth/me", {}, accessToken);
 }
@@ -105,8 +116,24 @@ export function fetchLedger(accessToken: string) {
   return request<{ entries: LedgerEntryDto[] }>("/wallet/ledger", {}, accessToken);
 }
 
+export function fetchWalletTransactions(accessToken: string) {
+  return request<{ transactions: WalletTransactionDto[] }>("/wallet/transactions", {}, accessToken);
+}
+
 export function fetchCurrentRound() {
   return request<{ round: RoundDto | null }>("/game/round/current");
+}
+
+export function fetchRoundHistory() {
+  return request<{ rounds: RoundHistoryDto[] }>("/game/rounds/history");
+}
+
+export function fetchMyBetHistory(accessToken: string) {
+  return request<{ bets: UserBetHistoryDto[] }>("/game/bets/me", {}, accessToken);
+}
+
+export function fetchLeaderboard() {
+  return request<{ users: LeaderboardUserDto[] }>("/users/leaderboard");
 }
 
 export function placePrediction(
@@ -120,7 +147,11 @@ export function placePrediction(
 ) {
   return request<{ bet: BetDto; wallet?: WalletDto }>("/game/bets", {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      ...input,
+      selection: input.choice,
+      amount: input.coinsStaked,
+    }),
   }, accessToken);
 }
 

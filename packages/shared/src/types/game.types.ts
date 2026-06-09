@@ -7,6 +7,7 @@ export type UserRole = "USER" | "ADMIN";
 export type UserStatus = "ACTIVE" | "SUSPENDED" | "DELETED";
 
 export type RoundStatus = "INIT" | "OPEN" | "LOCKED" | "RESOLVING" | "COMPLETED" | "CANCELLED";
+export type RoundLifecycleStatus = "BETTING_OPEN" | "BETTING_CLOSED" | "RESULT_DECLARED";
 
 export type BetStatus = "PENDING" | "WON" | "LOST" | "CANCELLED";
 
@@ -33,7 +34,7 @@ export interface Wallet {
 export interface GameRound {
   id: EntityId;
   roundNumber: number;
-  status: RoundStatus;
+  status: RoundStatus | RoundLifecycleStatus;
   resultColor: PredictionColor | null;
   startsAt: ISODateString;
   locksAt: ISODateString;
@@ -47,6 +48,8 @@ export interface Bet {
   userId: EntityId;
   roundId: EntityId;
   color: PredictionColor;
+  selection: PredictionColor;
+  amount: number;
   amountCoins: number;
   status: BetStatus;
   createdAt: ISODateString;

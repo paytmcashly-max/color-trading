@@ -1,5 +1,5 @@
-import { DashboardPage } from "@/features/dashboard/DashboardPage";
+import { GamePage } from "@/features/game/GamePage";
 
 export default function HomePage() {
-  return <DashboardPage />;
+  return <GamePage />;
 }

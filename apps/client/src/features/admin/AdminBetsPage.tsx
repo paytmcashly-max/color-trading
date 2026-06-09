@@ -46,6 +46,12 @@ export function AdminBetsPage() {
       ) : null}
 
       <div className="mt-4 grid gap-3">
+        {data?.bets.length === 0 ? (
+          <Card>
+            <p className="font-black">No bets found</p>
+            <p className="mt-1 text-sm text-muted">Live predictions will appear here as users play.</p>
+          </Card>
+        ) : null}
         {data?.bets.map((bet) => (
           <Card key={bet.id}>
             <div className="flex flex-wrap items-center justify-between gap-3">

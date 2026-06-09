@@ -38,6 +38,16 @@ export class AuthController {
     });
   };
 
+  refresh = async (req: Request, res: Response) => {
+    const result = await this.authService.refresh(req.body, getRequestMetadata(req));
+
+    res.status(200).json({
+      success: true,
+      message: "Session refreshed successfully.",
+      data: result,
+    });
+  };
+
   me = async (req: Request, res: Response) => {
     const result = await this.authService.me(req.auth!.userId);
 

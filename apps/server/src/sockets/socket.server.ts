@@ -332,7 +332,7 @@ function routeRealtimeEvent(io: Server, event: RealtimeEvent) {
     return;
   }
 
-  if (event.name === "bet:placed") {
+  if (event.name.startsWith("bet:")) {
     io.to(GLOBAL_GAME_ROOM).to("admin").emit(event.name, event.payload);
     return;
   }
@@ -437,11 +437,14 @@ function emitRoundStateSnapshot(
   socket: Socket,
   snapshot: Awaited<ReturnType<typeof buildStateSnapshot>>,
 ) {
-  socket.emit("round:state", {
+  const payload = {
     round: snapshot.currentRound,
     remainingSeconds: snapshot.currentRound ? calculateRemainingSeconds(snapshot.currentRound) : 0,
     syncedAt: snapshot.syncedAt,
-  });
+  };
+
+  socket.emit("round:update", payload);
+  socket.emit("round:state", payload);
 }
 
 function toSocketError(error: unknown) {
@@ -459,8 +462,9 @@ function toSocketError(error: unknown) {
   };
 }
 
-function calculateRemainingSeconds(round: { status: string; lockTime: string; endTime: string }) {
-  const target = round.status === "OPEN" ? round.lockTime : round.endTime;
+function calculateRemainingSeconds(round: { status: string; phase?: string; lockTime: string; endTime: string }) {
+  const isOpen = round.status === "OPEN" || round.status === "BETTING_OPEN" || round.phase === "BETTING_OPEN";
+  const target = isOpen ? round.lockTime : round.endTime;
   return Math.max(0, Math.ceil((new Date(target).getTime() - Date.now()) / 1000));
 }
 

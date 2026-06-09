@@ -9,10 +9,10 @@ import {
 } from "@prisma/client";
 
 import { HttpError } from "../../../common/errors/http-error.js";
-import { signAccessToken, signRefreshToken } from "../../../common/utils/jwt.js";
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../../common/utils/jwt.js";
 import { hashToken } from "../../../common/utils/token-hash.js";
 import { env } from "../../../config/env.js";
-import type { LoginDto, RegisterDto } from "../dto/auth.dto.js";
+import type { LoginDto, RefreshTokenDto, RegisterDto } from "../dto/auth.dto.js";
 import { hashPassword, verifyPassword } from "./password.service.js";
 
 const INITIAL_VIRTUAL_COINS = 1000n;
@@ -63,6 +63,7 @@ export class AuthService {
           type: CoinLedgerType.BONUS_CREDIT,
           direction: CoinLedgerDirection.CREDIT,
           amountCoins: INITIAL_VIRTUAL_COINS,
+          balanceBeforeCoins: 0n,
           balanceAfterCoins: INITIAL_VIRTUAL_COINS,
           idempotencyKey: `user:${createdUser.id}:initial-virtual-coins`,
           referenceType: LedgerReferenceType.ADMIN_ACTION,
@@ -120,6 +121,48 @@ export class AuthService {
     });
 
     return { success: true };
+  }
+
+  async refresh(dto: RefreshTokenDto, metadata: RequestMetadata) {
+    const payload = verifyRefreshToken(dto.refreshToken);
+    const refreshTokenHash = hashToken(dto.refreshToken);
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const session = await tx.authSession.findFirst({
+        where: {
+          id: payload.sessionId,
+          userId: payload.sub,
+          refreshTokenHash,
+          revokedAt: null,
+          expiresAt: {
+            gt: new Date(),
+          },
+        },
+        select: {
+          id: true,
+          user: {
+            select: safeUserSelect,
+          },
+        },
+      });
+
+      if (!session || session.user.status !== UserStatus.ACTIVE) {
+        throw new HttpError(401, "INVALID_REFRESH_TOKEN", "Invalid or expired refresh token.");
+      }
+
+      await tx.authSession.update({
+        where: {
+          id: session.id,
+        },
+        data: {
+          revokedAt: new Date(),
+        },
+      });
+
+      return session.user;
+    });
+
+    return this.createTokenPair(user, metadata);
   }
 
   async me(userId: string) {

@@ -33,7 +33,7 @@ export function AdminGuard({ children }: { children: ReactNode }) {
           <p className="text-xs font-bold uppercase text-[#8d1f1f]">Blocked</p>
           <h1 className="mt-2 text-2xl font-extrabold">Admin role required</h1>
           <p className="mt-2 text-sm text-[#7b3333]">This control center is restricted to ADMIN users.</p>
-          <Link href="/dashboard" className="mt-4 block">
+          <Link href="/" className="mt-4 block">
             <Button variant="secondary" className="w-full">Return to app</Button>
           </Link>
         </Card>

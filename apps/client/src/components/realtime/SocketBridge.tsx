@@ -22,6 +22,7 @@ export function SocketBridge() {
     socket.on("connect", () => {
       setConnected(true);
       joinGameRoomOverSocket();
+      socket.emit("state:sync");
     });
     socket.on("disconnect", () => setConnected(false));
     socket.on("system:sync", (payload) => {
@@ -32,6 +33,7 @@ export function SocketBridge() {
       applyRealtimeEvent("round:created", payload);
       joinPayloadRound(payload);
     });
+    socket.on("round:update", (payload) => applyRealtimeEvent("round:update", payload));
     socket.on("round:state", (payload) => applyRealtimeEvent("round:state", payload));
     socket.on("round:timer", (payload) => applyRealtimeEvent("round:timer", payload));
     socket.on("round:lock", (payload) => applyRealtimeEvent("round:lock", payload));
@@ -39,8 +41,10 @@ export function SocketBridge() {
     socket.on("round:result", (payload) => applyRealtimeEvent("round:result", payload));
     socket.on("round:completed", (payload) => applyRealtimeEvent("round:completed", payload));
     socket.on("bet:placed", (payload) => applyRealtimeEvent("bet:placed", payload));
+    socket.on("bet:settled", (payload) => applyRealtimeEvent("bet:settled", payload));
     socket.on("wallet:update", (payload) => applyRealtimeEvent("wallet:update", payload));
     socket.on("user:balance_sync", (payload) => applyRealtimeEvent("user:balance_sync", payload));
+    socket.on("system:health", (payload) => applyRealtimeEvent("system:health", payload));
     socket.on("system:error", (payload) => applyRealtimeEvent("system:error", payload));
 
     return () => {

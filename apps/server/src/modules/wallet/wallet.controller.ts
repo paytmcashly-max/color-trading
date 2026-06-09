@@ -17,6 +17,11 @@ export class WalletController {
     res.status(200).json(result);
   };
 
+  transactions = async (req: Request, res: Response) => {
+    const result = await this.walletService.getTransactionHistory(req.auth!.userId);
+    res.status(200).json(result);
+  };
+
   bonusCredit = async (req: Request, res: Response) => {
     const result = await this.walletService.creditCoins({
       userId: req.auth!.userId,

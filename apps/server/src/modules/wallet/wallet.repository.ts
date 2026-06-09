@@ -30,6 +30,7 @@ interface LedgerCreateInput {
   type: CoinLedgerType;
   direction: CoinLedgerDirection;
   amountCoins: bigint;
+  balanceBeforeCoins: bigint;
   balanceAfterCoins: bigint;
   idempotencyKey: string;
   referenceType: LedgerReferenceType;
@@ -69,6 +70,7 @@ export class WalletRepository {
             type: CoinLedgerType.BONUS_CREDIT,
             direction: CoinLedgerDirection.CREDIT,
             amountCoins: INITIAL_VIRTUAL_COINS,
+            balanceBeforeCoins: 0n,
             balanceAfterCoins: INITIAL_VIRTUAL_COINS,
             idempotencyKey: `user:${userId}:initial-virtual-coins`,
             referenceType: LedgerReferenceType.ADMIN_ACTION,
@@ -117,8 +119,27 @@ export class WalletRepository {
     });
   }
 
+  findLedgerByIdempotencyKeyInTx(tx: TxClient, idempotencyKey: string) {
+    return tx.coinLedger.findUnique({
+      where: { idempotencyKey },
+    });
+  }
+
   findLedgerByIdempotencyKeyForUser(userId: string, idempotencyKey: string) {
     return this.prisma.coinLedger.findFirst({
+      where: {
+        userId,
+        idempotencyKey,
+      },
+    });
+  }
+
+  findLedgerByIdempotencyKeyForUserInTx(
+    tx: TxClient,
+    userId: string,
+    idempotencyKey: string,
+  ) {
+    return tx.coinLedger.findFirst({
       where: {
         userId,
         idempotencyKey,

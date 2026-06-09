@@ -8,11 +8,13 @@ import { useAuthStore } from "@/store/auth-store";
 
 const adminInvalidationMap: Record<string, string[][]> = {
   "round:created": [["admin", "rounds"], ["admin", "active-round"], ["admin", "health"]],
+  "round:update": [["admin", "rounds"], ["admin", "active-round"], ["admin", "health"]],
   "round:lock": [["admin", "rounds"], ["admin", "active-round"], ["admin", "health"]],
   "round:locked": [["admin", "rounds"], ["admin", "active-round"], ["admin", "health"]],
   "round:result": [["admin", "rounds"], ["admin", "active-round"], ["admin", "bets"], ["admin", "health"]],
   "round:completed": [["admin", "rounds"], ["admin", "active-round"], ["admin", "health"]],
   "bet:placed": [["admin", "bets"], ["admin", "rounds"], ["admin", "health"]],
+  "bet:settled": [["admin", "bets"], ["admin", "rounds"], ["admin", "health"]],
   "wallet:update": [["admin", "wallet"], ["admin", "ledger"], ["admin", "users"], ["admin", "health"]],
   "system:error": [["admin", "health"]],
   "fraud:alert": [["admin", "fraud-logs"], ["admin", "risk-profiles"], ["admin", "health"]],

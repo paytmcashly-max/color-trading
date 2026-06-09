@@ -72,7 +72,11 @@ export function placeBetOverSocket(input: {
   }
 
   return new Promise<{ bet: BetDto; wallet?: WalletDto }>((resolve, reject) => {
-    socket.timeout(5000).emit("bet:place", input, (error: Error | null, response?: SocketBetAck) => {
+    socket.timeout(5000).emit("bet:place", {
+      ...input,
+      selection: input.choice,
+      amount: input.coinsStaked,
+    }, (error: Error | null, response?: SocketBetAck) => {
       if (error) {
         reject(new Error("Realtime request timed out."));
         return;

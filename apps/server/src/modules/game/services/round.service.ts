@@ -9,7 +9,7 @@ import {
   WINNER_SETTLEMENT_CONCURRENCY,
 } from "../game.constants.js";
 import { publishGameEvent } from "../game.events.js";
-import { serializeRound } from "../game.serializer.js";
+import { serializeBet, serializeRound } from "../game.serializer.js";
 import type { BetRecord, GameRepository, GameRoundRecord } from "../repositories/game.repository.js";
 import type { ResultService } from "./result.service.js";
 import type { WalletService } from "../../wallet/wallet.service.js";
@@ -26,6 +26,34 @@ export class RoundService {
 
     return {
       round: round ? serializeRound(round) : null,
+    };
+  }
+
+  async getRoundHistory() {
+    const rounds = await this.gameRepository.findRoundHistory();
+
+    return {
+      rounds: rounds.map((round) => ({
+        ...serializeRound(round),
+        betCount: round._count.bets,
+      })),
+    };
+  }
+
+  async getUserBetHistory(userId: string) {
+    const bets = await this.gameRepository.findUserBetHistory(userId);
+
+    return {
+      bets: bets.map((bet) => ({
+        ...serializeBet(bet),
+        round: {
+          roundNumber: bet.round.roundNumber.toString(),
+          status: bet.round.status,
+          result: bet.round.result,
+          startTime: bet.round.startTime.toISOString(),
+          endTime: bet.round.endTime.toISOString(),
+        },
+      })),
     };
   }
 
@@ -92,7 +120,8 @@ export class RoundService {
     }
 
     const openRound = await this.openRound(round);
-    publishGameEvent("round:start", { round: serializeRound(openRound) });
+    publishGameEvent("round:start", this.buildRoundPayload(openRound));
+    publishGameEvent("round:update", this.buildRoundPayload(openRound));
     publishGameEvent("round:created", { round: serializeRound(openRound) });
 
     return openRound;
@@ -120,7 +149,8 @@ export class RoundService {
     if (updated.count > 0) {
       const lockedRound = await this.gameRepository.findRoundById(round.id);
       if (lockedRound) {
-        publishGameEvent("round:lock", { round: serializeRound(lockedRound) });
+        publishGameEvent("round:lock", this.buildRoundPayload(lockedRound));
+        publishGameEvent("round:update", this.buildRoundPayload(lockedRound));
         publishGameEvent("round:locked", { round: serializeRound(lockedRound) });
         this.emitTimer(lockedRound);
         return lockedRound;
@@ -171,14 +201,11 @@ export class RoundService {
 
     if (completedRound) {
       publishGameEvent("round:result", {
-        round: serializeRound(completedRound),
+        ...this.buildRoundPayload(completedRound),
         result,
       });
-      publishGameEvent("round:state", {
-        round: serializeRound(completedRound),
-        result,
-        remainingSeconds: 0,
-      });
+      publishGameEvent("round:update", this.buildRoundPayload(completedRound));
+      publishGameEvent("round:state", this.buildRoundPayload(completedRound));
       publishGameEvent("round:completed", {
         round: serializeRound(completedRound),
       });
@@ -198,7 +225,11 @@ export class RoundService {
 
   private async settleBet(roundId: string, result: string, bet: BetRecord) {
     if (bet.choice !== result) {
-      await this.gameRepository.updateBetStatus(bet.id, "LOST");
+      const updatedBet = await this.gameRepository.updateBetStatus(bet.id, "LOST");
+      publishGameEvent("bet:settled", {
+        bet: serializeBet(updatedBet),
+        result,
+      });
       return;
     }
 
@@ -215,7 +246,11 @@ export class RoundService {
       idempotencyKey: `round:${roundId}:bet:${bet.id}:win`,
     });
 
-    await this.gameRepository.updateBetStatus(bet.id, "WON", payoutAmount);
+    const updatedBet = await this.gameRepository.updateBetStatus(bet.id, "WON", payoutAmount);
+    publishGameEvent("bet:settled", {
+      bet: serializeBet(updatedBet),
+      result,
+    });
   }
 
   private async getSeedReveal(roundId: string) {
@@ -226,23 +261,34 @@ export class RoundService {
   }
 
   private emitTimer(round: GameRoundRecord) {
-    const now = Date.now();
-    const targetTime =
-      round.status === RoundStatus.OPEN ? round.lockTime.getTime() : round.endTime.getTime();
-    const remainingSeconds = Math.max(0, Math.ceil((targetTime - now) / 1000));
+    const payload = this.buildRoundPayload(round);
 
     publishGameEvent("round:timer", {
       roundId: round.id,
-      status: round.status,
-      remainingSeconds,
+      status: payload.round.status,
+      dbStatus: round.status,
+      remainingSeconds: payload.remainingSeconds,
       lockTime: round.lockTime.toISOString(),
       endTime: round.endTime.toISOString(),
     });
-    publishGameEvent("round:state", {
+    publishGameEvent("round:update", payload);
+    publishGameEvent("round:state", payload);
+  }
+
+  private buildRoundPayload(round: GameRoundRecord) {
+    const now = Date.now();
+    const targetTime =
+      round.status === RoundStatus.OPEN || round.status === RoundStatus.INIT
+        ? round.lockTime.getTime()
+        : round.endTime.getTime();
+    const remainingSeconds = Math.max(0, Math.ceil((targetTime - now) / 1000));
+
+    return {
       round: serializeRound(round),
       remainingSeconds,
       lockTime: round.lockTime.toISOString(),
       endTime: round.endTime.toISOString(),
-    });
+      syncedAt: new Date().toISOString(),
+    };
   }
 }

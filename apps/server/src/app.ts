@@ -7,6 +7,7 @@ import { env } from "./config/env.js";
 import { healthRouter } from "./common/health/health.routes.js";
 import { errorHandler } from "./common/middleware/error-handler.js";
 import { globalApiRateLimiter } from "./common/middleware/global-rate-limit.js";
+import { requestLogger } from "./common/middleware/request-logger.js";
 import { versionRouter } from "./common/version/version.routes.js";
 import { registerModuleRoutes } from "./modules/index.js";
 import { requestTracer } from "./modules/observability/requestTracer.js";
@@ -25,6 +26,7 @@ export function createApp() {
   );
   app.use(compression());
   app.use(requestTracer);
+  app.use(requestLogger);
   app.use(express.json({ limit: "1mb" }));
   app.use(globalApiRateLimiter);
 

@@ -19,6 +19,7 @@ const walletController = new WalletController(walletService);
 
 walletRouter.get("/balance", authGuard, asyncHandler(walletController.balance));
 walletRouter.get("/ledger", authGuard, asyncHandler(walletController.history));
+walletRouter.get("/transactions", authGuard, asyncHandler(walletController.transactions));
 
 walletRouter.post(
   "/bonus-credit",

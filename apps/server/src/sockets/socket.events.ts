@@ -8,6 +8,7 @@ import { getRedisClient } from "../database/redis.client.js";
 export type RealtimeEventName =
   | "round:start"
   | "round:created"
+  | "round:update"
   | "round:state"
   | "round:timer"
   | "round:lock"
@@ -15,6 +16,7 @@ export type RealtimeEventName =
   | "round:result"
   | "round:completed"
   | "bet:placed"
+  | "bet:settled"
   | "wallet:update"
   | "user:joined"
   | "user:balance_sync"
@@ -152,6 +154,7 @@ async function cacheEventState(redis: Redis, event: RealtimeEvent) {
     if (
       event.name === "round:start" ||
       event.name === "round:created" ||
+      event.name === "round:update" ||
       event.name === "round:state" ||
       event.name === "round:timer"
     ) {

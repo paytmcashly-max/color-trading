@@ -12,7 +12,7 @@ import { hashToken } from "../../common/utils/token-hash.js";
 import { logger } from "../../common/utils/logger.js";
 import { publishRealtimeEvent } from "../../sockets/socket.events.js";
 import type { WalletRepository, LedgerRecord, LockedWallet } from "./wallet.repository.js";
-import { serializeLedgerEntry, serializeWallet } from "./wallet.serializer.js";
+import { serializeLedgerEntry, serializeWallet, serializeWalletTransaction } from "./wallet.serializer.js";
 
 interface LedgerMutationInput {
   userId: string;
@@ -26,6 +26,8 @@ interface MovementInput extends LedgerMutationInput {
   direction: CoinLedgerDirection;
   referenceType: LedgerReferenceType;
 }
+
+type TxClient = Prisma.TransactionClient;
 
 export class WalletService {
   constructor(private readonly walletRepository: WalletRepository) {}
@@ -60,6 +62,15 @@ export class WalletService {
     });
   }
 
+  debitCoinsInTransaction(tx: TxClient, input: LedgerMutationInput) {
+    return this.applyLedgerMovementInTransaction(tx, {
+      ...input,
+      type: CoinLedgerType.BET_DEBIT,
+      direction: CoinLedgerDirection.DEBIT,
+      referenceType: LedgerReferenceType.BET,
+    });
+  }
+
   creditBetWinnings(input: LedgerMutationInput) {
     return this.applyLedgerMovement({
       ...input,
@@ -82,6 +93,14 @@ export class WalletService {
 
     return {
       entries: entries.map(serializeLedgerEntry),
+    };
+  }
+
+  async getTransactionHistory(userId: string) {
+    const entries = await this.walletRepository.getLedgerHistory(userId);
+
+    return {
+      transactions: entries.map(serializeWalletTransaction),
     };
   }
 
@@ -122,6 +141,7 @@ export class WalletService {
             type: input.type,
             direction: input.direction,
             amountCoins,
+            balanceBeforeCoins: currentTotalBalance,
             balanceAfterCoins: currentTotalBalance,
             idempotencyKey: input.idempotencyKey,
             referenceType: input.referenceType,
@@ -144,6 +164,7 @@ export class WalletService {
           type: input.type,
           direction: input.direction,
           amountCoins,
+          balanceBeforeCoins: currentTotalBalance,
           balanceAfterCoins: nextTotalBalance,
           idempotencyKey: input.idempotencyKey,
           referenceType: input.referenceType,
@@ -215,6 +236,84 @@ export class WalletService {
 
       throw error;
     }
+  }
+
+  async applyLedgerMovementInTransaction(tx: TxClient, input: MovementInput) {
+    this.assertValidAmount(input.amountCoins);
+
+    const existingLedger = await this.walletRepository.findLedgerByIdempotencyKeyInTx(
+      tx,
+      input.idempotencyKey,
+    );
+
+    if (existingLedger) {
+      this.assertIdempotentReplay(existingLedger, input);
+      this.assertReplayWasSuccessful(existingLedger);
+
+      return {
+        idempotentReplay: true,
+        ledgerEntry: serializeLedgerEntry(existingLedger),
+      };
+    }
+
+    const wallet = await this.walletRepository.ensureWalletForUser(tx, input.userId);
+    this.assertWalletCanTransact(wallet);
+
+    const amountCoins = BigInt(input.amountCoins);
+    const currentTotalBalance = wallet.depositBalance + wallet.winningBalance;
+    const nextBalances = this.calculateNextBalances(wallet, amountCoins, input);
+    const nextTotalBalance = nextBalances.depositBalance + nextBalances.winningBalance;
+
+    if (nextBalances.insufficientFunds) {
+      await this.walletRepository.createLedgerEntry(tx, {
+        userId: input.userId,
+        walletId: wallet.id,
+        type: input.type,
+        direction: input.direction,
+        amountCoins,
+        balanceBeforeCoins: currentTotalBalance,
+        balanceAfterCoins: currentTotalBalance,
+        idempotencyKey: input.idempotencyKey,
+        referenceType: input.referenceType,
+        referenceId: input.referenceId,
+        status: CoinLedgerStatus.FAILED,
+        metadata: {
+          reason: "INSUFFICIENT_FUNDS",
+        },
+      });
+
+      throw new HttpError(409, "INSUFFICIENT_FUNDS", "Wallet balance is too low.");
+    }
+
+    const ledgerEntry = await this.walletRepository.createLedgerEntry(tx, {
+      userId: input.userId,
+      walletId: wallet.id,
+      type: input.type,
+      direction: input.direction,
+      amountCoins,
+      balanceBeforeCoins: currentTotalBalance,
+      balanceAfterCoins: nextTotalBalance,
+      idempotencyKey: input.idempotencyKey,
+      referenceType: input.referenceType,
+      referenceId: input.referenceId,
+      status: CoinLedgerStatus.SUCCESS,
+      metadata: this.buildLedgerMetadata(wallet, nextBalances, currentTotalBalance, nextTotalBalance),
+    });
+
+    const updatedWallet = await this.walletRepository.updateWalletSnapshot(
+      tx,
+      wallet.id,
+      {
+        depositBalance: nextBalances.depositBalance,
+        winningBalance: nextBalances.winningBalance,
+      },
+    );
+
+    return {
+      idempotentReplay: false,
+      wallet: serializeWallet(updatedWallet),
+      ledgerEntry: serializeLedgerEntry(ledgerEntry),
+    };
   }
 
   private assertValidAmount(amountCoins: number) {
@@ -289,7 +388,7 @@ export class WalletService {
     };
   }
 
-  private publishWalletUpdate(
+  publishWalletUpdate(
     userId: string,
     wallet: ReturnType<typeof serializeWallet>,
     ledgerEntry: ReturnType<typeof serializeLedgerEntry>,

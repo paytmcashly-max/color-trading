@@ -158,6 +158,7 @@ CREATE TABLE "coin_ledger" (
     "type" "CoinLedgerType" NOT NULL,
     "direction" "CoinLedgerDirection" NOT NULL,
     "amount_coins" BIGINT NOT NULL,
+    "balance_before_coins" BIGINT,
     "balance_after_coins" BIGINT,
     "idempotency_key" VARCHAR(160) NOT NULL,
     "reference_type" "LedgerReferenceType",
@@ -363,3 +364,20 @@ ALTER TABLE "bets" ADD CONSTRAINT "bets_user_id_fkey" FOREIGN KEY ("user_id") RE
 
 -- AddForeignKey
 ALTER TABLE "bets" ADD CONSTRAINT "bets_round_id_fkey" FOREIGN KEY ("round_id") REFERENCES "game_rounds"("round_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- Read-only wallet transaction projection. coin_ledger remains the source of truth.
+CREATE OR REPLACE VIEW "wallet_transactions" AS
+SELECT
+    "id",
+    "user_id",
+    CASE
+        WHEN "type" = 'BET_DEBIT' THEN 'BET'
+        WHEN "type" = 'BET_WIN_CREDIT' THEN 'WIN'
+        WHEN "type" = 'ADMIN_ADJUSTMENT' THEN 'ADMIN_ADJUSTMENT'
+        ELSE 'DEPOSIT'
+    END AS "type",
+    "amount_coins" AS "amount",
+    "balance_before_coins" AS "balance_before",
+    "balance_after_coins" AS "balance_after",
+    "created_at"
+FROM "coin_ledger";

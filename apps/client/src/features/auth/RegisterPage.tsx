@@ -2,7 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/Button";
@@ -12,6 +12,7 @@ import { AuthLayout } from "./AuthLayout";
 
 export function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const setSession = useAuthStore((state) => state.setSession);
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -21,18 +22,18 @@ export function RegisterPage() {
     mutationFn: () => register(email, password, displayName || undefined),
     onSuccess: (response) => {
       setSession(response.user, response.tokens);
-      router.push("/dashboard");
+      router.push(getSafeNextPath(searchParams.get("next")));
     },
   });
 
   return (
     <AuthLayout
       title="Create account"
-      subtitle="Set up a secure profile for virtual coin prediction rounds."
+      subtitle="Create your player profile and start with virtual coins."
       footer={
         <>
           Already joined?{" "}
-          <Link href="/login" className="font-black text-ink">
+          <Link href="/login" className="font-black text-[#16874f]">
             Sign in
           </Link>
         </>
@@ -45,19 +46,19 @@ export function RegisterPage() {
           mutation.mutate();
         }}
       >
-        <label className="grid gap-2 text-sm font-bold">
+        <label className="grid gap-2 text-sm font-bold text-ink">
           Display name
           <input
-            className="min-h-12 rounded-md border border-line bg-white px-3 outline-none focus:border-ink"
+            className="min-h-12 rounded-2xl border border-line bg-white px-3 text-ink outline-none focus:border-[#16874f]"
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
             autoComplete="nickname"
           />
         </label>
-        <label className="grid gap-2 text-sm font-bold">
+        <label className="grid gap-2 text-sm font-bold text-ink">
           Email
           <input
-            className="min-h-12 rounded-md border border-line bg-white px-3 outline-none focus:border-ink"
+            className="min-h-12 rounded-2xl border border-line bg-white px-3 text-ink outline-none focus:border-[#16874f]"
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
@@ -65,10 +66,10 @@ export function RegisterPage() {
             required
           />
         </label>
-        <label className="grid gap-2 text-sm font-bold">
+        <label className="grid gap-2 text-sm font-bold text-ink">
           Password
           <input
-            className="min-h-12 rounded-md border border-line bg-white px-3 outline-none focus:border-ink"
+            className="min-h-12 rounded-2xl border border-line bg-white px-3 text-ink outline-none focus:border-[#16874f]"
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
@@ -90,4 +91,12 @@ export function RegisterPage() {
       </form>
     </AuthLayout>
   );
+}
+
+function getSafeNextPath(next: string | null) {
+  if (!next || !next.startsWith("/") || next.startsWith("//")) {
+    return "/";
+  }
+
+  return next;
 }

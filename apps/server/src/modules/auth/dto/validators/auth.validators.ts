@@ -19,3 +19,7 @@ export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(1).max(128),
 });
+
+export const refreshTokenSchema = z.object({
+  refreshToken: z.string().trim().min(32).max(2048),
+});

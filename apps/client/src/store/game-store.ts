@@ -7,6 +7,7 @@ import type { BetDto, RoundDto, WalletDto } from "@/types/api";
 type EventName =
   | "system:sync"
   | "round:created"
+  | "round:update"
   | "round:state"
   | "round:timer"
   | "round:lock"
@@ -14,8 +15,10 @@ type EventName =
   | "round:result"
   | "round:completed"
   | "bet:placed"
+  | "bet:settled"
   | "wallet:update"
   | "user:balance_sync"
+  | "system:health"
   | "system:error";
 
 interface GameState {
@@ -26,6 +29,7 @@ interface GameState {
   timerRemainingSeconds: number;
   lastResult: string | null;
   lastError: string | null;
+  lastSocketHealthAt: string | null;
   setSocketConnected: (connected: boolean) => void;
   setRound: (round: RoundDto | null) => void;
   setWallet: (wallet: WalletDto | null) => void;
@@ -41,6 +45,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   timerRemainingSeconds: 0,
   lastResult: null,
   lastError: null,
+  lastSocketHealthAt: null,
   setSocketConnected: (connected) => set({ socketConnected: connected }),
   setRound: (round) => set({ currentRound: round }),
   setWallet: (wallet) => set({ wallet }),
@@ -56,6 +61,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     if (
       (name === "round:created" ||
+        name === "round:update" ||
         name === "round:state" ||
         name === "round:lock" ||
         name === "round:locked" ||
@@ -85,7 +91,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       return;
     }
 
-    if (name === "bet:placed" && isRecord(payload) && isBet(payload.bet)) {
+    if ((name === "bet:placed" || name === "bet:settled") && isRecord(payload) && isBet(payload.bet)) {
       set({ activeBets: upsertBet(get().activeBets, payload.bet) });
       return;
     }
@@ -97,6 +103,15 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     if (name === "system:error" && isRecord(payload)) {
       set({ lastError: typeof payload.message === "string" ? payload.message : "Realtime sync issue" });
+      return;
+    }
+
+    if (name === "system:health" && isRecord(payload)) {
+      set({
+        socketConnected: true,
+        lastSocketHealthAt:
+          typeof payload.timestamp === "string" ? payload.timestamp : new Date().toISOString(),
+      });
     }
   },
 }));

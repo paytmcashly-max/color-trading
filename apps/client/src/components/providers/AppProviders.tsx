@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 
+import { AuthProvider } from "@/components/providers/AuthProvider";
 import { SocketBridge } from "@/components/realtime/SocketBridge";
 
 export function AppProviders({ children }: { children: ReactNode }) {
@@ -21,8 +22,10 @@ export function AppProviders({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <SocketBridge />
-      {children}
+      <AuthProvider>
+        <SocketBridge />
+        {children}
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

@@ -70,6 +70,12 @@ export function AdminRoundsPage() {
       </div>
 
       <div className="mt-4 grid gap-3">
+        {data?.rounds.length === 0 ? (
+          <Card>
+            <p className="font-black">No rounds yet</p>
+            <p className="mt-1 text-sm text-muted">The scheduler will create rounds when the engine is running.</p>
+          </Card>
+        ) : null}
         {data?.rounds.map((round) => (
           <Card key={round.id}>
             <div className="flex flex-wrap items-center justify-between gap-3">

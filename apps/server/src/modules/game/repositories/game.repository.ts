@@ -193,6 +193,44 @@ export class GameRepository {
       orderBy: { createdAt: "asc" },
     });
   }
+
+  findRoundHistory(limit = 30) {
+    return this.prisma.gameRound.findMany({
+      where: {
+        status: {
+          in: [RoundStatus.COMPLETED, RoundStatus.CANCELLED],
+        },
+      },
+      orderBy: { startTime: "desc" },
+      take: limit,
+      include: {
+        _count: {
+          select: {
+            bets: true,
+          },
+        },
+      },
+    });
+  }
+
+  findUserBetHistory(userId: string, limit = 50) {
+    return this.prisma.bet.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      include: {
+        round: {
+          select: {
+            roundNumber: true,
+            status: true,
+            result: true,
+            startTime: true,
+            endTime: true,
+          },
+        },
+      },
+    });
+  }
 }
 
 export type GameRoundRecord = GameRound;

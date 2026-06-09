@@ -37,6 +37,7 @@ export function serializeLedgerEntry(
     | "type"
     | "direction"
     | "amountCoins"
+    | "balanceBeforeCoins"
     | "balanceAfterCoins"
     | "idempotencyKey"
     | "referenceType"
@@ -53,6 +54,7 @@ export function serializeLedgerEntry(
     type: entry.type,
     direction: entry.direction,
     amountCoins: entry.amountCoins.toString(),
+    balanceBeforeCoins: entry.balanceBeforeCoins?.toString() ?? null,
     balanceAfterCoins: entry.balanceAfterCoins?.toString() ?? null,
     idempotencyKey: entry.idempotencyKey,
     referenceType: entry.referenceType,
@@ -61,4 +63,57 @@ export function serializeLedgerEntry(
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString(),
   };
+}
+
+export function serializeWalletTransaction(
+  entry: Pick<
+    CoinLedger,
+    | "id"
+    | "userId"
+    | "type"
+    | "direction"
+    | "amountCoins"
+    | "balanceBeforeCoins"
+    | "balanceAfterCoins"
+    | "createdAt"
+  >,
+) {
+  const balanceBefore = entry.balanceBeforeCoins ?? deriveBalanceBefore(entry);
+  const balanceAfter = entry.balanceAfterCoins ?? balanceBefore;
+
+  return {
+    id: entry.id,
+    userId: entry.userId,
+    type: mapWalletTransactionType(entry.type),
+    amount: entry.amountCoins.toString(),
+    balanceBefore: balanceBefore.toString(),
+    balanceAfter: balanceAfter.toString(),
+    createdAt: entry.createdAt.toISOString(),
+  };
+}
+
+function deriveBalanceBefore(
+  entry: Pick<CoinLedger, "direction" | "amountCoins" | "balanceAfterCoins">,
+) {
+  const balanceAfter = entry.balanceAfterCoins ?? 0n;
+
+  return entry.direction === "CREDIT"
+    ? balanceAfter - entry.amountCoins
+    : balanceAfter + entry.amountCoins;
+}
+
+function mapWalletTransactionType(type: CoinLedger["type"]) {
+  if (type === "BET_DEBIT") {
+    return "BET";
+  }
+
+  if (type === "BET_WIN_CREDIT") {
+    return "WIN";
+  }
+
+  if (type === "ADMIN_ADJUSTMENT") {
+    return "ADMIN_ADJUSTMENT";
+  }
+
+  return "DEPOSIT";
 }

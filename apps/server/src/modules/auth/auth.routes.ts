@@ -7,7 +7,7 @@ import { getPrismaClient } from "../../database/prisma.client.js";
 import { authMiddleware } from "../../middlewares/auth.middleware.js";
 import { fraudAuthRateLimit } from "../fraud/fraud.middleware.js";
 import { AuthController } from "./auth.controller.js";
-import { loginSchema, registerSchema } from "./auth.dto.js";
+import { loginSchema, refreshTokenSchema, registerSchema } from "./auth.dto.js";
 import { AuthService } from "./auth.service.js";
 
 export const authRouter = Router();
@@ -44,4 +44,10 @@ authRouter.post(
   asyncHandler(authController.login),
 );
 authRouter.post("/logout", authMiddleware, asyncHandler(authController.logout));
+authRouter.post(
+  "/refresh",
+  authRateLimiter,
+  validateBody(refreshTokenSchema),
+  asyncHandler(authController.refresh),
+);
 authRouter.get("/me", authMiddleware, asyncHandler(authController.me));

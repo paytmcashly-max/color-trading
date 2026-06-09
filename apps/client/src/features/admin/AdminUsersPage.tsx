@@ -45,6 +45,12 @@ export function AdminUsersPage() {
 
       <div className="mt-4 grid gap-3">
         {isLoading ? <Card>Loading users...</Card> : null}
+        {!isLoading && data?.users.length === 0 ? (
+          <Card>
+            <p className="font-black">No users found</p>
+            <p className="mt-1 text-sm text-muted">Try a different search term or clear the filter.</p>
+          </Card>
+        ) : null}
         {data?.users.map((user) => (
           <Card key={user.id}>
             <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
