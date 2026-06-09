@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -14,6 +14,7 @@ if (!databaseUrl) {
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const schemaPath = resolve(scriptDir, "../prisma/init.sql");
+const migrationsPath = resolve(scriptDir, "../prisma/migrations");
 
 const client = new Client({ connectionString: databaseUrl });
 
@@ -30,6 +31,16 @@ try {
     const sql = await readFile(schemaPath, "utf8");
     await client.query(sql);
     console.log("Database schema applied from init.sql.");
+  }
+
+  const migrations = (await readdir(migrationsPath))
+    .filter((fileName) => fileName.endsWith(".sql"))
+    .sort();
+
+  for (const migration of migrations) {
+    const sql = await readFile(resolve(migrationsPath, migration), "utf8");
+    await client.query(sql);
+    console.log(`Database migration applied: ${migration}`);
   }
 } finally {
   await client.end();
