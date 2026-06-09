@@ -12,7 +12,7 @@ export function ConnectionPill() {
   return (
     <span
       title={lastHealthAt ? `Last socket health: ${new Date(lastHealthAt).toLocaleTimeString()}` : undefined}
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-extrabold ${connected ? "bg-[#e5f8ee] text-[#16874f]" : "bg-[#eef1ee] text-muted"}`}
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-extrabold ${connected ? "bg-[#1fd87a]/18 text-[#83ffc3]" : "bg-white/10 text-white/50"}`}
     >
       <Icon size={14} aria-hidden="true" />
       {connected ? "Live" : "Sync"}

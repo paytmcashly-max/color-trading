@@ -1,5 +1,5 @@
-import { GamePage } from "@/features/game/GamePage";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <GamePage />;
+  redirect("/games");
 }
