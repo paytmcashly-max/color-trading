@@ -79,7 +79,7 @@ export class BetService {
       });
     } catch (error) {
       if (isUniqueConstraintError(error)) {
-        return this.handleDuplicateBet(userId, dto);
+        return this.handleIdempotencyConflict(userId, dto);
       }
 
       throw error;
@@ -109,7 +109,7 @@ export class BetService {
     };
   }
 
-  private async handleDuplicateBet(userId: string, dto: PlaceBetDto) {
+  private async handleIdempotencyConflict(userId: string, dto: PlaceBetDto) {
     const idempotentBet = await this.gameRepository.findBetByIdempotencyKey(dto.idempotencyKey);
 
     if (this.isSameBet(idempotentBet, userId, dto)) {
@@ -121,7 +121,11 @@ export class BetService {
       };
     }
 
-    throw new HttpError(409, "DUPLICATE_BET", "User already placed a bet for this round.");
+    throw new HttpError(
+      409,
+      "IDEMPOTENCY_KEY_CONFLICT",
+      "Idempotency key was already used for a different bet.",
+    );
   }
 
   private isSameBet(

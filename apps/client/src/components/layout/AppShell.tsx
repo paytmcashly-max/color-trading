@@ -10,7 +10,7 @@ import { useAuthStore } from "@/store/auth-store";
 
 const navItems = [
   { href: "/", label: "Home", icon: Home },
-  { href: "/games", label: "Games", icon: Gamepad2 },
+  { href: "/game/color-prediction", label: "Play", icon: Gamepad2 },
   { href: "/wallet", label: "Wallet", icon: WalletCards },
   { href: "/history", label: "History", icon: Clock3 },
   { href: "/profile", label: "Profile", icon: UserRound },
@@ -67,8 +67,8 @@ export function AppShell({
             const active =
               pathname === item.href ||
               (pathname === "/dashboard" && item.href === "/") ||
-              (pathname === "/game" && item.href === "/games") ||
-              (pathname.startsWith("/game/") && item.href === "/games");
+              (pathname === "/game" && item.href === "/game/color-prediction") ||
+              (pathname.startsWith("/game/") && item.href === "/game/color-prediction");
             const Icon = item.icon;
 
             return (
@@ -77,7 +77,7 @@ export function AppShell({
                 href={item.href}
                 className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-black transition active:scale-95 ${
                   active
-                    ? "bg-ink text-white shadow-[0_8px_22px_rgba(23,32,26,0.16)]"
+                    ? "bg-[#e9f8ef] text-[#16874f] shadow-[0_8px_20px_rgba(22,135,79,0.12)]"
                     : "text-muted hover:bg-[#eef3ee] hover:text-ink"
                 }`}
               >

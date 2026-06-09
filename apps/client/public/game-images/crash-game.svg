@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Crash Game">
+  <defs>
+    <linearGradient id="bg" x1="14" y1="22" x2="148" y2="140" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fee2e2"/>
+      <stop offset=".56" stop-color="#eef2ff"/>
+      <stop offset="1" stop-color="#ffedd5"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="160" rx="34" fill="url(#bg)"/>
+  <path d="M29 116C51 106 66 86 79 67c16-23 29-34 52-28" fill="none" stroke="#ef4444" stroke-width="13" stroke-linecap="round"/>
+  <path d="M94 38l38 1-15 34" fill="none" stroke="#17201a" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="41" cy="116" r="10" fill="#17201a" opacity=".18"/>
+  <circle cx="78" cy="72" r="12" fill="#f97316"/>
+</svg>

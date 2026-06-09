@@ -289,8 +289,8 @@ model Bet {
   user  User      @relation(fields: [userId], references: [id], onDelete: Restrict)
   round GameRound @relation(fields: [roundId], references: [id], onDelete: Restrict)
 
-  @@unique([userId, roundId])
   @@index([userId, createdAt])
+  @@index([userId, roundId])
   @@index([roundId])
   @@index([roundId, status])
   @@index([status, createdAt])

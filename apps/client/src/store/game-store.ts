@@ -27,6 +27,7 @@ interface GameState {
   wallet: WalletDto | null;
   activeBets: BetDto[];
   liveActivity: string[];
+  recentResults: Array<Pick<RoundDto, "id" | "roundNumber" | "result">>;
   timerRemainingSeconds: number;
   lastResult: string | null;
   lastError: string | null;
@@ -44,6 +45,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   wallet: null,
   activeBets: [],
   liveActivity: [],
+  recentResults: [],
   timerRemainingSeconds: 0,
   lastResult: null,
   lastError: null,
@@ -89,7 +91,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
 
     if (name === "round:result" && isRecord(payload) && isRound(payload.round)) {
-      set({ currentRound: payload.round, lastResult: payload.round.result });
+      set({
+        currentRound: payload.round,
+        lastResult: payload.round.result,
+        recentResults: prependResult(get().recentResults, payload.round),
+      });
       return;
     }
 
@@ -129,6 +135,23 @@ function upsertBet(bets: BetDto[], bet: BetDto) {
 
 function prependActivity(activity: string[], item: string | null) {
   return item ? [item, ...activity].slice(0, 12) : activity;
+}
+
+function prependResult(
+  results: Array<Pick<RoundDto, "id" | "roundNumber" | "result">>,
+  round: RoundDto,
+) {
+  if (!round.result) {
+    return results;
+  }
+
+  const next = {
+    id: round.id,
+    roundNumber: round.roundNumber,
+    result: round.result,
+  };
+
+  return [next, ...results.filter((item) => item.id !== round.id)].slice(0, 20);
 }
 
 function formatBetActivity(name: EventName, bet: BetDto) {

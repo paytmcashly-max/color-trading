@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Roulette">
+  <defs>
+    <linearGradient id="bg" x1="18" y1="12" x2="142" y2="146" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fef3c7"/>
+      <stop offset=".52" stop-color="#dcfce7"/>
+      <stop offset="1" stop-color="#ffedd5"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="160" rx="34" fill="url(#bg)"/>
+  <circle cx="80" cy="80" r="52" fill="#fff" stroke="#17201a" stroke-opacity=".18" stroke-width="8"/>
+  <path d="M80 28a52 52 0 0 1 45 78L80 80z" fill="#ef4444"/>
+  <path d="M125 106a52 52 0 0 1-90 0l45-26z" fill="#16a34a"/>
+  <path d="M35 106a52 52 0 0 1 45-78v52z" fill="#8b5cf6"/>
+  <circle cx="80" cy="80" r="17" fill="#17201a"/>
+  <circle cx="80" cy="80" r="7" fill="#fff"/>
+</svg>

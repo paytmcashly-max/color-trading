@@ -9,6 +9,7 @@ export interface GameModule {
   status: GameStatus;
   category: string;
   activePlayers: number;
+  imageSrc: string;
   accent: {
     from: string;
     via: string;

@@ -150,17 +150,6 @@ export class GameRepository {
     });
   }
 
-  findUserBetForRound(userId: string, roundId: string) {
-    return this.prisma.bet.findUnique({
-      where: {
-        userId_roundId: {
-          userId,
-          roundId,
-        },
-      },
-    });
-  }
-
   deletePendingBet(betId: string) {
     return this.prisma.bet.deleteMany({
       where: {

@@ -14,6 +14,7 @@ export const gameModules: GameModule[] = [
     status: "LIVE",
     category: "Prediction",
     activePlayers: 1284,
+    imageSrc: "/game-images/color-prediction.svg",
     accent: {
       from: "from-[#dcfce7]",
       via: "via-[#e0f2fe]",
@@ -32,6 +33,7 @@ export const gameModules: GameModule[] = [
     status: "COMING_SOON",
     category: "Multiplier",
     activePlayers: 642,
+    imageSrc: "/game-images/crash-game.svg",
     accent: {
       from: "from-[#fee2e2]",
       via: "via-[#eef2ff]",
@@ -52,6 +54,7 @@ export const gameModules: GameModule[] = [
     status: "COMING_SOON",
     category: "Table",
     activePlayers: 438,
+    imageSrc: "/game-images/roulette.svg",
     accent: {
       from: "from-[#fef3c7]",
       via: "via-[#dcfce7]",
@@ -72,6 +75,7 @@ export const gameModules: GameModule[] = [
     status: "COMING_SOON",
     category: "Arcade",
     activePlayers: 519,
+    imageSrc: "/game-images/dice-game.svg",
     accent: {
       from: "from-[#dbeafe]",
       via: "via-[#e0e7ff]",

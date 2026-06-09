@@ -333,7 +333,7 @@ CREATE INDEX "bets_status_created_at_idx" ON "bets"("status", "created_at");
 CREATE UNIQUE INDEX "bets_idempotency_key_key" ON "bets"("idempotency_key");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "bets_user_id_round_id_key" ON "bets"("user_id", "round_id");
+CREATE INDEX "bets_user_id_round_id_idx" ON "bets"("user_id", "round_id");
 
 -- CreateIndex
 CREATE INDEX "coin_packages_active_sort_order_idx" ON "coin_packages"("active", "sort_order");

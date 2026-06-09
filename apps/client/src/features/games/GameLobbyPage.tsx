@@ -1,9 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CircleDot, Dice5, Flame, Gamepad2, Palette, Sparkles, TrendingUp, Users, WalletCards } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Flame, Gamepad2, Sparkles, Users, WalletCards } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
@@ -120,7 +120,6 @@ function GameCard({
   index: number;
 }) {
   const live = game.status === "LIVE";
-  const Icon = gameIcons[game.id] ?? Gamepad2;
 
   return (
     <motion.div
@@ -137,8 +136,14 @@ function GameCard({
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.78),transparent_42%)]" />
         <div className="relative grid min-h-30 content-between gap-3">
           <div className="flex items-start justify-between gap-2">
-            <span className="grid size-14 shrink-0 place-items-center rounded-2xl border border-white/70 bg-white/75 text-ink shadow-sm">
-              <Icon size={28} aria-hidden={true} />
+            <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/70 bg-white/75 shadow-sm">
+              <Image
+                src={game.imageSrc}
+                alt=""
+                width={64}
+                height={64}
+                className="size-full object-cover"
+              />
             </span>
             <span className="inline-flex max-w-[72px] shrink-0 items-center justify-end gap-1 rounded-full bg-white/75 px-2 py-1 text-[10px] font-black text-[#4f5f56]">
               <Users size={11} aria-hidden="true" />
@@ -159,13 +164,6 @@ function GameCard({
     </motion.div>
   );
 }
-
-const gameIcons: Record<string, LucideIcon> = {
-  "color-prediction": Palette,
-  "crash-game": TrendingUp,
-  roulette: CircleDot,
-  "dice-game": Dice5,
-};
 
 function compactPlayers(players: number) {
   if (players >= 1000) {
