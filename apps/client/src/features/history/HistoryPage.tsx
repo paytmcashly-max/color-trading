@@ -36,32 +36,26 @@ export function HistoryPage() {
             {bets.length} bets
           </span>
         </div>
+
         <div className="mt-3 grid gap-2">
           {betsQuery.isLoading ? <p className="text-sm font-bold text-muted">Loading predictions...</p> : null}
           {!betsQuery.isLoading && bets.length === 0 ? (
             <p className="text-sm font-bold text-muted">Your predictions will appear here.</p>
           ) : null}
           {bets.map((bet) => (
-            <article key={bet.id} className="rounded-2xl border border-line bg-[#f8faf7] px-3 py-2.5">
-              <div className="flex items-center justify-between gap-3">
+            <article key={bet.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-2xl border border-line bg-[#f8faf7] px-3 py-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <ResultBadge result={bet.choice} />
                 <div className="min-w-0">
-                  <p className="truncate text-[11px] font-black uppercase text-muted">
-                    Round #{bet.round?.roundNumber ?? bet.roundId.slice(0, 8)}
+                  <p className="truncate text-sm font-black text-ink">
+                    #{bet.round?.roundNumber ?? bet.roundId.slice(0, 6)} | {bet.choice}
                   </p>
-                  <div className="mt-1 flex items-center gap-2">
-                    <ResultBadge result={bet.choice} small />
-                    <h3 className="text-base font-black text-ink">{bet.choice}</h3>
-                    <span className="text-xs font-bold text-muted">picked</span>
-                  </div>
+                  <p className="mt-0.5 truncate text-[11px] font-bold text-muted">
+                    Result {bet.round?.result ?? "--"} | Stake {formatCoinString(bet.coinsStaked)} | Payout {formatCoinString(bet.payoutAmount)}
+                  </p>
                 </div>
-                <OutcomePill status={bet.status} />
               </div>
-
-              <div className="mt-2 grid grid-cols-3 gap-1.5">
-                <MiniMetric label="Result" value={bet.round?.result ?? "--"} />
-                <MiniMetric label="Amount" value={formatCoinString(bet.coinsStaked)} />
-                <MiniMetric label="Payout" value={formatCoinString(bet.payoutAmount)} />
-              </div>
+              <OutcomePill status={bet.status} />
             </article>
           ))}
         </div>
@@ -77,34 +71,31 @@ export function HistoryPage() {
             Live log
           </span>
         </div>
+
         <div className="mt-3 grid gap-2">
           {roundsQuery.isLoading ? <p className="text-sm font-bold text-muted">Loading rounds...</p> : null}
           {!roundsQuery.isLoading && rounds.length === 0 ? (
             <p className="text-sm font-bold text-muted">Completed rounds will appear here.</p>
           ) : null}
           {rounds.map((round) => (
-            <article key={round.id} className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-[#f8faf7] px-3 py-2.5">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-black text-ink">Round #{round.roundNumber}</p>
-                <p className="mt-0.5 truncate text-[11px] font-bold text-muted">
-                  {round.betCount} predictions · {formatHistoryDate(round.endTime)}
-                </p>
+            <article key={round.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-2xl border border-line bg-[#f8faf7] px-3 py-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <ResultBadge result={round.result} />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-ink">Round #{round.roundNumber}</p>
+                  <p className="mt-0.5 truncate text-[11px] font-bold text-muted">
+                    {round.betCount} predictions | {formatHistoryDate(round.endTime)}
+                  </p>
+                </div>
               </div>
-              <ResultBadge result={round.result} />
+              <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[10px] font-black uppercase text-ink">
+                {round.result ?? "--"}
+              </span>
             </article>
           ))}
         </div>
       </section>
     </AppShell>
-  );
-}
-
-function MiniMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-white px-2 py-2 text-center">
-      <p className="truncate text-sm font-black text-ink">{value}</p>
-      <p className="mt-0.5 text-[9px] font-black uppercase text-muted">{label}</p>
-    </div>
   );
 }
 
@@ -119,7 +110,7 @@ function OutcomePill({ status }: { status: string }) {
   return <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${className}`}>{status}</span>;
 }
 
-function ResultBadge({ result, small = false }: { result: string | null; small?: boolean }) {
+function ResultBadge({ result }: { result: string | null }) {
   const className =
     result === "GREEN"
       ? "bg-[#16a34a]"
@@ -130,7 +121,7 @@ function ResultBadge({ result, small = false }: { result: string | null; small?:
           : "bg-[#dfe6df]";
 
   return (
-    <span className={`grid ${small ? "size-8" : "size-10"} shrink-0 place-items-center rounded-full ${className} text-[10px] font-black text-white shadow-sm`}>
+    <span className={`grid size-7 shrink-0 place-items-center rounded-full ${className} text-[10px] font-black text-white shadow-sm`}>
       {result?.slice(0, 1) ?? "--"}
     </span>
   );
