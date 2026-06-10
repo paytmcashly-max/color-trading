@@ -1,20 +1,15 @@
 "use client";
 
-import { Clock3, Trophy } from "lucide-react";
+import { Trophy } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/layout/AppShell";
-import { fetchMyBetHistory, fetchRoundHistory } from "@/services/api-client";
+import { fetchMyBetHistory } from "@/services/api-client";
 import { useAuthStore } from "@/store/auth-store";
 import { formatCoinString } from "@/utils/format-coins";
 
 export function HistoryPage() {
   const token = useAuthStore((state) => state.tokens?.accessToken);
-  const roundsQuery = useQuery({
-    queryKey: ["round-history"],
-    queryFn: fetchRoundHistory,
-    refetchInterval: 20_000,
-  });
   const betsQuery = useQuery({
     queryKey: ["my-bet-history"],
     queryFn: () => fetchMyBetHistory(token!),
@@ -22,7 +17,6 @@ export function HistoryPage() {
     refetchInterval: 20_000,
   });
   const bets = betsQuery.data?.bets ?? [];
-  const rounds = roundsQuery.data?.rounds ?? [];
 
   return (
     <AppShell title="History">
@@ -61,40 +55,6 @@ export function HistoryPage() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-line bg-white p-3 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Clock3 size={18} className="text-[#ffc857]" aria-hidden="true" />
-            <h2 className="font-black">Round results</h2>
-          </div>
-          <span className="rounded-full bg-[#eef3ee] px-2.5 py-1 text-[10px] font-black uppercase text-muted">
-            Live log
-          </span>
-        </div>
-
-        <div className="mt-3 grid gap-2">
-          {roundsQuery.isLoading ? <p className="text-sm font-bold text-muted">Loading rounds...</p> : null}
-          {!roundsQuery.isLoading && rounds.length === 0 ? (
-            <p className="text-sm font-bold text-muted">Completed rounds will appear here.</p>
-          ) : null}
-          {rounds.map((round) => (
-            <article key={round.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-2xl border border-line bg-[#f8faf7] px-3 py-2">
-              <div className="flex min-w-0 items-center gap-2">
-                <ResultBadge result={round.result} />
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-ink">Round #{round.roundNumber}</p>
-                  <p className="mt-0.5 truncate text-[11px] font-bold text-muted">
-                    {round.betCount} predictions | {formatHistoryDate(round.endTime)}
-                  </p>
-                </div>
-              </div>
-              <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[10px] font-black uppercase text-ink">
-                {round.result ?? "--"}
-              </span>
-            </article>
-          ))}
-        </div>
-      </section>
     </AppShell>
   );
 }
@@ -125,13 +85,4 @@ function ResultBadge({ result }: { result: string | null }) {
       {result?.slice(0, 1) ?? "--"}
     </span>
   );
-}
-
-function formatHistoryDate(value: string) {
-  return new Date(value).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
