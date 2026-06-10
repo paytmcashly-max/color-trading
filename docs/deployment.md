@@ -23,13 +23,23 @@ Set these values in the backend hosting environment:
 - `SOCKET_ALLOWED_ORIGINS`
 
 `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` must be different in production.
+Set `GAME_MAX_BET_PER_USER_PER_ROUND` and `GAME_MAX_EXPOSURE_PER_COLOR` to
+match your risk limits. Admin-sensitive APIs require the admin user's
+`email_verified_at` column to be set; the bootstrap command marks bootstrap
+admins as verified.
 
 ## Required Frontend Environment
 
 Set these values in Vercel:
 
 - `NEXT_PUBLIC_API_URL`
+- `NEXT_PUBLIC_API_BASE_PATH=/api/v1`
 - `NEXT_PUBLIC_SOCKET_URL`
+
+The browser stores only the short-lived access token in memory. Refresh sessions
+are kept in an httpOnly cookie set by the backend. In production, the backend
+sets that cookie with `Secure` and `SameSite=None` so the Vercel frontend can
+refresh sessions against the Render API over CORS.
 
 Vercel is expected to redeploy the frontend automatically on every push to the
 GitHub `main` branch. GitHub Actions does not need a Vercel token for this flow.
@@ -79,6 +89,8 @@ Compose runs a one-shot `migrate` service before the backend starts.
 ## Health Probes
 
 - Aggregate health: `GET /health`
+- Liveness: `GET /health/live`
+- Readiness: `GET /health/ready`
 
 Render currently uses `GET /health` as the deployment health check because it verifies
 the app and core dependencies together.

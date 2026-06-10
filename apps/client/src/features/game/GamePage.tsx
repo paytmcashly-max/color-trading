@@ -78,13 +78,13 @@ export function GamePage({ title = "Fast Parity" }: { title?: string } = {}) {
   const roundQuery = useQuery({ queryKey: ["current-round"], queryFn: fetchCurrentRound });
   const roundHistoryQuery = useQuery({
     queryKey: ["round-history", "game"],
-    queryFn: fetchRoundHistory,
+    queryFn: () => fetchRoundHistory({ limit: 30 }),
     refetchInterval: 20_000,
   });
   const myBetsQuery = useQuery({
-    queryKey: ["my-bet-history"],
-    queryFn: () => fetchMyBetHistory(token!),
-    enabled: Boolean(token),
+    queryKey: ["my-bet-history", userId, { limit: 50 }],
+    queryFn: () => fetchMyBetHistory(token!, { limit: 50 }),
+    enabled: Boolean(token && userId),
     refetchInterval: 15_000,
   });
 
@@ -144,9 +144,7 @@ export function GamePage({ title = "Fast Parity" }: { title?: string } = {}) {
 
       for (const choice of selectedForRound) {
         for (let index = 0; index < safeQuantity; index += 1) {
-          const idempotencyKey = `ui:${currentRound!.id}:${choice}:${Date.now()}:${index}:${Math.random()
-            .toString(36)
-            .slice(2)}`;
+          const idempotencyKey = `ui:${currentRound!.id}:${choice}:${crypto.randomUUID()}:${index}`;
           const input = {
             roundId: currentRound!.id,
             choice,

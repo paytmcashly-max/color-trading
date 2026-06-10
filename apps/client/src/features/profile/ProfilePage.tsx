@@ -19,9 +19,9 @@ export function ProfilePage() {
   const clearSession = useAuthStore((state) => state.clearSession);
   const { wallet, isLoading } = useWallet();
   const betsQuery = useQuery({
-    queryKey: ["my-bet-history"],
-    queryFn: () => fetchMyBetHistory(token!),
-    enabled: Boolean(token),
+    queryKey: ["my-bet-history", user?.id, { limit: 50 }],
+    queryFn: () => fetchMyBetHistory(token!, { limit: 50 }),
+    enabled: Boolean(token && user?.id),
   });
   const stats = buildStats(betsQuery.data?.bets ?? []);
   const avatar = (user?.displayName ?? user?.email ?? "P").slice(0, 1).toUpperCase();

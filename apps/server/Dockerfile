@@ -52,12 +52,12 @@ RUN npm ci --omit=dev \
   && groupadd --system nodejs \
   && useradd --system --gid nodejs --create-home nodejs
 
-COPY --from=builder /app/apps/server/dist ./apps/server/dist
-COPY --from=builder /app/apps/server/prisma ./apps/server/prisma
-COPY --from=builder /app/apps/server/scripts ./apps/server/scripts
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY --chown=nodejs:nodejs --from=builder /app/apps/server/dist ./apps/server/dist
+COPY --chown=nodejs:nodejs --from=builder /app/apps/server/prisma ./apps/server/prisma
+COPY --chown=nodejs:nodejs --from=builder /app/apps/server/scripts ./apps/server/scripts
+COPY --chown=nodejs:nodejs --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --chown=nodejs:nodejs --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --chown=nodejs:nodejs --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 
 USER nodejs
 EXPOSE 4000
