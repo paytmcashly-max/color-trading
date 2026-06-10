@@ -15,7 +15,7 @@
     "ops:bootstrap-admin": "npm run db:seed:admin",
     "start": "node dist/main.js",
     "start:production": "node scripts/start-production.mjs",
-    "test": "tsx --test \"src/**/*.test.ts\"",
+    "test": "tsx --test \"src/**/*.test.ts\" \"scripts/**/*.test.mjs\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint \"src/**/*.ts\""
   },

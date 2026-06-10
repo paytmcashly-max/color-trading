@@ -60,7 +60,7 @@ The migration runner:
 - takes a PostgreSQL advisory lock so only one migration process runs at a time
 - bootstraps `apps/server/prisma/init.sql` only when the schema is empty
 - records SQL migrations in `schema_migrations`
-- verifies migration checksums on later runs
+- verifies line-ending-independent migration checksums on later runs
 
 Use Render `preDeployCommand` or the manual GitHub Actions workflow:
 `Production database migration` as the primary migration path. The production

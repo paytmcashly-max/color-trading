@@ -1,9 +1,13 @@
-import crypto from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import pg from "pg";
+
+import {
+  isCompatibleMigrationChecksum,
+  migrationChecksum,
+} from "./migration-checksum.mjs";
 
 const { Client } = pg;
 
@@ -63,7 +67,7 @@ async function bootstrapSchemaIfNeeded() {
     await client.query(sql);
     await client.query(
       "INSERT INTO schema_migrations (name, checksum) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING",
-      ["00000000_init.sql", checksum(sql)],
+      ["00000000_init.sql", migrationChecksum(sql)],
     );
     await client.query("COMMIT");
     console.log("Database schema applied from init.sql.");
@@ -80,15 +84,23 @@ async function applySqlMigrations() {
 
   for (const migration of migrations) {
     const sql = await readFile(resolve(migrationsPath, migration), "utf8");
-    const sqlChecksum = checksum(sql);
+    const sqlChecksum = migrationChecksum(sql);
     const existing = await client.query(
       "SELECT checksum FROM schema_migrations WHERE name = $1",
       [migration],
     );
 
     if (existing.rowCount) {
-      if (existing.rows[0].checksum !== sqlChecksum) {
+      if (!isCompatibleMigrationChecksum(sql, existing.rows[0].checksum)) {
         throw new Error(`Migration checksum changed after apply: ${migration}`);
+      }
+
+      if (existing.rows[0].checksum !== sqlChecksum) {
+        await client.query(
+          "UPDATE schema_migrations SET checksum = $1 WHERE name = $2",
+          [sqlChecksum, migration],
+        );
+        console.log(`Database migration checksum normalized: ${migration}`);
       }
 
       console.log(`Database migration already applied: ${migration}`);
@@ -110,8 +122,4 @@ async function applySqlMigrations() {
       throw error;
     }
   }
-}
-
-function checksum(value) {
-  return crypto.createHash("sha256").update(value).digest("hex");
 }

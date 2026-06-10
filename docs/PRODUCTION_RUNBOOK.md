@@ -72,9 +72,9 @@ changes. From a controlled Render shell or migration job, run:
 npm run db:migrate:deploy -w @color-trading/server
 ```
 
-The migration runner uses a PostgreSQL advisory lock, records checksums, and
-can safely be run again to verify idempotency. Do not edit an already-applied
-SQL migration.
+The migration runner uses a PostgreSQL advisory lock, records line-ending-
+independent checksums, and can safely be run again to verify idempotency. Do not
+edit an already-applied SQL migration.
 
 The production Docker image runs the same migration runner as a startup gate.
 If a migration fails, the API does not start. Keep the Render
