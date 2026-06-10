@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 
 import {
+  isAcceptedLegacyMigrationChecksum,
   isCompatibleMigrationChecksum,
   migrationChecksum,
 } from "./migration-checksum.mjs";
@@ -91,11 +92,16 @@ async function applySqlMigrations() {
     );
 
     if (existing.rowCount) {
-      if (!isCompatibleMigrationChecksum(sql, existing.rows[0].checksum)) {
+      const storedChecksum = existing.rows[0].checksum;
+      const checksumMatches =
+        isCompatibleMigrationChecksum(sql, storedChecksum) ||
+        isAcceptedLegacyMigrationChecksum(migration, storedChecksum);
+
+      if (!checksumMatches) {
         throw new Error(`Migration checksum changed after apply: ${migration}`);
       }
 
-      if (existing.rows[0].checksum !== sqlChecksum) {
+      if (storedChecksum !== sqlChecksum) {
         await client.query(
           "UPDATE schema_migrations SET checksum = $1 WHERE name = $2",
           [sqlChecksum, migration],
