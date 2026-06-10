@@ -6,7 +6,7 @@ services:
     dockerfilePath: ./apps/server/Dockerfile
     dockerContext: .
     preDeployCommand: node apps/server/scripts/apply-schema.mjs
-    healthCheckPath: /health/live
+    healthCheckPath: /health
     autoDeploy: false
     envVars:
       - key: NODE_ENV
