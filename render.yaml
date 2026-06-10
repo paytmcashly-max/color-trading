@@ -45,6 +45,10 @@ services:
         value: color-trading-client
       - key: GAME_ENGINE_ENABLED
         value: "true"
+      - key: GAME_MAX_BET_PER_USER_PER_ROUND
+        value: "1000"
+      - key: GAME_MAX_EXPOSURE_PER_COLOR
+        value: "100000"
 
 databases:
   - name: color-trading-postgres

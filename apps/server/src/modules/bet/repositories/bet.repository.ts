@@ -23,6 +23,8 @@ export interface BetRepositoryPort {
   createPendingBet(tx: TxClient, input: PendingBetInput): Promise<Bet>;
   findBetByIdempotencyKey(idempotencyKey: string): Promise<Bet | null>;
   findUserBets(userId: string, limit?: number): Promise<Bet[]>;
+  sumUserRoundStake(tx: TxClient, userId: string, roundId: string): Promise<bigint>;
+  sumRoundColorExposure(tx: TxClient, roundId: string, choice: PredictionColor): Promise<bigint>;
 }
 
 export class BetRepository implements BetRepositoryPort {
@@ -66,6 +68,40 @@ export class BetRepository implements BetRepositoryPort {
         status: BetStatus.PENDING,
       },
     });
+  }
+
+  async sumUserRoundStake(tx: TxClient, userId: string, roundId: string) {
+    const aggregate = await tx.bet.aggregate({
+      where: {
+        userId,
+        roundId,
+        status: {
+          in: [BetStatus.PENDING, BetStatus.WON, BetStatus.LOST],
+        },
+      },
+      _sum: {
+        coinsStaked: true,
+      },
+    });
+
+    return aggregate._sum.coinsStaked ?? 0n;
+  }
+
+  async sumRoundColorExposure(tx: TxClient, roundId: string, choice: PredictionColor) {
+    const aggregate = await tx.bet.aggregate({
+      where: {
+        roundId,
+        choice,
+        status: {
+          in: [BetStatus.PENDING, BetStatus.WON, BetStatus.LOST],
+        },
+      },
+      _sum: {
+        coinsStaked: true,
+      },
+    });
+
+    return aggregate._sum.coinsStaked ?? 0n;
   }
 
   findBetByIdempotencyKey(idempotencyKey: string) {

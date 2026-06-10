@@ -10,6 +10,8 @@ export const ROUND_LOCK_TTL_MS = env.GAME_ROUND_LOCK_TTL_MS;
 export const ROUND_SCHEDULER_TICK_MS = env.GAME_SCHEDULER_TICK_MS;
 export const WIN_PAYOUT_MULTIPLIER = 2;
 export const WINNER_SETTLEMENT_CONCURRENCY = 100;
+export const MAX_BET_PER_USER_PER_ROUND = BigInt(env.GAME_MAX_BET_PER_USER_PER_ROUND);
+export const MAX_EXPOSURE_PER_COLOR = BigInt(env.GAME_MAX_EXPOSURE_PER_COLOR);
 
 export const ROUND_ENGINE_CONFIG = {
   lifecycle: ["WAITING", "BETTING", "LOCKED", "RESULT", "SETTLED"],
@@ -18,4 +20,6 @@ export const ROUND_ENGINE_CONFIG = {
   lockedDurationSeconds: ROUND_DURATION_SECONDS - BET_LOCK_AFTER_SECONDS,
   schedulerTickMs: ROUND_SCHEDULER_TICK_MS,
   redisLockTtlMs: ROUND_LOCK_TTL_MS,
+  maxBetPerUserPerRound: env.GAME_MAX_BET_PER_USER_PER_ROUND,
+  maxExposurePerColor: env.GAME_MAX_EXPOSURE_PER_COLOR,
 } as const;

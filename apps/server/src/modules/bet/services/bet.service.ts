@@ -1,6 +1,10 @@
 import { Prisma } from "@prisma/client";
 
 import { HttpError } from "../../../common/errors/http-error.js";
+import {
+  MAX_BET_PER_USER_PER_ROUND,
+  MAX_EXPOSURE_PER_COLOR,
+} from "../../game/game.constants.js";
 import { publishGameEvent } from "../../game/game.events.js";
 import { serializeBet } from "../../game/game.serializer.js";
 import type { WalletService } from "../../wallet/wallet.service.js";
@@ -58,11 +62,33 @@ export class BetService {
           );
         }
 
+        const coinsStaked = BigInt(dto.coinsStaked);
+        const [userRoundStake, colorExposure] = await Promise.all([
+          this.betRepository.sumUserRoundStake(tx, userId, dto.roundId),
+          this.betRepository.sumRoundColorExposure(tx, dto.roundId, dto.choice),
+        ]);
+
+        if (userRoundStake + coinsStaked > MAX_BET_PER_USER_PER_ROUND) {
+          throw new HttpError(
+            409,
+            "MAX_USER_ROUND_BET_EXCEEDED",
+            "This round bet limit has been reached for your account.",
+          );
+        }
+
+        if (colorExposure + coinsStaked > MAX_EXPOSURE_PER_COLOR) {
+          throw new HttpError(
+            409,
+            "MAX_COLOR_EXPOSURE_EXCEEDED",
+            "This color is temporarily at capacity for the current round.",
+          );
+        }
+
         const bet = await this.betRepository.createPendingBet(tx, {
           userId,
           roundId: dto.roundId,
           choice: dto.choice,
-          coinsStaked: BigInt(dto.coinsStaked),
+          coinsStaked,
           idempotencyKey: dto.idempotencyKey,
         });
 

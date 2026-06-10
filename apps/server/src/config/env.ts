@@ -28,6 +28,8 @@ const rawEnvSchema = z.object({
   GAME_BETTING_DURATION_SECONDS: z.coerce.number().int().min(1).max(3599).default(45),
   GAME_SCHEDULER_TICK_MS: z.coerce.number().int().min(250).max(10_000).default(1000),
   GAME_ROUND_LOCK_TTL_MS: z.coerce.number().int().min(1000).max(60_000).default(5000),
+  GAME_MAX_BET_PER_USER_PER_ROUND: z.coerce.number().int().positive().default(1000),
+  GAME_MAX_EXPOSURE_PER_COLOR: z.coerce.number().int().positive().default(100000),
   GAME_ENGINE_ENABLED: z
     .preprocess((value) => {
       if (typeof value === "string") {
@@ -84,6 +86,8 @@ const envSchema = rawEnvSchema
       GAME_BETTING_DURATION_SECONDS: z.number().int(),
       GAME_SCHEDULER_TICK_MS: z.number().int(),
       GAME_ROUND_LOCK_TTL_MS: z.number().int(),
+      GAME_MAX_BET_PER_USER_PER_ROUND: z.number().int().positive(),
+      GAME_MAX_EXPOSURE_PER_COLOR: z.number().int().positive(),
       GAME_ENGINE_ENABLED: z.boolean(),
     }),
   )
