@@ -2,7 +2,7 @@
 
 This monorepo is prepared for a split production deployment:
 
-- Frontend: Vercel, using `vercel.json`
+- Frontend: Vercel, using `vercel.json` and Vercel Git integration for auto-deploys from `main`
 - Backend: Render Docker web service, using `render.yaml`
 - Database: managed PostgreSQL
 - Realtime/cache: managed Redis
@@ -30,6 +30,9 @@ Set these values in Vercel:
 
 - `NEXT_PUBLIC_API_URL`
 - `NEXT_PUBLIC_SOCKET_URL`
+
+Vercel is expected to redeploy the frontend automatically on every push to the
+GitHub `main` branch. GitHub Actions does not need a Vercel token for this flow.
 
 ## Database Migrations
 
