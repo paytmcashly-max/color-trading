@@ -48,15 +48,20 @@ GAME_MAX_EXPOSURE_PER_COLOR=100000
 Configure these values in Vercel:
 
 ```bash
-NEXT_PUBLIC_API_URL=https://your-api.onrender.com
+NEXT_PUBLIC_API_URL=
 NEXT_PUBLIC_API_BASE_PATH=/api/v1
 NEXT_PUBLIC_SOCKET_URL=https://your-api.onrender.com
 NEXT_PUBLIC_APP_ENV=production
+BACKEND_API_URL=https://your-api.onrender.com
 ```
 
 Only `NEXT_PUBLIC_*` values are exposed to the browser. Never put JWT secrets,
 database credentials, Redis credentials, cookie secrets, or admin bootstrap
 credentials in Vercel client environment variables.
+
+Keeping `NEXT_PUBLIC_API_URL` empty routes browser API calls through the Next.js
+same-origin proxy. `BACKEND_API_URL` is server-only and points that proxy to
+Render, allowing the httpOnly refresh cookie to survive direct navigation.
 
 ## Database Migration
 

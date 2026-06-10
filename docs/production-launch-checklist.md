@@ -39,9 +39,11 @@ names as fallbacks, but new production setup should use the
 Set these variables in the Vercel project:
 
 ```bash
-NEXT_PUBLIC_API_URL=https://your-api.onrender.com
+NEXT_PUBLIC_API_URL=
 NEXT_PUBLIC_API_BASE_PATH=/api/v1
 NEXT_PUBLIC_SOCKET_URL=https://your-api.onrender.com
+NEXT_PUBLIC_APP_ENV=production
+BACKEND_API_URL=https://your-api.onrender.com
 ```
 
 ## 3. Pre-Deploy Verification

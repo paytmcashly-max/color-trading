@@ -18,7 +18,7 @@ import type {
   WalletTransactionDto,
 } from "@/types/api";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
 const apiBasePath = process.env.NEXT_PUBLIC_API_BASE_PATH ?? "/api/v1";
 
 interface ApiErrorBody {

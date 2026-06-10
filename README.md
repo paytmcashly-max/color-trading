@@ -55,7 +55,7 @@ At minimum, production needs managed PostgreSQL, managed Redis, Render backend
 environment variables, and Vercel frontend variables:
 
 - Backend: `DATABASE_URL`, `REDIS_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `COOKIE_SECRET`, `CLIENT_ORIGIN`, `ALLOWED_ORIGINS`, `SOCKET_CORS_ORIGIN`, `SOCKET_ALLOWED_ORIGINS`
-- Frontend: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_API_BASE_PATH=/api/v1`, `NEXT_PUBLIC_SOCKET_URL`
+- Frontend: `NEXT_PUBLIC_API_URL` (leave empty in production), `NEXT_PUBLIC_API_BASE_PATH=/api/v1`, `NEXT_PUBLIC_SOCKET_URL`, `BACKEND_API_URL`
 - Game limits: `GAME_MAX_BET_PER_USER_PER_ROUND`, `GAME_MAX_EXPOSURE_PER_COLOR`
 
 ## Production Launch Checklist
@@ -78,6 +78,11 @@ Verify Vercel has:
 - `NEXT_PUBLIC_API_URL`
 - `NEXT_PUBLIC_API_BASE_PATH=/api/v1`
 - `NEXT_PUBLIC_SOCKET_URL`
+- `BACKEND_API_URL`
+
+For reliable production browser sessions, leave `NEXT_PUBLIC_API_URL` empty and
+set `BACKEND_API_URL` to the Render API URL. Next.js proxies `/api/v1/*` through
+the frontend origin so the httpOnly refresh cookie remains first-party.
 
 Apply the production database migration:
 
