@@ -5,7 +5,7 @@ services:
     plan: free
     dockerfilePath: ./apps/server/Dockerfile
     dockerContext: .
-    preDeployCommand: node apps/server/scripts/apply-schema.mjs && node apps/server/scripts/seed-admin.mjs
+    preDeployCommand: node apps/server/scripts/apply-schema.mjs
     healthCheckPath: /health
     autoDeploy: false
     envVars:
@@ -30,14 +30,6 @@ services:
       - key: SOCKET_CORS_ORIGIN
         sync: false
       - key: SOCKET_ALLOWED_ORIGINS
-        sync: false
-      - key: ADMIN_SEED_ENABLED
-        sync: false
-      - key: ADMIN_SEED_EMAIL
-        sync: false
-      - key: ADMIN_SEED_PASSWORD
-        sync: false
-      - key: ADMIN_SEED_DISPLAY_NAME
         sync: false
       - key: JWT_ACCESS_TOKEN_TTL
         value: 15m

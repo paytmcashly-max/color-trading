@@ -48,6 +48,26 @@ The migration runner:
 Do not run schema changes from every web process. Use Render `preDeployCommand` or the
 manual GitHub Actions workflow: `Production database migration`.
 
+## Admin Bootstrap
+
+Admin users must not be created through public registration or normal deploys. Bootstrap
+the first admin with a private one-time operations command in the production environment:
+
+```bash
+ADMIN_BOOTSTRAP_EMAIL="admin@example.com" \
+ADMIN_BOOTSTRAP_PASSWORD="<private-one-time-password>" \
+ADMIN_BOOTSTRAP_DISPLAY_NAME="Admin" \
+npm run ops:bootstrap-admin -w @color-trading/server
+```
+
+After the first admin can log in:
+
+- remove the bootstrap environment values from the hosting environment
+- rotate the password from a secure admin flow or by rerunning the command with `ADMIN_BOOTSTRAP_ROTATE_PASSWORD=true`
+- keep normal Render deploys limited to schema migration and app startup
+
+The bootstrap script is idempotent, does not print credentials, and writes an audit log.
+
 ## Local Production-Like Stack
 
 ```bash
@@ -58,8 +78,7 @@ Compose runs a one-shot `migrate` service before the backend starts.
 
 ## Health Probes
 
-- Liveness: `GET /health/live`
-- Readiness: `GET /health/ready`
 - Aggregate health: `GET /health`
 
-Use `/health/live` for container restarts and `/health/ready` for traffic admission.
+Render currently uses `GET /health` as the deployment health check because it verifies
+the app and core dependencies together.
