@@ -101,9 +101,14 @@ export function GamePage() {
   }, []);
 
   const selectedForRound = selectedRoundId === currentRound?.id ? selectedChoices : [];
+  const roundRemainingSeconds = currentRound
+    ? Math.max(0, Math.ceil((new Date(currentRound.endTime).getTime() - now) / 1000))
+    : timer;
+  const bettingWindowOpen = roundRemainingSeconds > 15;
   const canPredict =
     Boolean(token) &&
     Boolean(currentRound) &&
+    bettingWindowOpen &&
     (currentRound?.status === "OPEN" || currentRound?.phase === "BETTING_OPEN");
   const totalBalance = Number(wallet?.totalBalance ?? 0);
   const safeAmount = Number.isFinite(amount) ? amount : 0;
@@ -130,10 +135,7 @@ export function GamePage() {
         .slice(-4)
     : [];
   const myBets = myBetsQuery.data?.bets.slice(0, 8) ?? [];
-  const roundRemainingSeconds = currentRound
-    ? Math.max(0, Math.ceil((new Date(currentRound.endTime).getTime() - now) / 1000))
-    : timer;
-  const showLockOverlay = Boolean(currentRound) && !canPredict && !roundResult;
+  const showLockOverlay = Boolean(currentRound) && !roundResult && (!bettingWindowOpen || !canPredict);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -196,7 +198,7 @@ export function GamePage() {
                 {currentRound?.roundNumber ?? "--"}
               </h1>
               <span className={`mt-1.5 inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${canPredict ? "bg-[#dff8e9] text-[#106b3d]" : "bg-[#fff3cd] text-[#8a5a00]"}`}>
-                {statusLabel(currentRound)}
+                {showLockOverlay ? "Betting locked" : statusLabel(currentRound)}
               </span>
             </div>
             <div className="text-right">
@@ -239,16 +241,16 @@ export function GamePage() {
                       setSelectedChoices((current) => (current.includes(choice.color) ? [] : [choice.color]));
                       setConfirming(false);
                     }}
-                    className={`relative min-h-20 rounded-2xl border bg-gradient-to-br ${choice.surface} p-2.5 text-center text-white transition disabled:opacity-45 ${
+                    className={`relative min-h-16 rounded-2xl border bg-gradient-to-br ${choice.surface} p-2 text-center text-white transition disabled:opacity-45 ${
                       active ? `border-white ring-4 ring-ink/10 ${choice.glow}` : "border-white/70 shadow-[0_10px_22px_rgba(23,32,26,0.10)]"
                     }`}
                   >
-                    <span className="grid justify-items-center gap-1.5">
-                      <span className="grid size-8 place-items-center rounded-full bg-white/20 text-white">
-                        <Icon size={19} aria-hidden="true" />
+                    <span className="grid justify-items-center gap-1">
+                      <span className="grid size-7 place-items-center rounded-full bg-white/20 text-white">
+                        <Icon size={17} aria-hidden="true" />
                       </span>
                       <span className="text-sm font-black">{choice.label}</span>
-                      <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-black text-white">{choice.ratio}</span>
+                      <span className="rounded-full bg-white/20 px-2 py-0.5 text-[9px] font-black text-white">{choice.ratio}</span>
                       {active ? (
                         <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-white text-ink shadow-sm">
                           <Check size={14} aria-hidden="true" />
@@ -511,7 +513,7 @@ function OrdersPanel({
           period: getBetPeriodLabel(bet),
           outcome: getOrderOutcome(bet.status),
         }));
-  const rows = liveRows;
+  const rows = tab === "everyone" ? [...liveRows, ...dummyOrders].slice(0, 4) : liveRows;
 
   return (
     <section className="overflow-hidden rounded-3xl border border-line bg-white shadow-[0_14px_34px_rgba(23,32,26,0.08)]">
@@ -625,6 +627,13 @@ interface OrderRow {
   amount: string | number;
   outcome: "WIN" | "LOSS";
 }
+
+const dummyOrders: OrderRow[] = [
+  { id: "dummy-live-1", user: "***114", period: "#live", choice: "GREEN", amount: 50, outcome: "WIN" },
+  { id: "dummy-live-2", user: "***821", period: "#live", choice: "RED", amount: 100, outcome: "LOSS" },
+  { id: "dummy-live-3", user: "***309", period: "#live", choice: "VIOLET", amount: 20, outcome: "WIN" },
+  { id: "dummy-live-4", user: "***640", period: "#live", choice: "GREEN", amount: 200, outcome: "LOSS" },
+];
 
 function getOutcome(
   result: string | null | undefined,
