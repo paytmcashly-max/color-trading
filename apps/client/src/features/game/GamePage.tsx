@@ -134,7 +134,7 @@ export function GamePage() {
         .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime())
         .slice(-4)
     : [];
-  const myBets = myBetsQuery.data?.bets.slice(0, 8) ?? [];
+  const myBets = myBetsQuery.data?.bets.slice(0, 10) ?? [];
   const showLockOverlay = Boolean(currentRound) && !roundResult && (!bettingWindowOpen || !canPredict);
 
   const mutation = useMutation({
@@ -514,6 +514,7 @@ function OrdersPanel({
           outcome: getOrderOutcome(bet.status),
         }));
   const rows = tab === "everyone" ? [...liveRows, ...dummyOrders].slice(0, 4) : liveRows;
+  const tickerRows = tab === "everyone" ? [...rows, ...rows] : rows;
 
   return (
     <section className="overflow-hidden rounded-3xl border border-line bg-white shadow-[0_14px_34px_rgba(23,32,26,0.08)]">
@@ -546,17 +547,16 @@ function OrdersPanel({
         ) : (
           <motion.div
             key={`${tab}-${rows.map((row) => row.id).join("-")}`}
-            initial={{ y: 16 }}
-            animate={{ y: 0 }}
-            transition={{ duration: 0.22 }}
+            animate={tab === "everyone" ? { y: ["0%", "-50%"] } : { y: 0 }}
+            transition={tab === "everyone" ? { duration: 7, repeat: Infinity, ease: "linear" } : { duration: 0.2 }}
             className="grid gap-1"
           >
-          {rows.map((order, index) => (
+          {tickerRows.map((order, index) => (
             <motion.div
-              key={order.id}
+              key={`${order.id}-${index}`}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.18, delay: Math.min(index, 10) * 0.035 }}
+              transition={{ duration: 0.18, delay: Math.min(index, 4) * 0.035 }}
               className="grid grid-cols-[1fr_0.8fr_0.8fr] items-center gap-2 rounded-2xl bg-[#f8faf7] px-3 py-2 text-sm font-bold"
             >
               <span className="truncate text-muted">
