@@ -20,6 +20,7 @@ export type RealtimeEventName =
   | "wallet:update"
   | "user:joined"
   | "user:balance_sync"
+  | "user:suspended"
   | "system:health"
   | "system:sync"
   | "system:error"

@@ -144,6 +144,7 @@ async function handleConnection(socket: Socket) {
     }
 
     try {
+      await assertSocketSessionActive(user);
       const result = await betService.placeBet(user.userId, parsed.data);
       ack?.({ ok: true, ...result });
     } catch (error) {
@@ -315,6 +316,15 @@ function routeRealtimeEvent(io: Server, event: RealtimeEvent) {
     return;
   }
 
+  if (event.name === "user:suspended") {
+    if (userId) {
+      io.to(`user:${userId}`).emit(event.name, event.payload);
+      io.in(`user:${userId}`).disconnectSockets(true);
+      io.to("admin").emit(event.name, event.payload);
+    }
+    return;
+  }
+
   if (event.name === "user:joined") {
     if (userId) {
       io.to(`user:${userId}`).emit(event.name, event.payload);
@@ -395,6 +405,35 @@ async function consumeSocketToken(socket: Socket, eventName: string) {
 
   state.tokens -= 1;
   return true;
+}
+
+async function assertSocketSessionActive(user: SocketUserContext) {
+  const session = await prisma.authSession.findFirst({
+    where: {
+      id: user.sessionId,
+      userId: user.userId,
+      revokedAt: null,
+      expiresAt: {
+        gt: new Date(),
+      },
+    },
+    select: {
+      id: true,
+      user: {
+        select: {
+          status: true,
+        },
+      },
+    },
+  });
+
+  if (!session) {
+    throw new HttpError(401, "SESSION_REVOKED", "Socket session is no longer active.");
+  }
+
+  if (session.user.status !== "ACTIVE") {
+    throw new HttpError(401, "USER_NOT_ACTIVE", "Socket user is not active.");
+  }
 }
 
 function getSocketUser(socket: Socket) {

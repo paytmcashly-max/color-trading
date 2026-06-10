@@ -15,6 +15,7 @@ import { publishGameEvent } from "../game/game.events.js";
 import { serializeRound } from "../game/game.serializer.js";
 import { BET_LOCK_AFTER_MS, ROUND_DURATION_MS } from "../game/game.constants.js";
 import { ResultService } from "../game/services/result.service.js";
+import { publishRealtimeEvent } from "../../sockets/socket.events.js";
 import type { WalletService } from "../wallet/wallet.service.js";
 import {
   serializeAdminBet,
@@ -85,29 +86,62 @@ export class AdminService {
       throw new HttpError(409, "CANNOT_BAN_SELF", "Admins cannot ban their own account.");
     }
 
-    const user = await this.prisma.user.update({
-      where: { id: userId },
-      data: { status: UserStatus.SUSPENDED },
-      include: {
-        wallet: {
-          select: {
-            depositBalance: true,
-            winningBalance: true,
-            status: true,
-            ledgerVersion: true,
+    const { user, revokedSessionCount } = await this.prisma.$transaction(async (tx) => {
+      const suspendedUser = await tx.user.update({
+        where: { id: userId },
+        data: { status: UserStatus.SUSPENDED },
+        include: {
+          wallet: {
+            select: {
+              depositBalance: true,
+              winningBalance: true,
+              status: true,
+              ledgerVersion: true,
+            },
+          },
+          _count: {
+            select: {
+              bets: true,
+              ledgerEntries: true,
+            },
           },
         },
-        _count: {
-          select: {
-            bets: true,
-            ledgerEntries: true,
+      });
+
+      const revokedSessions = await tx.authSession.updateMany({
+        where: {
+          userId,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: new Date(),
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          adminUserId,
+          actionType: "USER_BAN",
+          targetType: "USER",
+          targetId: userId,
+          metadata: {
+            email: suspendedUser.email,
+            revokedSessionCount: revokedSessions.count,
           },
         },
-      },
+      });
+
+      return {
+        user: suspendedUser,
+        revokedSessionCount: revokedSessions.count,
+      };
     });
 
-    await this.writeAuditLog(adminUserId, "USER_BAN", "USER", userId, {
-      email: user.email,
+    publishRealtimeEvent("user:suspended", {
+      userId,
+      reason: "ADMIN_BAN",
+      revokedSessionCount,
+      suspendedAt: new Date().toISOString(),
     });
 
     return { user: serializeAdminUser(user) };
