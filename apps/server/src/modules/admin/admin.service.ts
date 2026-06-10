@@ -1,4 +1,5 @@
 import {
+  BetStatus,
   CoinLedgerDirection,
   RoundStatus,
   UserStatus,
@@ -36,6 +37,13 @@ const ACTIVE_ROUND_STATUSES = [
   RoundStatus.LOCKED,
   RoundStatus.RESOLVING,
 ];
+
+type RefundWalletUpdate = {
+  userId: string;
+  amountCoins: number;
+  wallet: Parameters<WalletService["publishWalletUpdate"]>[1];
+  ledgerEntry: Parameters<WalletService["publishWalletUpdate"]>[2];
+};
 
 export class AdminService {
   private readonly resultService = new ResultService();
@@ -176,11 +184,32 @@ export class AdminService {
     const lockTime = new Date(startTime.getTime() + BET_LOCK_AFTER_MS);
     const endTime = new Date(startTime.getTime() + ROUND_DURATION_MS);
 
-    const round = await this.prisma.$transaction(async (tx) => {
-      await tx.gameRound.updateMany({
+    const { round, refunds, cancelledBetCount, refundedCoins } = await this.prisma.$transaction(async (tx) => {
+      const activeRounds = await tx.gameRound.findMany({
         where: {
           status: {
             in: ACTIVE_ROUND_STATUSES,
+          },
+        },
+        include: {
+          bets: {
+            where: {
+              status: BetStatus.PENDING,
+            },
+            select: {
+              id: true,
+              userId: true,
+              coinsStaked: true,
+            },
+          },
+        },
+      });
+      const refunds = await this.refundPendingBetsForCancelledRounds(tx, activeRounds);
+
+      await tx.gameRound.updateMany({
+        where: {
+          id: {
+            in: activeRounds.map((activeRound) => activeRound.id),
           },
         },
         data: {
@@ -193,7 +222,7 @@ export class AdminService {
         select: { roundNumber: true },
       });
 
-      return tx.gameRound.create({
+      const round = await tx.gameRound.create({
         data: {
           roundNumber: (latest?.roundNumber ?? 0n) + 1n,
           startTime,
@@ -203,7 +232,14 @@ export class AdminService {
           seedHash: seed.seedHash,
         },
       });
-    });
+
+      return {
+        round,
+        refunds,
+        cancelledBetCount: refunds.length,
+        refundedCoins: refunds.reduce((total, refund) => total + refund.amountCoins, 0),
+      };
+    }, { isolationLevel: "Serializable", maxWait: 5000, timeout: 20000 });
 
     const redis = getRedisClient();
     if (redis) {
@@ -213,15 +249,18 @@ export class AdminService {
     await this.writeAuditLog(adminUserId, "ROUND_FORCE_START", "ROUND", round.id, {
       reason: dto.reason ?? null,
       roundNumber: round.roundNumber.toString(),
+      cancelledBetCount,
+      refundedCoins,
     });
 
+    this.publishRefundWalletUpdates(refunds);
     publishGameEvent("round:created", { round: serializeRound(round) });
 
     return { round: serializeAdminRound({ ...round, _count: { bets: 0 } }) };
   }
 
   async forceStopRound(adminUserId: string, dto: ForceStopRoundDto) {
-    const round = await this.prisma.$transaction(async (tx) => {
+    const { round, refunds, cancelledBetCount, refundedCoins } = await this.prisma.$transaction(async (tx) => {
       const activeRound = await tx.gameRound.findFirst({
         where: {
           status: {
@@ -229,23 +268,46 @@ export class AdminService {
           },
         },
         orderBy: { startTime: "desc" },
+        include: {
+          bets: {
+            where: {
+              status: BetStatus.PENDING,
+            },
+            select: {
+              id: true,
+              userId: true,
+              coinsStaked: true,
+            },
+          },
+        },
       });
 
       if (!activeRound) {
         throw new HttpError(404, "ACTIVE_ROUND_NOT_FOUND", "There is no active round to stop.");
       }
 
-      return tx.gameRound.update({
+      const refunds = await this.refundPendingBetsForCancelledRounds(tx, [activeRound]);
+      const round = await tx.gameRound.update({
         where: { id: activeRound.id },
         data: { status: RoundStatus.CANCELLED },
       });
-    });
+
+      return {
+        round,
+        refunds,
+        cancelledBetCount: refunds.length,
+        refundedCoins: refunds.reduce((total, refund) => total + refund.amountCoins, 0),
+      };
+    }, { isolationLevel: "Serializable", maxWait: 5000, timeout: 20000 });
 
     await this.writeAuditLog(adminUserId, "ROUND_FORCE_STOP", "ROUND", round.id, {
       reason: dto.reason,
       roundNumber: round.roundNumber.toString(),
+      cancelledBetCount,
+      refundedCoins,
     });
 
+    this.publishRefundWalletUpdates(refunds);
     publishGameEvent("round:completed", { round: serializeRound(round) });
     publishGameEvent("system:error", {
       code: "ADMIN_ROUND_FORCE_STOP",
@@ -503,6 +565,67 @@ export class AdminService {
         betCountLastHour: item._count.id,
         coinsStakedLastHour: (item._sum.coinsStaked ?? 0n).toString(),
       }));
+  }
+
+  private async refundPendingBetsForCancelledRounds(
+    tx: Prisma.TransactionClient,
+    rounds: Array<{
+      id: string;
+      bets: Array<{
+        id: string;
+        userId: string;
+        coinsStaked: bigint;
+      }>;
+    }>,
+  ) {
+    const refunds: RefundWalletUpdate[] = [];
+
+    for (const round of rounds) {
+      for (const bet of round.bets) {
+        if (bet.coinsStaked > BigInt(Number.MAX_SAFE_INTEGER)) {
+          throw new HttpError(500, "REFUND_TOO_LARGE", "Bet refund exceeds safe service limits.");
+        }
+
+        const amountCoins = Number(bet.coinsStaked);
+        const refund = await this.walletService.refundCancelledBetInTransaction(tx, {
+          userId: bet.userId,
+          amountCoins,
+          referenceId: bet.id,
+          idempotencyKey: `round:${round.id}:bet:${bet.id}:cancel-refund`,
+        });
+
+        await tx.bet.updateMany({
+          where: {
+            id: bet.id,
+            status: BetStatus.PENDING,
+          },
+          data: {
+            status: BetStatus.CANCELLED,
+            payoutAmount: 0n,
+          },
+        });
+
+        if ("wallet" in refund && refund.wallet) {
+          const { wallet, ledgerEntry } = refund;
+          refunds.push({
+            userId: bet.userId,
+            amountCoins,
+            wallet,
+            ledgerEntry,
+          });
+        }
+      }
+    }
+
+    return refunds;
+  }
+
+  private publishRefundWalletUpdates(
+    refunds: RefundWalletUpdate[],
+  ) {
+    for (const refund of refunds) {
+      this.walletService.publishWalletUpdate(refund.userId, refund.wallet, refund.ledgerEntry);
+    }
   }
 }
 

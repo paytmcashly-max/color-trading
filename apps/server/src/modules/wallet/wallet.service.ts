@@ -88,6 +88,15 @@ export class WalletService {
     });
   }
 
+  refundCancelledBetInTransaction(tx: TxClient, input: LedgerMutationInput) {
+    return this.applyLedgerMovementInTransaction(tx, {
+      ...input,
+      type: CoinLedgerType.ADMIN_ADJUSTMENT,
+      direction: CoinLedgerDirection.CREDIT,
+      referenceType: LedgerReferenceType.BET,
+    });
+  }
+
   async getLedgerHistory(userId: string) {
     const entries = await this.walletRepository.getLedgerHistory(userId);
 
