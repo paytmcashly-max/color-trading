@@ -1,4 +1,4 @@
-import { RoundStatus } from "@prisma/client";
+import { BetStatus, RoundStatus } from "@prisma/client";
 
 import { HttpError } from "../../../common/errors/http-error.js";
 import { getRedisClient } from "../../../database/redis.client.js";
@@ -226,7 +226,14 @@ export class RoundService {
 
   private async settleBet(roundId: string, result: string, bet: BetRecord) {
     if (bet.choice !== result) {
-      const updatedBet = await this.gameRepository.updateBetStatus(bet.id, "LOST");
+      const updatedBet = await this.gameRepository.transaction((tx) =>
+        this.gameRepository.updatePendingBetStatusInTx(tx, bet.id, BetStatus.LOST),
+      );
+
+      if (!updatedBet) {
+        return;
+      }
+
       publishGameEvent("bet:settled", {
         bet: serializeBet(updatedBet),
         result,
@@ -240,14 +247,35 @@ export class RoundService {
       throw new HttpError(500, "PAYOUT_TOO_LARGE", "Payout exceeds safe service limits.");
     }
 
-    await this.walletService!.creditBetWinnings({
-      userId: bet.userId,
-      amountCoins: Number(payoutAmount),
-      referenceId: roundId,
-      idempotencyKey: `round:${roundId}:bet:${bet.id}:win`,
+    const { updatedBet, walletResult } = await this.gameRepository.transaction(async (tx) => {
+      const credited = await this.walletService!.creditBetWinningsInTransaction(tx, {
+        userId: bet.userId,
+        amountCoins: Number(payoutAmount),
+        referenceId: roundId,
+        idempotencyKey: `round:${roundId}:bet:${bet.id}:win`,
+      });
+
+      const settledBet = await this.gameRepository.updatePendingBetStatusInTx(
+        tx,
+        bet.id,
+        BetStatus.WON,
+        payoutAmount,
+      );
+
+      return {
+        updatedBet: settledBet,
+        walletResult: credited,
+      };
     });
 
-    const updatedBet = await this.gameRepository.updateBetStatus(bet.id, "WON", payoutAmount);
+    if (!updatedBet) {
+      return;
+    }
+
+    if ("wallet" in walletResult && walletResult.wallet) {
+      this.walletService!.publishWalletUpdate(bet.userId, walletResult.wallet, walletResult.ledgerEntry);
+    }
+
     publishGameEvent("bet:settled", {
       bet: serializeBet(updatedBet),
       result,

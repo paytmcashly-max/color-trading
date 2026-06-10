@@ -80,6 +80,15 @@ export class WalletService {
     });
   }
 
+  creditBetWinningsInTransaction(tx: TxClient, input: LedgerMutationInput) {
+    return this.applyLedgerMovementInTransaction(tx, {
+      ...input,
+      type: CoinLedgerType.BET_WIN_CREDIT,
+      direction: CoinLedgerDirection.CREDIT,
+      referenceType: LedgerReferenceType.ROUND,
+    });
+  }
+
   adminAdjustCoins(input: LedgerMutationInput & { direction: CoinLedgerDirection }) {
     return this.applyLedgerMovement({
       ...input,

@@ -175,6 +175,32 @@ export class GameRepository {
     });
   }
 
+  async updatePendingBetStatusInTx(
+    tx: TxClient,
+    betId: string,
+    status: BetStatus,
+    payoutAmount: bigint = 0n,
+  ) {
+    const updated = await tx.bet.updateMany({
+      where: {
+        id: betId,
+        status: BetStatus.PENDING,
+      },
+      data: {
+        status,
+        payoutAmount,
+      },
+    });
+
+    if (updated.count === 0) {
+      return null;
+    }
+
+    return tx.bet.findUnique({
+      where: { id: betId },
+    });
+  }
+
   findPendingBetsForRound(roundId: string) {
     return this.prisma.bet.findMany({
       where: {
