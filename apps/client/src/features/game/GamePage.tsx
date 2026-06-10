@@ -52,7 +52,7 @@ const choices: Array<{
   },
 ];
 
-export function GamePage() {
+export function GamePage({ title = "Fast Parity" }: { title?: string } = {}) {
   const token = useAuthStore((state) => state.tokens?.accessToken);
   const user = useAuthStore((state) => state.user);
   const currentRound = useGameStore((state) => state.currentRound);
@@ -188,7 +188,7 @@ export function GamePage() {
     safeQuantity <= 0;
 
   return (
-    <AppShell title="Color Prediction">
+    <AppShell title={title}>
       <section className="grid gap-3 pb-28">
         <section className="rounded-3xl border border-line bg-[linear-gradient(135deg,#ffffff,#f1faf4)] p-3 shadow-[0_10px_24px_rgba(23,32,26,0.07)]">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">

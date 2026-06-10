@@ -9,7 +9,7 @@ function comingSoon(game: GameModule) {
 export const gameModules: GameModule[] = [
   {
     id: "color-prediction",
-    name: "Color Prediction",
+    name: "Fast Parity",
     tagline: "Fast 60-second rounds with live color outcomes.",
     status: "LIVE",
     category: "Prediction",
@@ -24,11 +24,32 @@ export const gameModules: GameModule[] = [
     route: "/game/color-prediction",
     socketEvents: ["round:state", "round:timer", "round:lock", "round:result", "wallet:update", "bet:placed"],
     stateManager: "game-store",
-    renderUI: () => <GamePage />,
+    renderUI: () => <GamePage title="Fast Parity" />,
+  },
+  {
+    id: "parity",
+    name: "Parity",
+    tagline: "Classic 4-minute parity rounds.",
+    status: "COMING_SOON",
+    category: "Prediction",
+    activePlayers: 903,
+    imageSrc: "/game-images/color-prediction.svg",
+    accent: {
+      from: "from-[#e0f2fe]",
+      via: "via-[#f0fdf4]",
+      to: "to-[#fef3c7]",
+      glow: "shadow-[0_14px_34px_rgba(14,165,233,0.12)]",
+    },
+    route: "/game/parity",
+    socketEvents: [],
+    stateManager: "future-parity-store",
+    renderUI() {
+      return comingSoon(this);
+    },
   },
   {
     id: "crash-game",
-    name: "Crash Game",
+    name: "Crash",
     tagline: "Cash out before the multiplier curve disappears.",
     status: "COMING_SOON",
     category: "Multiplier",
@@ -70,7 +91,7 @@ export const gameModules: GameModule[] = [
   },
   {
     id: "dice-game",
-    name: "Dice Game",
+    name: "Dice",
     tagline: "Roll prediction mechanics prepared for the next module.",
     status: "COMING_SOON",
     category: "Arcade",

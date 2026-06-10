@@ -13,10 +13,10 @@ import { gameModules } from "./modules/registry";
 import type { GameModule } from "./modules/types";
 
 const activity = [
-  "User*** won 500 in Color Prediction",
-  "Player*** hit 3x in Crash Game",
-  "K*** streaked 4 rounds in Color Prediction",
-  "User*** rolled high in Dice Game",
+  "User*** won 500 in Fast Parity",
+  "Player*** hit 3x in Crash",
+  "K*** streaked 4 rounds in Fast Parity",
+  "User*** rolled high in Dice",
   "Ace*** entered Roulette early access",
 ];
 
