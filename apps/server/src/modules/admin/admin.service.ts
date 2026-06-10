@@ -1,9 +1,9 @@
 import {
   BetStatus,
   CoinLedgerDirection,
+  Prisma,
   RoundStatus,
   UserStatus,
-  type Prisma,
   type PrismaClient,
 } from "@prisma/client";
 import crypto from "node:crypto";
@@ -569,20 +569,50 @@ export class AdminService {
 
   async adjustWallet(adminUserId: string, userId: string, dto: AdminWalletAdjustmentDto) {
     const ledgerReferenceId = stableUuidFromIdempotencyKey(dto.idempotencyKey);
-    const auditLog = await this.writeAuditLog(adminUserId, "WALLET_ADMIN_ADJUSTMENT", "USER", userId, {
-      amountCoins: dto.amountCoins,
-      direction: dto.direction,
-      reason: dto.reason,
-      ledgerReferenceId,
-    });
+    const run = () => this.prisma.$transaction(async (tx) => {
+      const result = await this.walletService.adminAdjustCoinsInTransaction(tx, {
+        userId,
+        amountCoins: dto.amountCoins,
+        referenceId: ledgerReferenceId,
+        idempotencyKey: dto.idempotencyKey,
+        direction: dto.direction as CoinLedgerDirection,
+      });
 
-    const result = await this.walletService.adminAdjustCoins({
-      userId,
-      amountCoins: dto.amountCoins,
-      referenceId: ledgerReferenceId,
-      idempotencyKey: dto.idempotencyKey ?? `admin:${auditLog.id}:wallet-adjustment`,
-      direction: dto.direction as CoinLedgerDirection,
-    });
+      if (!result.idempotentReplay) {
+        await tx.auditLog.create({
+          data: {
+            adminUserId,
+            actionType: "WALLET_ADMIN_ADJUSTMENT",
+            idempotencyKey: dto.idempotencyKey,
+            targetType: "USER",
+            targetId: userId,
+            metadata: {
+              amountCoins: dto.amountCoins,
+              direction: dto.direction,
+              reason: dto.reason,
+              ledgerReferenceId,
+              debitStrategy: dto.direction === "DEBIT" ? "DEPOSIT_FIRST_THEN_WINNINGS" : null,
+            },
+          },
+        });
+      }
+
+      return result;
+    }, { isolationLevel: "Serializable", maxWait: 5000, timeout: 15000 });
+
+    let result;
+    try {
+      result = await run();
+    } catch (error) {
+      if (!isRetryableAdminAdjustmentError(error)) {
+        throw error;
+      }
+      result = await run();
+    }
+
+    if ("wallet" in result && result.wallet) {
+      this.walletService.publishWalletUpdate(userId, result.wallet, result.ledgerEntry);
+    }
 
     return result;
   }
@@ -987,4 +1017,9 @@ function stableUuidFromIdempotencyKey(idempotencyKey: string) {
     hex.slice(16, 20),
     hex.slice(20, 32),
   ].join("-");
+}
+
+function isRetryableAdminAdjustmentError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError &&
+    (error.code === "P2002" || error.code === "P2034");
 }

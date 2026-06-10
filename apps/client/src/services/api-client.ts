@@ -17,6 +17,7 @@ import type {
   WalletDto,
   WalletTransactionDto,
 } from "@/types/api";
+import { useAuthStore } from "@/store/auth-store";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
 const apiBasePath = process.env.NEXT_PUBLIC_API_BASE_PATH ?? "/api/v1";
@@ -41,6 +42,7 @@ async function request<TResponse>(
   path: string,
   options: RequestInit = {},
   accessToken?: string,
+  allowRefreshRetry = true,
 ) {
   const response = await fetch(`${apiUrl}${path}`, {
     ...options,
@@ -52,6 +54,21 @@ async function request<TResponse>(
       ...options.headers,
     },
   });
+
+  if (response.status === 401 && allowRefreshRetry && canRefreshAfterUnauthorized(path)) {
+    try {
+      const refreshed = await request<AuthResponse>(
+        apiPath("/auth/refresh"),
+        { method: "POST" },
+        undefined,
+        false,
+      );
+      useAuthStore.getState().setSession(refreshed.user, refreshed.tokens);
+      return request<TResponse>(path, options, refreshed.tokens.accessToken, false);
+    } catch {
+      clearSessionAndRedirect();
+    }
+  }
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ApiErrorBody | null;
@@ -79,6 +96,23 @@ async function request<TResponse>(
 
 function isEnvelope(value: unknown): value is { success: boolean; message?: string; data: unknown } {
   return typeof value === "object" && value !== null && "success" in value && "data" in value;
+}
+
+function canRefreshAfterUnauthorized(path: string) {
+  return ![
+    apiPath("/auth/login"),
+    apiPath("/auth/register"),
+    apiPath("/auth/refresh"),
+  ].includes(path);
+}
+
+function clearSessionAndRedirect() {
+  useAuthStore.getState().clearSession();
+
+  if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+    const next = `${window.location.pathname}${window.location.search}`;
+    window.location.assign(`/login?next=${encodeURIComponent(next)}`);
+  }
 }
 
 function formatValidationDetails(details: ValidationDetails | undefined) {

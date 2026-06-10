@@ -2,8 +2,8 @@ import { z } from "zod";
 
 const passwordSchema = z
   .string()
-  .min(6, "Password must be at least 6 characters long.")
-  .max(12, "Password must be at most 12 characters long.")
+  .min(12, "Password must be at least 12 characters long.")
+  .max(72, "Password must be at most 72 characters long.")
   .regex(/[A-Z]/, "Password must include an uppercase letter.")
   .regex(/[a-z]/, "Password must include a lowercase letter.")
   .regex(/[0-9]/, "Password must include a number.")

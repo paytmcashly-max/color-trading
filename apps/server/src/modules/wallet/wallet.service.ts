@@ -98,6 +98,17 @@ export class WalletService {
     });
   }
 
+  adminAdjustCoinsInTransaction(
+    tx: TxClient,
+    input: LedgerMutationInput & { direction: CoinLedgerDirection },
+  ) {
+    return this.applyLedgerMovementInTransaction(tx, {
+      ...input,
+      type: CoinLedgerType.ADMIN_ADJUSTMENT,
+      referenceType: LedgerReferenceType.ADMIN_ACTION,
+    });
+  }
+
   refundCancelledBetInTransaction(tx: TxClient, input: LedgerMutationInput) {
     return this.applyLedgerMovementInTransaction(tx, {
       ...input,
@@ -373,16 +384,6 @@ export class WalletService {
         depositBalance: wallet.depositBalance + amountCoins,
         winningBalance: wallet.winningBalance,
         insufficientFunds: false,
-      } as const;
-    }
-
-    if (input.type === CoinLedgerType.ADMIN_ADJUSTMENT) {
-      const nextDepositBalance = wallet.depositBalance - amountCoins;
-
-      return {
-        depositBalance: nextDepositBalance,
-        winningBalance: wallet.winningBalance,
-        insufficientFunds: nextDepositBalance < 0n,
       } as const;
     }
 

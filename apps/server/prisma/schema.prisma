@@ -170,16 +170,17 @@ model UserRiskProfile {
 }
 
 model AuditLog {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  adminUserId String?  @map("admin_user_id") @db.Uuid
-  actorId     String?  @map("actor_id") @db.VarChar(120)
-  actorType   String   @default("ADMIN") @map("actor_type") @db.VarChar(40)
-  action      String?  @db.VarChar(120)
-  actionType  String   @map("action_type") @db.VarChar(80)
-  targetType  String?  @map("target_type") @db.VarChar(80)
-  targetId    String?  @map("target_id") @db.VarChar(120)
-  metadata    Json?
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  adminUserId    String?  @map("admin_user_id") @db.Uuid
+  actorId        String?  @map("actor_id") @db.VarChar(120)
+  actorType      String   @default("ADMIN") @map("actor_type") @db.VarChar(40)
+  action         String?  @db.VarChar(120)
+  actionType     String   @map("action_type") @db.VarChar(80)
+  idempotencyKey String?  @unique @map("idempotency_key") @db.VarChar(160)
+  targetType     String?  @map("target_type") @db.VarChar(80)
+  targetId       String?  @map("target_id") @db.VarChar(120)
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   adminUser User? @relation("AdminAuditLogs", fields: [adminUserId], references: [id], onDelete: Restrict)
 

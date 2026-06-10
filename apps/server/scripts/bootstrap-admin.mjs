@@ -215,8 +215,8 @@ function readFirstRequiredEnv(keys) {
 function assertStrongAdminPassword(value) {
   const errors = [];
 
-  if (value.length < 6 || value.length > 12) {
-    errors.push("between 6 and 12 characters");
+  if (value.length < 12 || value.length > 72) {
+    errors.push("between 12 and 72 characters");
   }
 
   if (!/[A-Z]/.test(value)) {

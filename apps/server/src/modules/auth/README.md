@@ -25,7 +25,7 @@ Request:
 ```json
 {
   "email": "player@example.com",
-  "password": "Aa1!aa",
+  "password": "StrongPass1!",
   "displayName": "Player One"
 }
 ```
@@ -61,7 +61,7 @@ Request:
 ```json
 {
   "email": "player@example.com",
-  "password": "Aa1!aa"
+  "password": "StrongPass1!"
 }
 ```
 

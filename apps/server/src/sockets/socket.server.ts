@@ -32,6 +32,7 @@ import {
   subscribeToRealtimeEvents,
   type RealtimeEvent,
 } from "./socket.events.js";
+import { revalidateSocketSession } from "./socket.session.js";
 
 const SOCKET_RATE_LIMIT_WINDOW_MS = 10_000;
 const SOCKET_RATE_LIMIT_MAX_EVENTS = 40;
@@ -167,6 +168,10 @@ async function handleConnection(socket: Socket) {
   );
 
   socket.on("state:sync", async (ack?: (response: unknown) => void) => {
+    if (!(await authorizeSensitiveSocketEvent(socket, ack))) {
+      return;
+    }
+
     if (!(await consumeSocketToken(socket, "state:sync"))) {
       ack?.({ ok: false, error: "RATE_LIMITED" });
       return;
@@ -215,6 +220,10 @@ async function joinRequestedRoom(
   payload: unknown,
   ack?: (response: unknown) => void,
 ) {
+  if (!(await authorizeSensitiveSocketEvent(socket, ack))) {
+    return;
+  }
+
   if (!(await consumeSocketToken(socket, "join:room"))) {
     ack?.({ ok: false, error: "RATE_LIMITED" });
     return;
@@ -253,6 +262,10 @@ async function joinRoundRoom(
   ack: ((response: unknown) => void) | undefined,
   eventName: string,
 ) {
+  if (!(await authorizeSensitiveSocketEvent(socket, ack))) {
+    return;
+  }
+
   if (!(await consumeSocketToken(socket, eventName))) {
     ack?.({ ok: false, error: "RATE_LIMITED" });
     return;
@@ -288,6 +301,10 @@ async function leaveRoundRoom(
   payload: unknown,
   ack?: (response: LeaveRoundAck) => void,
 ) {
+  if (!(await authorizeSensitiveSocketEvent(socket, asUnknownAck(ack)))) {
+    return;
+  }
+
   if (!(await consumeSocketToken(socket, "leave_round"))) {
     ack?.({ ok: false, error: "RATE_LIMITED" });
     return;
@@ -474,35 +491,6 @@ async function consumeSocketToken(socket: Socket, eventName: string) {
   return true;
 }
 
-async function assertSocketSessionActive(user: SocketUserContext) {
-  const session = await prisma.authSession.findFirst({
-    where: {
-      id: user.sessionId,
-      userId: user.userId,
-      revokedAt: null,
-      expiresAt: {
-        gt: new Date(),
-      },
-    },
-    select: {
-      id: true,
-      user: {
-        select: {
-          status: true,
-        },
-      },
-    },
-  });
-
-  if (!session) {
-    throw new HttpError(401, "SESSION_REVOKED", "Socket session is no longer active.");
-  }
-
-  if (session.user.status !== "ACTIVE") {
-    throw new HttpError(401, "USER_NOT_ACTIVE", "Socket user is not active.");
-  }
-}
-
 function getSocketUser(socket: Socket) {
   return socket.data.user as SocketUserContext;
 }
@@ -576,6 +564,10 @@ async function handlePlaceBet(
   ack: ((response: unknown) => void) | undefined,
   eventName: string,
 ) {
+  if (!(await authorizeSensitiveSocketEvent(socket, ack))) {
+    return;
+  }
+
   if (!(await consumeSocketToken(socket, eventName))) {
     ack?.({ ok: false, error: "RATE_LIMITED" });
     return;
@@ -594,7 +586,6 @@ async function handlePlaceBet(
 
   try {
     const user = getSocketUser(socket);
-    await assertSocketSessionActive(user);
     const result = await betService.placeBet(user.userId, parsed.data);
     ack?.({ ok: true, data: result, ...result });
   } catch (error) {
@@ -602,6 +593,28 @@ async function handlePlaceBet(
     socket.emit("system:error", response);
     ack?.({ ok: false, error: response.code, message: response.message });
   }
+}
+
+async function authorizeSensitiveSocketEvent(
+  socket: Socket,
+  ack?: (response: unknown) => void,
+) {
+  const active = await revalidateSocketSession(
+    prisma,
+    getSocketUser(socket),
+    () => socket.disconnect(true),
+  );
+
+  if (!active) {
+    const response = {
+      code: "SESSION_REVOKED",
+      message: "Socket session is no longer active.",
+    };
+    socket.emit("system:error", response);
+    ack?.({ ok: false, error: response.code, message: response.message });
+  }
+
+  return active;
 }
 
 function emitContractEvent<TEventName extends ServerToClientEventName>(

@@ -5,6 +5,7 @@ import {
   CoinLedgerStatus,
   CoinLedgerType,
   LedgerReferenceType,
+  WalletStatus,
 } from "@prisma/client";
 
 setRequiredEnv();
@@ -54,6 +55,61 @@ test("wallet idempotency rejects a replay with a different amount", async () => 
     (error: unknown) =>
       error instanceof HttpError && error.code === "IDEMPOTENCY_KEY_CONFLICT",
   );
+});
+
+test("admin debit consumes deposit balance before winning balance", async () => {
+  let updatedBalances: { depositBalance: bigint; winningBalance: bigint } | undefined;
+  const repository = {
+    findLedgerByIdempotencyKey: async () => null,
+    transaction: async (handler: (tx: unknown) => Promise<unknown>) => handler({}),
+    ensureWalletForUser: async () => ({
+      id: walletId,
+      userId,
+      depositBalance: 100n,
+      winningBalance: 50n,
+      ledgerVersion: 0n,
+      status: WalletStatus.ACTIVE,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }),
+    createLedgerEntry: async (_tx: unknown, input: Record<string, unknown>) => ({
+      id: "55555555-5555-4555-8555-555555555555",
+      ...input,
+      metadata: input.metadata ?? null,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    }),
+    updateWalletSnapshot: async (
+      _tx: unknown,
+      _walletId: string,
+      balances: { depositBalance: bigint; winningBalance: bigint },
+    ) => {
+      updatedBalances = balances;
+      return {
+        id: walletId,
+        userId,
+        ...balances,
+        ledgerVersion: 1n,
+        status: WalletStatus.ACTIVE,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    },
+  };
+  const service = new WalletService(repository as never);
+
+  await service.adminAdjustCoins({
+    userId,
+    amountCoins: 120,
+    referenceId,
+    idempotencyKey: "admin:test:deposit-first",
+    direction: CoinLedgerDirection.DEBIT,
+  });
+
+  assert.deepEqual(updatedBalances, {
+    depositBalance: 0n,
+    winningBalance: 30n,
+  });
 });
 
 function createReplayRepository(input: { amountCoins: bigint; status: CoinLedgerStatus }) {

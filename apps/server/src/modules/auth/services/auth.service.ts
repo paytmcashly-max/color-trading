@@ -22,7 +22,11 @@ export class AuthService {
     const existingUser = await this.authRepository.findUserIdByEmail(dto.email);
 
     if (existingUser) {
-      throw new HttpError(409, "EMAIL_ALREADY_REGISTERED", "Email is already registered.");
+      throw new HttpError(
+        409,
+        "REGISTRATION_UNAVAILABLE",
+        "Unable to create an account with the provided details.",
+      );
     }
 
     const passwordHash = await hashPassword(dto.password);

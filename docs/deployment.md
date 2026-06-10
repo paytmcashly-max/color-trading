@@ -77,7 +77,7 @@ ADMIN_BOOTSTRAP_TOKEN="<private-one-time-bootstrap-token>" \
 npm run db:seed:admin -w @color-trading/server
 ```
 
-`ADMIN_BOOTSTRAP_PASSWORD` must be 6-12 characters and include uppercase,
+`ADMIN_BOOTSTRAP_PASSWORD` must be 12-72 characters and include uppercase,
 lowercase, number, and symbol. If `ADMIN_BOOTSTRAP_EMAIL` already belongs to a normal user,
 set `ADMIN_BOOTSTRAP_CONFIRM=PROMOTE_ADMIN`; otherwise the script refuses to
 promote the account. In production, `ADMIN_BOOTSTRAP_TOKEN` is required and only

@@ -72,32 +72,6 @@ Response:
 }
 ```
 
-### POST /api/v1/wallet/bonus-credit
-
-Request:
-
-```json
-{
-  "amountCoins": 500,
-  "referenceId": "00000000-0000-0000-0000-000000000001",
-  "idempotencyKey": "bonus:user:campaign:001"
-}
-```
-
-### POST /api/v1/wallet/bet-debit
-
-Prepared for future bet placement. It debits coins with `BET_DEBIT`; it does not create bets or rounds.
-
-Request:
-
-```json
-{
-  "amountCoins": 100,
-  "referenceId": "00000000-0000-0000-0000-000000000002",
-  "idempotencyKey": "bet:user:round:001"
-}
-```
-
 ### POST /api/v1/admin/wallet/:userId/adjust
 
 Requires `ADMIN` role and verified admin email.
@@ -110,6 +84,11 @@ Requires `ADMIN` role and verified admin email.
   "idempotencyKey": "admin:user:ticket:123"
 }
 ```
+
+This is the only HTTP endpoint allowed to mutate wallets administratively.
+Credits go to `depositBalance`. Debits consume `depositBalance` first, then
+`winningBalance`. The adjustment ledger entry and audit record commit in one
+serializable transaction and share the request idempotency key.
 
 ## Transaction Flow
 

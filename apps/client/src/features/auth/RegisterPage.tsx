@@ -76,8 +76,8 @@ export function RegisterPage() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             autoComplete="new-password"
-            minLength={6}
-            maxLength={12}
+            minLength={12}
+            maxLength={72}
             title="Use 6 to 12 characters with uppercase, lowercase, number, and symbol."
             required
           />

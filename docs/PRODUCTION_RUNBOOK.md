@@ -85,7 +85,7 @@ from a trusted production shell.
 
 ```bash
 ADMIN_BOOTSTRAP_EMAIL=admin@example.com
-ADMIN_BOOTSTRAP_PASSWORD=<6-12-characters-with-uppercase-lowercase-number-symbol>
+ADMIN_BOOTSTRAP_PASSWORD=<12-72-characters-with-uppercase-lowercase-number-symbol>
 ADMIN_BOOTSTRAP_TOKEN=<private-one-time-token>
 ```
 

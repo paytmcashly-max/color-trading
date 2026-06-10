@@ -123,7 +123,7 @@ $env:ADMIN_BOOTSTRAP_TOKEN="<private-bootstrap-token>"
 npm run db:seed:admin
 ```
 
-Admin passwords must be 6-12 characters with uppercase, lowercase, number, and symbol.
+Admin passwords must be 12-72 characters with uppercase, lowercase, number, and symbol.
 If the email already belongs to a normal user, also set
 `ADMIN_BOOTSTRAP_CONFIRM=PROMOTE_ADMIN`. After the first admin is verified, disable
 future bootstrap attempts:

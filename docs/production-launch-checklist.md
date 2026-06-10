@@ -26,7 +26,7 @@ For first admin creation only, temporarily set:
 
 ```bash
 ADMIN_BOOTSTRAP_EMAIL=admin@example.com
-ADMIN_BOOTSTRAP_PASSWORD=<6-12 chars with uppercase lowercase number symbol>
+ADMIN_BOOTSTRAP_PASSWORD=<12-72 chars with uppercase lowercase number symbol>
 ADMIN_BOOTSTRAP_TOKEN=<private-one-time-token>
 ```
 
