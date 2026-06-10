@@ -27,18 +27,22 @@ test("migration checksum accepts a legacy CRLF checksum before normalization", a
 });
 
 test("only the known historical wallet migration accepts its edited checksum", () => {
-  const editedChecksum =
-    "defa670d4ff6f402142d6f160c0bf40aaf3b61fcce6b8009fde2f568f110be35";
+  const knownChecksums = [
+    "6c0bb5fe68b1503c80efee727da7d4ad80f1f4ff6f7b07fbf236048ebc03d11f",
+    "defa670d4ff6f402142d6f160c0bf40aaf3b61fcce6b8009fde2f568f110be35",
+  ];
 
-  assert.equal(
-    isAcceptedLegacyMigrationChecksum(
-      "20260609_add_wallet_transaction_balance_before.sql",
-      editedChecksum,
-    ),
-    true,
-  );
-  assert.equal(
-    isAcceptedLegacyMigrationChecksum("unrelated.sql", editedChecksum),
-    false,
-  );
+  for (const checksum of knownChecksums) {
+    assert.equal(
+      isAcceptedLegacyMigrationChecksum(
+        "20260609_add_wallet_transaction_balance_before.sql",
+        checksum,
+      ),
+      true,
+    );
+    assert.equal(
+      isAcceptedLegacyMigrationChecksum("unrelated.sql", checksum),
+      false,
+    );
+  }
 });
