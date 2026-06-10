@@ -98,7 +98,9 @@ async function applySqlMigrations() {
         isAcceptedLegacyMigrationChecksum(migration, storedChecksum);
 
       if (!checksumMatches) {
-        throw new Error(`Migration checksum changed after apply: ${migration}`);
+        throw new Error(
+          `Migration checksum changed after apply: ${migration} (stored=${storedChecksum}, current=${sqlChecksum})`,
+        );
       }
 
       if (storedChecksum !== sqlChecksum) {
