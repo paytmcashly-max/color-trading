@@ -18,6 +18,7 @@ export interface User {
   displayName: string | null;
   role: UserRole;
   status: UserStatus;
+  emailVerifiedAt: ISODateString | null;
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }

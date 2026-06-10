@@ -6,13 +6,13 @@ export interface AuthUser {
   displayName: string | null;
   role: UserRole;
   status: UserStatus;
+  emailVerifiedAt: ISODateString | null;
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }
 
 export interface AuthTokenPair {
   accessToken: string;
-  refreshToken: string;
   tokenType: "Bearer";
   expiresInSeconds: number;
 }
@@ -39,9 +39,7 @@ export interface LoginRequest {
   password: string;
 }
 
-export interface RefreshTokenRequest {
-  refreshToken: string;
-}
+export type RefreshTokenRequest = Record<string, never>;
 
 export interface CurrentUserResponse {
   success: boolean;
@@ -55,4 +53,13 @@ export interface LogoutResponse {
   success: boolean;
   message: string;
   data: null;
+}
+
+export interface LogoutAllSessionsResponse {
+  success: boolean;
+  message: string;
+  data: {
+    success: true;
+    revokedSessionCount: number;
+  };
 }

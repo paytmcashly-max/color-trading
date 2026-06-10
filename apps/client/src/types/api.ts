@@ -94,7 +94,13 @@ export interface LedgerEntryDto {
 
 export type WalletTransactionDto = WalletTransaction;
 
+export interface PageInfoDto {
+  limit: number;
+  nextCursor: string | null;
+}
+
 export interface AdminUserDto extends UserDto {
+  emailVerifiedAt: string | null;
   lastLoginAt: string | null;
   wallet: {
     depositBalance: string;

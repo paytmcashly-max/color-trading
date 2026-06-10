@@ -3,6 +3,7 @@ import { UserRole } from "@prisma/client";
 
 import { authGuard } from "../../common/guards/auth.guard.js";
 import { roleGuard } from "../../common/guards/role.guard.js";
+import { verifiedEmailGuard } from "../../common/guards/verified-email.guard.js";
 import { asyncHandler } from "../../common/middleware/async-handler.js";
 import { validateBody } from "../../common/middleware/validate-request.js";
 import { getPrismaClient } from "../../database/prisma.client.js";
@@ -26,7 +27,7 @@ const walletService = new WalletService(new WalletRepository(prisma));
 const adminService = new AdminService(prisma, walletService);
 const adminController = new AdminController(adminService);
 
-adminRouter.use(authGuard, roleGuard(UserRole.ADMIN));
+adminRouter.use(authGuard, roleGuard(UserRole.ADMIN), verifiedEmailGuard);
 
 adminRouter.get("/dashboard", asyncHandler(adminController.dashboard));
 adminRouter.get("/users", asyncHandler(adminController.users));

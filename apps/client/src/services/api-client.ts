@@ -19,6 +19,7 @@ import type {
 } from "@/types/api";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const apiBasePath = process.env.NEXT_PUBLIC_API_BASE_PATH ?? "/api/v1";
 
 interface ApiErrorBody {
   success?: boolean;
@@ -43,6 +44,7 @@ async function request<TResponse>(
 ) {
   const response = await fetch(`${apiUrl}${path}`, {
     ...options,
+    credentials: "include",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
@@ -102,61 +104,86 @@ export function fetchHealth() {
   return request<unknown>("/health");
 }
 
+function apiPath(path: string) {
+  return `${apiBasePath}${path}`;
+}
+
 export function login(email: string, password: string) {
-  return request<AuthResponse>("/auth/login", {
+  return request<AuthResponse>(apiPath("/auth/login"), {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
 }
 
 export function register(email: string, password: string, displayName?: string) {
-  return request<AuthResponse>("/auth/register", {
+  return request<AuthResponse>(apiPath("/auth/register"), {
     method: "POST",
     body: JSON.stringify({ email, password, displayName }),
   });
 }
 
-export function refreshSession(refreshToken: string) {
-  return request<AuthResponse>("/auth/refresh", {
+export function refreshSession() {
+  return request<AuthResponse>(apiPath("/auth/refresh"), {
     method: "POST",
-    body: JSON.stringify({ refreshToken }),
   });
 }
 
 export function fetchMe(accessToken: string) {
-  return request<{ user: AuthResponse["user"] }>("/auth/me", {}, accessToken);
+  return request<{ user: AuthResponse["user"] }>(apiPath("/auth/me"), {}, accessToken);
 }
 
 export function logout(accessToken: string) {
-  return request<{ success: true }>("/auth/logout", { method: "POST" }, accessToken);
+  return request<{ success: true }>(apiPath("/auth/logout"), { method: "POST" }, accessToken);
+}
+
+export function logoutAllSessions(accessToken: string) {
+  return request<{ success: true; revokedSessionCount: number }>(
+    apiPath("/auth/logout-all"),
+    { method: "POST" },
+    accessToken,
+  );
 }
 
 export function fetchWallet(accessToken: string) {
-  return request<{ wallet: WalletDto }>("/wallet/balance", {}, accessToken);
+  return request<{ wallet: WalletDto }>(apiPath("/wallet/balance"), {}, accessToken);
 }
 
-export function fetchLedger(accessToken: string) {
-  return request<{ entries: LedgerEntryDto[] }>("/wallet/ledger", {}, accessToken);
+export function fetchLedger(accessToken: string, input: PaginationParams = {}) {
+  return request<{ entries: LedgerEntryDto[]; pageInfo: PageInfo }>(
+    apiPath(`/wallet/ledger${paginationSuffix(input)}`),
+    {},
+    accessToken,
+  );
 }
 
-export function fetchWalletTransactions(accessToken: string) {
-  return request<{ transactions: WalletTransactionDto[] }>("/wallet/transactions", {}, accessToken);
+export function fetchWalletTransactions(accessToken: string, input: PaginationParams = {}) {
+  return request<{ transactions: WalletTransactionDto[]; pageInfo: PageInfo }>(
+    apiPath(`/wallet/transactions${paginationSuffix(input)}`),
+    {},
+    accessToken,
+  );
 }
 
 export function fetchCurrentRound() {
-  return request<{ round: RoundDto | null }>("/game/round/current");
+  return request<{ round: RoundDto | null }>(apiPath("/game/round/current"));
 }
 
-export function fetchRoundHistory() {
-  return request<{ rounds: RoundHistoryDto[] }>("/game/rounds/history");
+export function fetchRoundHistory(input: PaginationParams = {}) {
+  return request<{ rounds: RoundHistoryDto[]; pageInfo: PageInfo }>(
+    apiPath(`/game/rounds/history${paginationSuffix(input)}`),
+  );
 }
 
-export function fetchMyBetHistory(accessToken: string) {
-  return request<{ bets: UserBetHistoryDto[] }>("/game/bets/me", {}, accessToken);
+export function fetchMyBetHistory(accessToken: string, input: PaginationParams = {}) {
+  return request<{ bets: UserBetHistoryDto[]; pageInfo: PageInfo }>(
+    apiPath(`/game/bets/me${paginationSuffix(input)}`),
+    {},
+    accessToken,
+  );
 }
 
 export function fetchLeaderboard() {
-  return request<{ users: LeaderboardUserDto[] }>("/users/leaderboard");
+  return request<{ users: LeaderboardUserDto[] }>(apiPath("/users/leaderboard"));
 }
 
 export function placePrediction(
@@ -168,7 +195,7 @@ export function placePrediction(
     idempotencyKey: string;
   },
 ) {
-  return request<{ bet: BetDto; wallet?: WalletDto }>("/game/bets", {
+  return request<{ bet: BetDto; wallet?: WalletDto }>(apiPath("/game/bets"), {
     method: "POST",
     body: JSON.stringify({
       ...input,
@@ -180,41 +207,41 @@ export function placePrediction(
 
 export function fetchAdminUsers(accessToken: string, query?: string) {
   const params = query ? `?q=${encodeURIComponent(query)}` : "";
-  return request<{ users: AdminUserDto[] }>(`/admin/users${params}`, {}, accessToken);
+  return request<{ users: AdminUserDto[] }>(apiPath(`/admin/users${params}`), {}, accessToken);
 }
 
 export function banAdminUser(accessToken: string, userId: string) {
-  return request<{ user: AdminUserDto }>(`/admin/users/${userId}/ban`, { method: "POST" }, accessToken);
+  return request<{ user: AdminUserDto }>(apiPath(`/admin/users/${userId}/ban`), { method: "POST" }, accessToken);
 }
 
 export function unbanAdminUser(accessToken: string, userId: string) {
-  return request<{ user: AdminUserDto }>(`/admin/users/${userId}/unban`, { method: "POST" }, accessToken);
+  return request<{ user: AdminUserDto }>(apiPath(`/admin/users/${userId}/unban`), { method: "POST" }, accessToken);
 }
 
 export function fetchAdminRounds(accessToken: string) {
-  return request<{ rounds: AdminRoundDto[] }>("/admin/rounds", {}, accessToken);
+  return request<{ rounds: AdminRoundDto[] }>(apiPath("/admin/rounds"), {}, accessToken);
 }
 
 export function fetchAdminActiveRound(accessToken: string) {
-  return request<{ round: AdminRoundDto | null }>("/admin/rounds/active", {}, accessToken);
+  return request<{ round: AdminRoundDto | null }>(apiPath("/admin/rounds/active"), {}, accessToken);
 }
 
 export function forceStartRound(accessToken: string, reason?: string) {
-  return request<{ round: AdminRoundDto }>("/admin/rounds/force-start", {
+  return request<{ round: AdminRoundDto }>(apiPath("/admin/rounds/force-start"), {
     method: "POST",
     body: JSON.stringify({ reason }),
   }, accessToken);
 }
 
 export function forceStopRound(accessToken: string, reason: string) {
-  return request<{ round: AdminRoundDto }>("/admin/rounds/force-stop", {
+  return request<{ round: AdminRoundDto }>(apiPath("/admin/rounds/force-stop"), {
     method: "POST",
     body: JSON.stringify({ reason, confirmation: "STOP ROUND" }),
   }, accessToken);
 }
 
 export function fetchAdminWallet(accessToken: string, userId: string) {
-  return request<{ wallet: WalletDto }>(`/admin/wallet/${userId}`, {}, accessToken);
+  return request<{ wallet: WalletDto }>(apiPath(`/admin/wallet/${userId}`), {}, accessToken);
 }
 
 export function adjustAdminWallet(
@@ -227,17 +254,25 @@ export function adjustAdminWallet(
     confirmation: "ADJUST WALLET";
   },
 ) {
-  return request<{ wallet?: WalletDto; ledgerEntry: LedgerEntryDto }>(`/admin/wallet/${userId}/adjust`, {
+  return request<{ wallet?: WalletDto; ledgerEntry: LedgerEntryDto }>(apiPath(`/admin/wallet/${userId}/adjust`), {
     method: "POST",
     body: JSON.stringify({
       ...input,
-      idempotencyKey: `admin-ui:${userId}:${Date.now()}`,
+      idempotencyKey: createAdminWalletAdjustmentIdempotencyKey(userId),
     }),
   }, accessToken);
 }
 
-export function fetchAdminLedger(accessToken: string, userId: string) {
-  return request<{ entries: LedgerEntryDto[] }>(`/admin/ledger/${userId}`, {}, accessToken);
+export function createAdminWalletAdjustmentIdempotencyKey(userId: string) {
+  return `admin-ui:${userId}:${crypto.randomUUID()}`;
+}
+
+export function fetchAdminLedger(accessToken: string, userId: string, input: PaginationParams = {}) {
+  return request<{ entries: LedgerEntryDto[]; pageInfo: PageInfo }>(
+    apiPath(`/admin/ledger/${userId}${paginationSuffix(input)}`),
+    {},
+    accessToken,
+  );
 }
 
 export function fetchAdminBets(
@@ -253,24 +288,48 @@ export function fetchAdminBets(
   }
   const suffix = params.size > 0 ? `?${params.toString()}` : "";
   return request<{ bets: AdminBetDto[]; suspiciousUsers: SuspiciousBettingPatternDto[] }>(
-    `/admin/bets${suffix}`,
+    apiPath(`/admin/bets${suffix}`),
     {},
     accessToken,
   );
 }
 
 export function fetchAdminSystemHealth(accessToken: string) {
-  return request<AdminSystemHealthDto>("/admin/system-health", {}, accessToken);
+  return request<AdminSystemHealthDto>(apiPath("/admin/system-health"), {}, accessToken);
 }
 
 export function fetchAdminAuditLogs(accessToken: string) {
-  return request<{ auditLogs: AuditLogDto[] }>("/admin/audit-logs", {}, accessToken);
+  return request<{ auditLogs: AuditLogDto[] }>(apiPath("/admin/audit-logs"), {}, accessToken);
 }
 
 export function fetchAdminFraudLogs(accessToken: string) {
-  return request<{ fraudLogs: FraudLogDto[] }>("/admin/fraud/logs", {}, accessToken);
+  return request<{ fraudLogs: FraudLogDto[] }>(apiPath("/admin/fraud/logs"), {}, accessToken);
 }
 
 export function fetchAdminRiskProfiles(accessToken: string) {
-  return request<{ riskProfiles: RiskProfileDto[] }>("/admin/fraud/risk-profiles", {}, accessToken);
+  return request<{ riskProfiles: RiskProfileDto[] }>(apiPath("/admin/fraud/risk-profiles"), {}, accessToken);
+}
+
+interface PaginationParams {
+  limit?: number;
+  cursor?: string | null;
+}
+
+interface PageInfo {
+  limit: number;
+  nextCursor: string | null;
+}
+
+function paginationSuffix(input: PaginationParams) {
+  const params = new URLSearchParams();
+
+  if (input.limit) {
+    params.set("limit", String(input.limit));
+  }
+
+  if (input.cursor) {
+    params.set("cursor", input.cursor);
+  }
+
+  return params.size > 0 ? `?${params.toString()}` : "";
 }

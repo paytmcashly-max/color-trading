@@ -30,14 +30,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (!tokens) {
-      setRestoring(false);
-      if (!isPublicRoute) {
-        router.replace(loginHref);
-      }
-      return;
-    }
-
     const sessionTokens = tokens;
     let cancelled = false;
 
@@ -45,13 +37,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRestoring(true);
 
       try {
-        const current = await fetchMe(sessionTokens.accessToken);
+        if (sessionTokens) {
+          const current = await fetchMe(sessionTokens.accessToken);
+          if (!cancelled) {
+            setSession(current.user, sessionTokens);
+          }
+          return;
+        }
+
+        const refreshed = await refreshSession();
         if (!cancelled) {
-          setSession(current.user, sessionTokens);
+          setSession(refreshed.user, refreshed.tokens);
         }
       } catch {
         try {
-          const refreshed = await refreshSession(sessionTokens.refreshToken);
+          const refreshed = await refreshSession();
           if (!cancelled) {
             setSession(refreshed.user, refreshed.tokens);
           }

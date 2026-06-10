@@ -59,6 +59,12 @@ export class AuthService {
     return { success: true };
   }
 
+  async logoutAll(userId: string) {
+    const revokedSessionCount = await this.authRepository.revokeAllSessions(userId, new Date());
+
+    return { success: true, revokedSessionCount };
+  }
+
   async refresh(dto: RefreshTokenDto, metadata: RequestMetadata) {
     const payload = verifyRefreshToken(dto.refreshToken);
     const refreshTokenHash = hashToken(dto.refreshToken);
@@ -147,7 +153,7 @@ export class AuthService {
       tokens: {
         accessToken,
         refreshToken,
-        tokenType: "Bearer",
+        tokenType: "Bearer" as const,
         expiresInSeconds: env.JWT_ACCESS_TOKEN_TTL_SECONDS,
       },
     };

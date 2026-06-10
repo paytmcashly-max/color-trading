@@ -88,15 +88,16 @@ enum LogLevel {
 }
 
 model User {
-  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email        String     @unique @db.Citext
-  passwordHash String     @map("password_hash")
-  displayName  String?    @map("display_name") @db.VarChar(80)
-  status       UserStatus @default(ACTIVE)
-  role         UserRole   @default(USER)
-  lastLoginAt  DateTime?  @map("last_login_at") @db.Timestamptz(6)
-  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String     @unique @db.Citext
+  passwordHash    String     @map("password_hash")
+  displayName     String?    @map("display_name") @db.VarChar(80)
+  status          UserStatus @default(ACTIVE)
+  role            UserRole   @default(USER)
+  emailVerifiedAt DateTime?  @map("email_verified_at") @db.Timestamptz(6)
+  lastLoginAt     DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   wallet        Wallet?
   bets          Bet[]
@@ -299,19 +300,19 @@ model GameRound {
 }
 
 model RoundSettlement {
-  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  roundId          String           @unique @map("round_id") @db.Uuid
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roundId          String          @unique @map("round_id") @db.Uuid
   result           PredictionColor
-  status           String           @default("PENDING") @db.VarChar(32)
-  totalBets        Int              @default(0) @map("total_bets")
-  winningBets      Int              @default(0) @map("winning_bets")
-  losingBets       Int              @default(0) @map("losing_bets")
-  totalPayoutCoins BigInt           @default(0) @map("total_payout_coins")
+  status           String          @default("PENDING") @db.VarChar(32)
+  totalBets        Int             @default(0) @map("total_bets")
+  winningBets      Int             @default(0) @map("winning_bets")
+  losingBets       Int             @default(0) @map("losing_bets")
+  totalPayoutCoins BigInt          @default(0) @map("total_payout_coins")
   metadata         Json?
-  startedAt        DateTime         @default(now()) @map("started_at") @db.Timestamptz(6)
-  completedAt      DateTime?        @map("completed_at") @db.Timestamptz(6)
-  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  startedAt        DateTime        @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt      DateTime?       @map("completed_at") @db.Timestamptz(6)
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   round GameRound @relation(fields: [roundId], references: [id], onDelete: Restrict)
 

@@ -2,12 +2,13 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 
 import { asyncHandler } from "../../common/middleware/async-handler.js";
+import { createRateLimitStore } from "../../common/middleware/global-rate-limit.js";
 import { validateBody } from "../../common/middleware/validate-request.js";
 import { getPrismaClient } from "../../database/prisma.client.js";
 import { authMiddleware } from "../../middlewares/auth.middleware.js";
 import { fraudAuthRateLimit } from "../fraud/fraud.middleware.js";
 import { AuthController } from "./auth.controller.js";
-import { loginSchema, refreshTokenSchema, registerSchema } from "./auth.dto.js";
+import { loginSchema, registerSchema } from "./auth.dto.js";
 import { AuthService } from "./auth.service.js";
 import { AuthRepository } from "./repositories/auth.repository.js";
 
@@ -22,6 +23,7 @@ const authRateLimiter = rateLimit({
   limit: 20,
   standardHeaders: "draft-8",
   legacyHeaders: false,
+  store: createRateLimitStore("auth"),
   skipSuccessfulRequests: true,
   message: {
     success: false,
@@ -47,11 +49,11 @@ authRouter.post(
   asyncHandler(authController.login),
 );
 authRouter.post("/logout", authMiddleware, asyncHandler(authController.logout));
+authRouter.post("/logout-all", authMiddleware, asyncHandler(authController.logoutAll));
 authRouter.post(
   "/refresh",
   authRateLimiter,
   fraudAuthRateLimit,
-  validateBody(refreshTokenSchema),
   asyncHandler(authController.refresh),
 );
 authRouter.get("/me", authMiddleware, asyncHandler(authController.me));

@@ -10,7 +10,7 @@ import type {
 } from "@prisma/client";
 
 export function serializeAdminUser(
-  user: Pick<User, "id" | "email" | "displayName" | "role" | "status" | "lastLoginAt" | "createdAt" | "updatedAt"> & {
+  user: Pick<User, "id" | "email" | "displayName" | "role" | "status" | "emailVerifiedAt" | "lastLoginAt" | "createdAt" | "updatedAt"> & {
     wallet?: Pick<Wallet, "depositBalance" | "winningBalance" | "status" | "ledgerVersion"> | null;
     _count?: { bets: number; ledgerEntries: number };
   },
@@ -21,6 +21,7 @@ export function serializeAdminUser(
     displayName: user.displayName,
     role: user.role,
     status: user.status,
+    emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
     lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),

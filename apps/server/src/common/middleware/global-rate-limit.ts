@@ -1,6 +1,10 @@
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import { RedisStore } from "rate-limit-redis";
+import type { RedisReply } from "rate-limit-redis";
 import type { Request } from "express";
 
+import { env } from "../../config/env.js";
+import { getRedisClient } from "../../database/redis.client.js";
 import { verifyAccessToken } from "../utils/jwt.js";
 
 function rateLimitKey(req: Request) {
@@ -29,6 +33,7 @@ export const globalApiRateLimiter = rateLimit({
   standardHeaders: "draft-8",
   legacyHeaders: false,
   keyGenerator: rateLimitKey,
+  store: createRateLimitStore("global"),
   skip: (req) => req.path.startsWith("/health"),
   message: {
     success: false,
@@ -45,6 +50,7 @@ export const mutationRateLimiter = rateLimit({
   standardHeaders: "draft-8",
   legacyHeaders: false,
   keyGenerator: rateLimitKey,
+  store: createRateLimitStore("mutation"),
   skip: (req) => !["POST", "PUT", "PATCH", "DELETE"].includes(req.method),
   message: {
     success: false,
@@ -54,3 +60,20 @@ export const mutationRateLimiter = rateLimit({
     },
   },
 });
+
+export function createRateLimitStore(name: string) {
+  if (env.NODE_ENV === "development" || env.NODE_ENV === "test") {
+    return undefined;
+  }
+
+  const redis = getRedisClient();
+
+  if (!redis) {
+    return undefined;
+  }
+
+  return new RedisStore({
+    prefix: `rate-limit:${env.NODE_ENV}:${name}:`,
+    sendCommand: (...args: string[]) => redis.call(args[0]!, ...args.slice(1)) as Promise<RedisReply>,
+  });
+}

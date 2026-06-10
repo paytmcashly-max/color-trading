@@ -51,6 +51,7 @@ CREATE TABLE "users" (
     "display_name" VARCHAR(80),
     "status" "UserStatus" NOT NULL DEFAULT 'ACTIVE',
     "role" "UserRole" NOT NULL DEFAULT 'USER',
+    "email_verified_at" TIMESTAMPTZ(6),
     "last_login_at" TIMESTAMPTZ(6),
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ(6) NOT NULL,

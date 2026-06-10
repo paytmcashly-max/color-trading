@@ -16,6 +16,7 @@ export const safeUserSelect = {
   displayName: true,
   status: true,
   role: true,
+  emailVerifiedAt: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -26,6 +27,7 @@ export type SafeUser = {
   displayName: string | null;
   status: UserStatus;
   role: "USER" | "ADMIN";
+  emailVerifiedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -67,6 +69,7 @@ export interface AuthRepositoryPort {
   findUserByEmailWithPassword(email: string): Promise<AuthUserWithPassword | null>;
   updateLastLoginAt(userId: string, loggedInAt: Date): Promise<void>;
   revokeSession(userId: string, sessionId: string, revokedAt: Date): Promise<void>;
+  revokeAllSessions(userId: string, revokedAt: Date): Promise<number>;
   rotateRefreshSession(input: RefreshRotationInput, revokedAt: Date): Promise<SafeUser | null>;
   findActiveUserById(userId: string): Promise<SafeUser | null>;
   createSession(input: CreateSessionInput): Promise<void>;
@@ -153,6 +156,20 @@ export class AuthRepository implements AuthRepositoryPort {
         revokedAt,
       },
     });
+  }
+
+  async revokeAllSessions(userId: string, revokedAt: Date) {
+    const result = await this.prisma.authSession.updateMany({
+      where: {
+        userId,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt,
+      },
+    });
+
+    return result.count;
   }
 
   async rotateRefreshSession(input: RefreshRotationInput, revokedAt: Date) {

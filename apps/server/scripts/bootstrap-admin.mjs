@@ -61,6 +61,7 @@ try {
             ...(passwordHash ? { passwordHash } : {}),
             role: "ADMIN",
             status: "ACTIVE",
+            emailVerifiedAt: new Date(),
             displayName,
           },
           select: { id: true },
@@ -72,6 +73,7 @@ try {
             displayName,
             role: "ADMIN",
             status: "ACTIVE",
+            emailVerifiedAt: new Date(),
           },
           select: { id: true },
         });
