@@ -66,4 +66,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 4000) + '/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 ENTRYPOINT ["tini", "--"]
-CMD ["node", "apps/server/dist/main.js"]
+CMD ["node", "apps/server/scripts/start-production.mjs"]

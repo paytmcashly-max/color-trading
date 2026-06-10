@@ -62,8 +62,11 @@ The migration runner:
 - records SQL migrations in `schema_migrations`
 - verifies migration checksums on later runs
 
-Do not run schema changes from every web process. Use Render `preDeployCommand` or the
-manual GitHub Actions workflow: `Production database migration`.
+Use Render `preDeployCommand` or the manual GitHub Actions workflow:
+`Production database migration` as the primary migration path. The production
+container also runs the advisory-lock protected migration runner before starting
+the API, preventing a skipped pre-deploy hook from launching against an older
+schema.
 
 ## Admin Bootstrap
 

@@ -76,6 +76,11 @@ The migration runner uses a PostgreSQL advisory lock, records checksums, and
 can safely be run again to verify idempotency. Do not edit an already-applied
 SQL migration.
 
+The production Docker image runs the same migration runner as a startup gate.
+If a migration fails, the API does not start. Keep the Render
+`preDeployCommand` enabled as the primary migration step; the startup gate is a
+fail-safe for deploy paths that skip it.
+
 ## First Admin Bootstrap
 
 Public registration can only create `USER` accounts. Bootstrap the first admin
