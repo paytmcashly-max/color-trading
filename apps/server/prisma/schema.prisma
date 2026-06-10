@@ -188,6 +188,17 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model GameControl {
+  id        String   @id @default("global") @db.VarChar(32)
+  paused    Boolean  @default(false)
+  reason    String?  @db.VarChar(500)
+  updatedBy String?  @map("updated_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("game_controls")
+}
+
 model AuthSession {
   id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId           String    @map("user_id") @db.Uuid
@@ -277,7 +288,8 @@ model GameRound {
   createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  bets Bet[]
+  bets       Bet[]
+  settlement RoundSettlement?
 
   @@index([status, startTime])
   @@index([startTime])
@@ -286,13 +298,34 @@ model GameRound {
   @@map("game_rounds")
 }
 
+model RoundSettlement {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roundId          String           @unique @map("round_id") @db.Uuid
+  result           PredictionColor
+  status           String           @default("PENDING") @db.VarChar(32)
+  totalBets        Int              @default(0) @map("total_bets")
+  winningBets      Int              @default(0) @map("winning_bets")
+  losingBets       Int              @default(0) @map("losing_bets")
+  totalPayoutCoins BigInt           @default(0) @map("total_payout_coins")
+  metadata         Json?
+  startedAt        DateTime         @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt      DateTime?        @map("completed_at") @db.Timestamptz(6)
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  round GameRound @relation(fields: [roundId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+  @@map("round_settlements")
+}
+
 model Bet {
   id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId         String          @map("user_id") @db.Uuid
   roundId        String          @map("round_id") @db.Uuid
   choice         PredictionColor
   coinsStaked    BigInt          @map("coins_staked")
-  idempotencyKey String?         @unique @map("idempotency_key") @db.VarChar(160)
+  idempotencyKey String          @unique @map("idempotency_key") @db.VarChar(160)
   status         BetStatus       @default(PENDING)
   payoutAmount   BigInt          @default(0) @map("payout_amount")
   createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -305,6 +338,7 @@ model Bet {
   @@index([userId, roundId])
   @@index([roundId])
   @@index([roundId, status])
+  @@index([roundId, status, choice, userId])
   @@index([status, createdAt])
   @@map("bets")
 }

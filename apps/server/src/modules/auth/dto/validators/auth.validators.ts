@@ -13,13 +13,13 @@ export const registerSchema = z.object({
       (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
       z.string().trim().min(2, "Display name must be at least 2 characters long.").max(80).optional(),
     ),
-});
+}).strict();
 
 export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(1).max(128),
-});
+}).strict();
 
 export const refreshTokenSchema = z.object({
   refreshToken: z.string().trim().min(32).max(2048),
-});
+}).strict();

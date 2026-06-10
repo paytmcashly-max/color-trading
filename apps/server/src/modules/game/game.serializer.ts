@@ -1,4 +1,5 @@
 import { RoundStatus, type Bet, type GameRound } from "@prisma/client";
+import type { RoundEngineStatus } from "@color-trading/shared";
 
 export function serializeRound(round: GameRound) {
   const lifecycleStatus = toRealtimeRoundStatus(round.status);
@@ -25,7 +26,7 @@ export function serializeRound(round: GameRound) {
   };
 }
 
-function toRoundEngineStatus(status: RoundStatus) {
+function toRoundEngineStatus(status: RoundStatus): RoundEngineStatus {
   switch (status) {
     case RoundStatus.INIT:
       return "WAITING";

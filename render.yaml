@@ -6,7 +6,7 @@ services:
     dockerfilePath: ./apps/server/Dockerfile
     dockerContext: .
     preDeployCommand: node apps/server/scripts/apply-schema.mjs
-    healthCheckPath: /health
+    healthCheckPath: /health/live
     autoDeploy: false
     envVars:
       - key: NODE_ENV
@@ -17,11 +17,19 @@ services:
           property: connectionString
       - key: REDIS_URL
         sync: false
-      - key: JWT_SECRET
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
         sync: false
       - key: CLIENT_URL
         sync: false
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
       - key: SOCKET_CORS_ORIGIN
+        sync: false
+      - key: SOCKET_ALLOWED_ORIGINS
         sync: false
       - key: JWT_ACCESS_TOKEN_TTL
         value: 15m

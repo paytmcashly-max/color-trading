@@ -36,6 +36,8 @@ export function authGuard(req: Request, _res: Response, next: NextFunction) {
         user: {
           select: {
             status: true,
+            email: true,
+            role: true,
           },
         },
       },
@@ -48,6 +50,13 @@ export function authGuard(req: Request, _res: Response, next: NextFunction) {
       if (session.user.status !== "ACTIVE") {
         throw new HttpError(401, "USER_NOT_ACTIVE", "Authenticated user is not active.");
       }
+
+      req.auth = {
+        userId: payload.sub,
+        email: session.user.email,
+        role: session.user.role,
+        sessionId: payload.sessionId,
+      };
 
       next();
     })

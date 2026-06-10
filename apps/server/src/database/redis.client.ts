@@ -12,6 +12,11 @@ export function getRedisClient() {
   redis ??= new Redis(env.REDIS_URL, {
     lazyConnect: true,
     maxRetriesPerRequest: 3,
+    enableReadyCheck: true,
+    connectionName: "color-trading-server",
+    retryStrategy(times) {
+      return Math.min(times * 100, 2_000);
+    },
   });
 
   return redis;

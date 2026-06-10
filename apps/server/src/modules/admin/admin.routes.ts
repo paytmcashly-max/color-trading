@@ -12,8 +12,11 @@ import { AdminController } from "./admin.controller.js";
 import { AdminService } from "./admin.service.js";
 import {
   adminWalletAdjustmentSchema,
+  forceResultSchema,
   forceStartRoundSchema,
   forceStopRoundSchema,
+  gamePauseSchema,
+  gameResumeSchema,
 } from "./dto/admin.validators.js";
 
 export const adminRouter = Router();
@@ -25,6 +28,7 @@ const adminController = new AdminController(adminService);
 
 adminRouter.use(authGuard, roleGuard(UserRole.ADMIN));
 
+adminRouter.get("/dashboard", asyncHandler(adminController.dashboard));
 adminRouter.get("/users", asyncHandler(adminController.users));
 adminRouter.post("/users/:id/ban", asyncHandler(adminController.banUser));
 adminRouter.post("/users/:id/unban", asyncHandler(adminController.unbanUser));
@@ -40,6 +44,23 @@ adminRouter.post(
   "/rounds/force-stop",
   validateBody(forceStopRoundSchema),
   asyncHandler(adminController.forceStopRound),
+);
+adminRouter.post(
+  "/rounds/force-result",
+  validateBody(forceResultSchema),
+  asyncHandler(adminController.forceResult),
+);
+
+adminRouter.get("/game-control", asyncHandler(adminController.gameControl));
+adminRouter.post(
+  "/game-control/pause",
+  validateBody(gamePauseSchema),
+  asyncHandler(adminController.pauseGame),
+);
+adminRouter.post(
+  "/game-control/resume",
+  validateBody(gameResumeSchema),
+  asyncHandler(adminController.resumeGame),
 );
 
 adminRouter.get("/wallet/:userId", asyncHandler(adminController.wallet));

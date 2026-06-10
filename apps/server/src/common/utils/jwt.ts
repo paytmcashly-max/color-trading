@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 import type { UserRole } from "@prisma/client";
 
@@ -19,6 +20,8 @@ export interface RefreshTokenPayload {
 
 export function signAccessToken(payload: AccessTokenPayload) {
   return jwt.sign(payload, env.JWT_ACCESS_SECRET, {
+    algorithm: "HS256",
+    jwtid: crypto.randomUUID(),
     expiresIn: env.JWT_ACCESS_TOKEN_TTL as jwt.SignOptions["expiresIn"],
     issuer: env.JWT_ISSUER,
     audience: env.JWT_AUDIENCE,
@@ -27,6 +30,8 @@ export function signAccessToken(payload: AccessTokenPayload) {
 
 export function signRefreshToken(payload: RefreshTokenPayload) {
   return jwt.sign(payload, env.JWT_REFRESH_SECRET, {
+    algorithm: "HS256",
+    jwtid: crypto.randomUUID(),
     expiresIn: env.JWT_REFRESH_TOKEN_TTL as jwt.SignOptions["expiresIn"],
     issuer: env.JWT_ISSUER,
     audience: env.JWT_AUDIENCE,
@@ -36,6 +41,7 @@ export function signRefreshToken(payload: RefreshTokenPayload) {
 export function verifyAccessToken(token: string): AccessTokenPayload {
   try {
     const payload = jwt.verify(token, env.JWT_ACCESS_SECRET, {
+      algorithms: ["HS256"],
       issuer: env.JWT_ISSUER,
       audience: env.JWT_AUDIENCE,
     }) as jwt.JwtPayload;
@@ -63,6 +69,7 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
 export function verifyRefreshToken(token: string): RefreshTokenPayload {
   try {
     const payload = jwt.verify(token, env.JWT_REFRESH_SECRET, {
+      algorithms: ["HS256"],
       issuer: env.JWT_ISSUER,
       audience: env.JWT_AUDIENCE,
     }) as jwt.JwtPayload;

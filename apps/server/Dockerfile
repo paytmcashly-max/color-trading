@@ -4,7 +4,7 @@ WORKDIR /app
 ENV npm_config_update_notifier=false
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates openssl \
+  && apt-get install -y --no-install-recommends ca-certificates openssl tini \
   && rm -rf /var/lib/apt/lists/*
 
 FROM base AS deps
@@ -37,6 +37,8 @@ FROM base AS runner
 
 ENV NODE_ENV=production
 ENV PORT=4000
+ENV NODE_OPTIONS=--enable-source-maps
+ENV NPM_CONFIG_LOGLEVEL=warn
 
 COPY package.json package-lock.json ./
 COPY apps/server/package.json ./apps/server/package.json
@@ -60,4 +62,8 @@ COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/clie
 USER nodejs
 EXPOSE 4000
 
-CMD ["sh", "-c", "node apps/server/scripts/apply-schema.mjs && node apps/server/dist/main.js"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 4000) + '/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+ENTRYPOINT ["tini", "--"]
+CMD ["node", "apps/server/dist/main.js"]

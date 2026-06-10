@@ -60,6 +60,10 @@ export function startObservability() {
       services.metrics.incrementCounter("wallet_transactions");
     }
 
+    if (event.name === "round:settlement") {
+      services.metrics.incrementCounter("round_settlements");
+    }
+
     if (event.name === "round:created" && isRecord(event.payload) && isRecord(event.payload.round)) {
       services.metrics.setGauge("current_round_numeric_id", Number(event.payload.round.roundNumber ?? 0));
     }

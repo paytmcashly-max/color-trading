@@ -1,8 +1,6 @@
 # Color Trading
 
-Production-grade foundation for a real-time virtual prediction game platform.
-
-This repository is intentionally scoped to Step 1: monorepo architecture, environment configuration, shared contracts, server bootstrap, and frontend bootstrap. Game, wallet, bet, and auth business logic are not implemented yet.
+Production-grade real-time virtual prediction game platform.
 
 ## Folder Structure
 
@@ -30,6 +28,12 @@ npm run dev:client
 - Client: http://localhost:3000
 - Server: http://localhost:4000
 - Health check: http://localhost:4000/health
+- Liveness check: http://localhost:4000/health/live
+- Readiness check: http://localhost:4000/health/ready
+
+## Production
+
+Deployment configuration is documented in [docs/deployment.md](docs/deployment.md).
 
 ## Architecture Decisions
 

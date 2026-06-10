@@ -8,7 +8,9 @@ const rawEnvSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   CLIENT_URL: z.string().url().optional(),
   CLIENT_ORIGIN: z.string().url().optional(),
+  ALLOWED_ORIGINS: z.string().optional(),
   SOCKET_CORS_ORIGIN: z.string().url().optional(),
+  SOCKET_ALLOWED_ORIGINS: z.string().optional(),
   API_VERSION: z.string().trim().min(1).default("v1"),
   RELEASE_VERSION: z.string().trim().min(1).default("0.1.0"),
   DATABASE_URL: z.string().url().optional(),
@@ -40,11 +42,18 @@ const rawEnvSchema = z.object({
 const envSchema = rawEnvSchema
   .transform((value) => {
     const clientOrigin = value.CLIENT_ORIGIN ?? value.CLIENT_URL ?? "http://localhost:3000";
+    const allowedOrigins = parseOrigins(value.ALLOWED_ORIGINS, clientOrigin);
+    const socketAllowedOrigins = parseOrigins(
+      value.SOCKET_ALLOWED_ORIGINS,
+      value.SOCKET_CORS_ORIGIN ?? clientOrigin,
+    );
 
     return {
       ...value,
       CLIENT_ORIGIN: clientOrigin,
       SOCKET_CORS_ORIGIN: value.SOCKET_CORS_ORIGIN ?? clientOrigin,
+      ALLOWED_ORIGINS: allowedOrigins,
+      SOCKET_ALLOWED_ORIGINS: socketAllowedOrigins,
       JWT_ACCESS_SECRET: value.JWT_ACCESS_SECRET ?? value.JWT_SECRET,
       JWT_REFRESH_SECRET: value.JWT_REFRESH_SECRET ?? value.JWT_SECRET,
     };
@@ -55,7 +64,9 @@ const envSchema = rawEnvSchema
       PORT: z.number().int().positive(),
       CLIENT_URL: z.string().url().optional(),
       CLIENT_ORIGIN: z.string().url(),
+      ALLOWED_ORIGINS: z.array(z.string().url()).min(1),
       SOCKET_CORS_ORIGIN: z.string().url(),
+      SOCKET_ALLOWED_ORIGINS: z.array(z.string().url()).min(1),
       API_VERSION: z.string(),
       RELEASE_VERSION: z.string(),
       DATABASE_URL: z.string().url().optional(),
@@ -82,7 +93,47 @@ const envSchema = rawEnvSchema
       message: "GAME_BETTING_DURATION_SECONDS must be less than GAME_ROUND_DURATION_SECONDS.",
       path: ["GAME_BETTING_DURATION_SECONDS"],
     },
-  );
+  )
+  .superRefine((value, context) => {
+    if (value.NODE_ENV !== "production") {
+      return;
+    }
+
+    if (!value.DATABASE_URL) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["DATABASE_URL"],
+        message: "DATABASE_URL is required in production.",
+      });
+    }
+
+    if (!value.REDIS_URL) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["REDIS_URL"],
+        message: "REDIS_URL is required in production.",
+      });
+    }
+
+    if (value.JWT_ACCESS_SECRET === value.JWT_REFRESH_SECRET) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["JWT_REFRESH_SECRET"],
+        message: "JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be different in production.",
+      });
+    }
+
+    if (
+      value.JWT_ACCESS_SECRET.includes("replace-with") ||
+      value.JWT_REFRESH_SECRET.includes("replace-with")
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["JWT_ACCESS_SECRET"],
+        message: "Production JWT secrets must not use placeholder values.",
+      });
+    }
+  });
 
 const parsed = envSchema.safeParse(process.env);
 
@@ -92,3 +143,12 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+
+function parseOrigins(value: string | undefined, fallback: string) {
+  const origins = value
+    ?.split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  return origins?.length ? origins : [fallback];
+}

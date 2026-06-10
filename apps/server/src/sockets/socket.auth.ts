@@ -37,6 +37,8 @@ export async function authenticateSocket(
         user: {
           select: {
             status: true,
+            email: true,
+            role: true,
           },
         },
       },
@@ -54,8 +56,8 @@ export async function authenticateSocket(
 
     socket.data.user = {
       userId: payload.sub,
-      email: payload.email,
-      role: payload.role,
+      email: session.user.email,
+      role: session.user.role,
       sessionId: payload.sessionId,
     } satisfies SocketUserContext;
 

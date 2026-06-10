@@ -20,8 +20,9 @@ const authController = new AuthController(authService);
 const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 20,
-  standardHeaders: true,
+  standardHeaders: "draft-8",
   legacyHeaders: false,
+  skipSuccessfulRequests: true,
   message: {
     success: false,
     message: "Too many authentication attempts. Please try again later.",
@@ -49,6 +50,7 @@ authRouter.post("/logout", authMiddleware, asyncHandler(authController.logout));
 authRouter.post(
   "/refresh",
   authRateLimiter,
+  fraudAuthRateLimit,
   validateBody(refreshTokenSchema),
   asyncHandler(authController.refresh),
 );

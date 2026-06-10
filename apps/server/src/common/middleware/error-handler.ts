@@ -2,7 +2,6 @@ import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 
 import { HttpError } from "../errors/http-error.js";
-import { logger } from "../utils/logger.js";
 import { captureRequestError } from "../../modules/observability/error.handler.js";
 
 export function errorHandler(
@@ -51,7 +50,6 @@ export function errorHandler(
   }
 
   captureRequestError(error, req);
-  logger.error("unhandled_request_error", { error });
   res.status(500).json({
     success: false,
     message: "Unexpected server error",

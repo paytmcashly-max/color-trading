@@ -1,16 +1,19 @@
 import type { Request, Response } from "express";
 
+import { env } from "../../config/env.js";
 import { getPostgresPool } from "../../database/postgres.client.js";
 import { getRedisClient } from "../../database/redis.client.js";
 import { getObservability } from "./observability.module.js";
 
 export class HealthController {
   root = async (_req: Request, res: Response) => {
-    const [db, redis] = await Promise.all([this.dbHealth(), this.redisHealth()]);
+    const [db, redis] = await Promise.all([this.checkDatabase(), this.checkRedis()]);
+    const healthy = db.status === "healthy" && redis.status === "healthy";
 
-    res.status(db.status === "healthy" && redis.status === "healthy" ? 200 : 503).json({
-      status: db.status === "healthy" && redis.status === "healthy" ? "healthy" : "unhealthy",
+    res.status(healthy ? 200 : 503).json({
+      status: healthy ? "healthy" : "unhealthy",
       service: "color-trading-server",
+      releaseVersion: env.RELEASE_VERSION,
       dependencies: {
         db,
         redis,
@@ -21,13 +24,37 @@ export class HealthController {
     });
   };
 
+  liveness = async (_req: Request, res: Response) => {
+    res.status(200).json({
+      status: "alive",
+      service: "color-trading-server",
+      uptimeSeconds: Math.floor(process.uptime()),
+      timestamp: new Date().toISOString(),
+    });
+  };
+
+  readiness = async (_req: Request, res: Response) => {
+    const [db, redis] = await Promise.all([this.checkDatabase(), this.checkRedis()]);
+    const ready = db.status === "healthy" && redis.status === "healthy";
+
+    res.status(ready ? 200 : 503).json({
+      status: ready ? "ready" : "not_ready",
+      service: "color-trading-server",
+      dependencies: {
+        db,
+        redis,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  };
+
   db = async (_req: Request, res: Response) => {
-    const health = await this.dbHealth();
+    const health = await this.checkDatabase();
     res.status(health.status === "healthy" ? 200 : 503).json(health);
   };
 
   redis = async (_req: Request, res: Response) => {
-    const health = await this.redisHealth();
+    const health = await this.checkRedis();
     res.status(health.status === "healthy" ? 200 : 503).json(health);
   };
 
@@ -39,7 +66,7 @@ export class HealthController {
     res.status(200).json(getObservability().metrics.getSnapshot());
   };
 
-  private async dbHealth() {
+  private async checkDatabase() {
     const pool = getPostgresPool();
 
     if (!pool) {
@@ -74,7 +101,7 @@ export class HealthController {
     }
   }
 
-  private async redisHealth() {
+  private async checkRedis() {
     const redis = getRedisClient();
 
     if (!redis) {

@@ -1,4 +1,4 @@
-import { BetStatus, RoundStatus } from "@prisma/client";
+import { RoundStatus } from "@prisma/client";
 
 import { HttpError } from "../../../common/errors/http-error.js";
 import { getRedisClient } from "../../../database/redis.client.js";
@@ -6,20 +6,18 @@ import {
   BET_LOCK_AFTER_MS,
   ROUND_ENGINE_CONFIG,
   ROUND_DURATION_MS,
-  WIN_PAYOUT_MULTIPLIER,
-  WINNER_SETTLEMENT_CONCURRENCY,
 } from "../game.constants.js";
 import { publishGameEvent } from "../game.events.js";
 import { serializeBet, serializeRound } from "../game.serializer.js";
-import type { BetRecord, GameRepository, GameRoundRecord } from "../repositories/game.repository.js";
+import type { GameRepository, GameRoundRecord } from "../repositories/game.repository.js";
 import type { ResultService } from "./result.service.js";
-import type { WalletService } from "../../wallet/wallet.service.js";
+import type { SettlementService } from "./settlement.service.js";
 
 export class RoundService {
   constructor(
     private readonly gameRepository: GameRepository,
     private readonly resultService?: ResultService,
-    private readonly walletService?: WalletService,
+    private readonly settlementService?: SettlementService,
   ) {}
 
   async getCurrentRound() {
@@ -67,6 +65,22 @@ export class RoundService {
 
   async ensureLifecycle() {
     let currentRound = await this.gameRepository.findCurrentRound();
+    const gameControl = await this.gameRepository.getGameControl();
+
+    if (gameControl?.paused) {
+      if (currentRound) {
+        this.emitTimer(currentRound);
+      }
+
+      publishGameEvent("system:sync", {
+        type: "GAME_PAUSED",
+        paused: true,
+        reason: gameControl.reason,
+        updatedAt: gameControl.updatedAt.toISOString(),
+      });
+
+      return currentRound;
+    }
 
     if (!currentRound) {
       return this.createNextRound();
@@ -170,7 +184,7 @@ export class RoundService {
   }
 
   private async resolveRound(round: GameRoundRecord) {
-    if (!this.resultService || !this.walletService) {
+    if (!this.resultService || !this.settlementService) {
       throw new HttpError(500, "GAME_ENGINE_NOT_CONFIGURED", "Game engine services are not configured.");
     }
 
@@ -193,8 +207,7 @@ export class RoundService {
       }
     }
 
-    const bets = await this.gameRepository.findPendingBetsForRound(round.id);
-    await this.settleBets(round.id, result, bets);
+    const settlement = await this.settlementService.settleRound(round.id, result);
 
     await this.gameRepository.updateRoundStatus(
       round.id,
@@ -212,82 +225,19 @@ export class RoundService {
       publishGameEvent("round:result", {
         ...this.buildRoundPayload(completedRound),
         result,
+        settlement,
       });
       publishGameEvent("round:update", this.buildRoundPayload(completedRound));
       publishGameEvent("round:state", this.buildRoundPayload(completedRound));
       publishGameEvent("round:completed", {
         round: serializeRound(completedRound),
+        settlement,
       });
 
       return this.createNextRound();
     }
 
     return completedRound;
-  }
-
-  private async settleBets(roundId: string, result: string, bets: BetRecord[]) {
-    for (let index = 0; index < bets.length; index += WINNER_SETTLEMENT_CONCURRENCY) {
-      const batch = bets.slice(index, index + WINNER_SETTLEMENT_CONCURRENCY);
-      await Promise.all(batch.map((bet) => this.settleBet(roundId, result, bet)));
-    }
-  }
-
-  private async settleBet(roundId: string, result: string, bet: BetRecord) {
-    if (bet.choice !== result) {
-      const updatedBet = await this.gameRepository.transaction((tx) =>
-        this.gameRepository.updatePendingBetStatusInTx(tx, bet.id, BetStatus.LOST),
-      );
-
-      if (!updatedBet) {
-        return;
-      }
-
-      publishGameEvent("bet:settled", {
-        bet: serializeBet(updatedBet),
-        result,
-      });
-      return;
-    }
-
-    const payoutAmount = bet.coinsStaked * BigInt(WIN_PAYOUT_MULTIPLIER);
-
-    if (payoutAmount > BigInt(Number.MAX_SAFE_INTEGER)) {
-      throw new HttpError(500, "PAYOUT_TOO_LARGE", "Payout exceeds safe service limits.");
-    }
-
-    const { updatedBet, walletResult } = await this.gameRepository.transaction(async (tx) => {
-      const credited = await this.walletService!.creditBetWinningsInTransaction(tx, {
-        userId: bet.userId,
-        amountCoins: Number(payoutAmount),
-        referenceId: roundId,
-        idempotencyKey: `round:${roundId}:bet:${bet.id}:win`,
-      });
-
-      const settledBet = await this.gameRepository.updatePendingBetStatusInTx(
-        tx,
-        bet.id,
-        BetStatus.WON,
-        payoutAmount,
-      );
-
-      return {
-        updatedBet: settledBet,
-        walletResult: credited,
-      };
-    });
-
-    if (!updatedBet) {
-      return;
-    }
-
-    if ("wallet" in walletResult && walletResult.wallet) {
-      this.walletService!.publishWalletUpdate(bet.userId, walletResult.wallet, walletResult.ledgerEntry);
-    }
-
-    publishGameEvent("bet:settled", {
-      bet: serializeBet(updatedBet),
-      result,
-    });
   }
 
   private async getSeedReveal(roundId: string) {

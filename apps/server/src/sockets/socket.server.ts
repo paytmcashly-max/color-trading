@@ -1,4 +1,15 @@
 import type { Server as HttpServer } from "node:http";
+import type {
+  ClientToServerEventPayloads,
+  JoinRoundAck,
+  LeaveRoundAck,
+  PlaceBetAck,
+  ResultDeclaredEvent,
+  RoundUpdateEvent,
+  ServerToClientEventName,
+  ServerToClientEventPayloads,
+  WalletUpdateEvent,
+} from "@color-trading/shared";
 import { Server, type Socket } from "socket.io";
 
 import { env } from "../config/env.js";
@@ -7,10 +18,10 @@ import { logger } from "../common/utils/logger.js";
 import { getPrismaClient } from "../database/prisma.client.js";
 import { getFraudService } from "../modules/fraud/fraud.module.js";
 import { getObservability } from "../modules/observability/observability.module.js";
+import { BetRepository } from "../modules/bet/repositories/bet.repository.js";
+import { BetService } from "../modules/bet/services/bet.service.js";
 import { serializeRound } from "../modules/game/game.serializer.js";
-import { placeBetSchema } from "../modules/game/dto/place-bet.dto.js";
-import { GameRepository } from "../modules/game/repositories/game.repository.js";
-import { BetService } from "../modules/game/services/bet.service.js";
+import { placeBetSchema } from "../modules/bet/dto/place-bet.dto.js";
 import { WalletRepository } from "../modules/wallet/wallet.repository.js";
 import { WalletService } from "../modules/wallet/wallet.service.js";
 import { configureRedisAdapter } from "./redis.adapter.js";
@@ -29,16 +40,17 @@ const SOCKET_PING_TIMEOUT_MS = 20_000;
 const GLOBAL_GAME_ROOM = "game:global";
 const activeUserSocketCounts = new Map<string, number>();
 const prisma = getPrismaClient();
-const gameRepository = new GameRepository(prisma);
 const walletService = new WalletService(new WalletRepository(prisma));
-const betService = new BetService(gameRepository, walletService);
+const betService = new BetService(new BetRepository(prisma), walletService);
 
 export function createSocketServer(httpServer: HttpServer) {
   const io = new Server(httpServer, {
     cors: {
-      origin: env.SOCKET_CORS_ORIGIN,
+      origin: env.SOCKET_ALLOWED_ORIGINS,
       credentials: true,
+      methods: ["GET", "POST"],
     },
+    maxHttpBufferSize: 256 * 1024,
     pingInterval: SOCKET_PING_INTERVAL_MS,
     pingTimeout: SOCKET_PING_TIMEOUT_MS,
     connectionStateRecovery: {
@@ -126,33 +138,33 @@ async function handleConnection(socket: Socket) {
     void joinRoundRoom(socket, roundId, ack, "join:round");
   });
 
+  socket.on(
+    "join_round",
+    (payload: ClientToServerEventPayloads["join_round"], ack?: (response: JoinRoundAck) => void) => {
+      void joinRoundRoom(socket, payload, asUnknownAck(ack), "join_round");
+    },
+  );
+
+  socket.on(
+    "leave_round",
+    (payload: ClientToServerEventPayloads["leave_round"], ack?: (response: LeaveRoundAck) => void) => {
+      void leaveRoundRoom(socket, payload, ack);
+    },
+  );
+
   socket.on("bet:place", async (payload: unknown, ack?: (response: unknown) => void) => {
-    if (!(await consumeSocketToken(socket, "bet:place"))) {
-      ack?.({ ok: false, error: "RATE_LIMITED" });
-      return;
-    }
-
-    const parsed = placeBetSchema.safeParse(payload);
-
-    if (!parsed.success) {
-      ack?.({
-        ok: false,
-        error: "INVALID_BET_PAYLOAD",
-        details: parsed.error.flatten().fieldErrors,
-      });
-      return;
-    }
-
-    try {
-      await assertSocketSessionActive(user);
-      const result = await betService.placeBet(user.userId, parsed.data);
-      ack?.({ ok: true, ...result });
-    } catch (error) {
-      const response = toSocketError(error);
-      socket.emit("system:error", response);
-      ack?.({ ok: false, ...response });
-    }
+    await handlePlaceBet(socket, payload, ack, "bet:place");
   });
+
+  socket.on(
+    "place_bet",
+    async (
+      payload: ClientToServerEventPayloads["place_bet"],
+      ack?: (response: PlaceBetAck) => void,
+    ) => {
+      await handlePlaceBet(socket, payload, asUnknownAck(ack), "place_bet");
+    },
+  );
 
   socket.on("state:sync", async (ack?: (response: unknown) => void) => {
     if (!(await consumeSocketToken(socket, "state:sync"))) {
@@ -190,6 +202,10 @@ async function syncLatestState(socket: Socket) {
       userId: user.userId,
       wallet: snapshot.wallet,
       syncedAt: snapshot.syncedAt,
+    });
+    emitContractEvent(socket, "wallet_update", {
+      userId: user.userId,
+      wallet: snapshot.wallet,
     });
   }
 }
@@ -242,13 +258,15 @@ async function joinRoundRoom(
     return;
   }
 
-  if (typeof roundId !== "string") {
+  const parsedRoundId = parseRoundId(roundId);
+
+  if (!parsedRoundId) {
     ack?.({ ok: false, error: "INVALID_ROUND_ID" });
     return;
   }
 
   const roundExists = await getPrismaClient().gameRound.findUnique({
-    where: { id: roundId },
+    where: { id: parsedRoundId },
     select: { id: true },
   });
 
@@ -257,8 +275,34 @@ async function joinRoundRoom(
     return;
   }
 
-  socket.join(`round:${roundId}`);
-  ack?.({ ok: true, room: `round:${roundId}` });
+  const room = `round:${parsedRoundId}`;
+  socket.join(room);
+  const snapshot = await buildStateSnapshot(getSocketUser(socket).userId);
+  const roundSnapshot = buildRoundUpdatePayload(snapshot);
+  emitContractEvent(socket, "round_update", roundSnapshot);
+  ack?.({ ok: true, data: { room, snapshot: roundSnapshot }, room, snapshot: roundSnapshot });
+}
+
+async function leaveRoundRoom(
+  socket: Socket,
+  payload: unknown,
+  ack?: (response: LeaveRoundAck) => void,
+) {
+  if (!(await consumeSocketToken(socket, "leave_round"))) {
+    ack?.({ ok: false, error: "RATE_LIMITED" });
+    return;
+  }
+
+  const roundId = parseRoundId(payload);
+
+  if (!roundId) {
+    ack?.({ ok: false, error: "INVALID_ROUND_ID" });
+    return;
+  }
+
+  const room = `round:${roundId}`;
+  await socket.leave(room);
+  ack?.({ ok: true, data: { room } });
 }
 
 async function buildStateSnapshot(userId: string) {
@@ -295,6 +339,7 @@ async function buildStateSnapshot(userId: string) {
           depositBalance: wallet.depositBalance.toString(),
           winningBalance: wallet.winningBalance.toString(),
           totalBalance: (wallet.depositBalance + wallet.winningBalance).toString(),
+          availableBalance: (wallet.depositBalance + wallet.winningBalance).toString(),
           ledgerVersion: wallet.ledgerVersion.toString(),
           status: wallet.status,
           updatedAt: wallet.updatedAt.toISOString(),
@@ -310,6 +355,11 @@ function routeRealtimeEvent(io: Server, event: RealtimeEvent) {
   if (event.name === "wallet:update" || event.name === "user:balance_sync") {
     if (userId) {
       io.to(`user:${userId}`).to("admin").emit(event.name, event.payload);
+      emitContractEvent(
+        io.to(`user:${userId}`),
+        "wallet_update",
+        event.payload as WalletUpdateEvent,
+      );
       return;
     }
     io.to("admin").emit(event.name, event.payload);
@@ -349,6 +399,23 @@ function routeRealtimeEvent(io: Server, event: RealtimeEvent) {
 
   if (event.name.startsWith("round:")) {
     io.to(GLOBAL_GAME_ROOM).to("admin").emit(event.name, event.payload);
+
+    if (event.name === "round:update") {
+      emitContractEvent(
+        io.to(GLOBAL_GAME_ROOM),
+        "round_update",
+        event.payload as RoundUpdateEvent,
+      );
+    }
+
+    if (event.name === "round:result") {
+      emitContractEvent(
+        io.to(GLOBAL_GAME_ROOM),
+        "result_declared",
+        event.payload as ResultDeclaredEvent,
+      );
+    }
+
     return;
   }
 
@@ -472,18 +539,83 @@ function parseRoomName(payload: unknown) {
   return null;
 }
 
+function parseRoundId(payload: unknown) {
+  if (typeof payload === "string") {
+    return payload;
+  }
+
+  if (isRecord(payload) && typeof payload.roundId === "string") {
+    return payload.roundId;
+  }
+
+  return null;
+}
+
 function emitRoundStateSnapshot(
   socket: Socket,
   snapshot: Awaited<ReturnType<typeof buildStateSnapshot>>,
 ) {
-  const payload = {
+  const payload = buildRoundUpdatePayload(snapshot);
+
+  socket.emit("round:update", payload);
+  socket.emit("round:state", payload);
+  emitContractEvent(socket, "round_update", payload);
+}
+
+function buildRoundUpdatePayload(snapshot: Awaited<ReturnType<typeof buildStateSnapshot>>) {
+  return {
     round: snapshot.currentRound,
     remainingSeconds: snapshot.currentRound ? calculateRemainingSeconds(snapshot.currentRound) : 0,
     syncedAt: snapshot.syncedAt,
   };
+}
 
-  socket.emit("round:update", payload);
-  socket.emit("round:state", payload);
+async function handlePlaceBet(
+  socket: Socket,
+  payload: unknown,
+  ack: ((response: unknown) => void) | undefined,
+  eventName: string,
+) {
+  if (!(await consumeSocketToken(socket, eventName))) {
+    ack?.({ ok: false, error: "RATE_LIMITED" });
+    return;
+  }
+
+  const parsed = placeBetSchema.safeParse(payload);
+
+  if (!parsed.success) {
+    ack?.({
+      ok: false,
+      error: "INVALID_BET_PAYLOAD",
+      details: parsed.error.flatten().fieldErrors,
+    });
+    return;
+  }
+
+  try {
+    const user = getSocketUser(socket);
+    await assertSocketSessionActive(user);
+    const result = await betService.placeBet(user.userId, parsed.data);
+    ack?.({ ok: true, data: result, ...result });
+  } catch (error) {
+    const response = toSocketError(error);
+    socket.emit("system:error", response);
+    ack?.({ ok: false, error: response.code, message: response.message });
+  }
+}
+
+function emitContractEvent<TEventName extends ServerToClientEventName>(
+  target: Pick<Socket | ReturnType<Server["to"]>, "emit">,
+  eventName: TEventName,
+  payload: ServerToClientEventPayloads[TEventName],
+) {
+  target.emit(eventName, payload);
+}
+
+function asUnknownAck<TResponse>(
+  ack: ((response: TResponse) => void) | undefined,
+): ((response: unknown) => void) | undefined {
+  return ack as ((response: unknown) => void) | undefined;
 }
 
 function toSocketError(error: unknown) {

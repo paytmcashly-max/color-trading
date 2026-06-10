@@ -15,6 +15,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "db:migrate:deploy": "node apps/server/scripts/apply-schema.mjs",
     "docker:server:build": "docker build -f apps/server/Dockerfile -t color-trading-api:local .",
     "compose:up": "docker compose up --build",
     "compose:down": "docker compose down"

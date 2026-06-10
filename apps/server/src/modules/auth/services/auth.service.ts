@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { UserStatus } from "@prisma/client";
 
 import { HttpError } from "../../../common/errors/http-error.js";
+import { logger } from "../../../common/utils/logger.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../../common/utils/jwt.js";
 import { hashToken } from "../../../common/utils/token-hash.js";
 import { env } from "../../../config/env.js";
@@ -62,6 +63,13 @@ export class AuthService {
     const payload = verifyRefreshToken(dto.refreshToken);
     const refreshTokenHash = hashToken(dto.refreshToken);
     const now = new Date();
+    const replacementSessionId = crypto.randomUUID();
+    const replacementRefreshToken = signRefreshToken({
+      sub: payload.sub,
+      sessionId: replacementSessionId,
+      tokenType: "refresh",
+    });
+    const expiresAt = new Date(Date.now() + env.JWT_REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
 
     const user = await this.authRepository.rotateRefreshSession(
       {
@@ -69,15 +77,29 @@ export class AuthService {
         userId: payload.sub,
         refreshTokenHash,
         now,
+        userAgent: metadata.userAgent,
+        replacementSession: {
+          id: replacementSessionId,
+          userId: payload.sub,
+          refreshTokenHash: hashToken(replacementRefreshToken),
+          ipAddress: metadata.ipAddress,
+          userAgent: metadata.userAgent,
+          expiresAt,
+        },
       },
       now,
     );
 
     if (!user || user.status !== UserStatus.ACTIVE) {
+      logger.warn("refresh_token_replay_or_invalid", {
+        userId: payload.sub,
+        sessionId: payload.sessionId,
+        ipAddress: metadata.ipAddress,
+      });
       throw new HttpError(401, "INVALID_REFRESH_TOKEN", "Invalid or expired refresh token.");
     }
 
-    return this.createTokenPair(user, metadata);
+    return this.formatTokenPair(user, replacementSessionId, replacementRefreshToken);
   }
 
   async me(userId: string) {
@@ -94,12 +116,6 @@ export class AuthService {
     const sessionId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + env.JWT_REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
 
-    const accessToken = signAccessToken({
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      sessionId,
-    });
     const refreshToken = signRefreshToken({
       sub: user.id,
       sessionId,
@@ -113,6 +129,17 @@ export class AuthService {
       ipAddress: metadata.ipAddress,
       userAgent: metadata.userAgent,
       expiresAt,
+    });
+
+    return this.formatTokenPair(user, sessionId, refreshToken);
+  }
+
+  private formatTokenPair(user: SafeUser, sessionId: string, refreshToken: string) {
+    const accessToken = signAccessToken({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      sessionId,
     });
 
     return {

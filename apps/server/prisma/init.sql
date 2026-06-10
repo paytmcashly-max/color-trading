@@ -189,6 +189,25 @@ CREATE TABLE "game_rounds" (
 );
 
 -- CreateTable
+CREATE TABLE "round_settlements" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "round_id" UUID NOT NULL,
+    "result" "PredictionColor" NOT NULL,
+    "status" VARCHAR(32) NOT NULL DEFAULT 'PENDING' CHECK ("status" IN ('PENDING', 'SUCCESS', 'FAILED')),
+    "total_bets" INTEGER NOT NULL DEFAULT 0,
+    "winning_bets" INTEGER NOT NULL DEFAULT 0,
+    "losing_bets" INTEGER NOT NULL DEFAULT 0,
+    "total_payout_coins" BIGINT NOT NULL DEFAULT 0,
+    "metadata" JSONB,
+    "started_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "completed_at" TIMESTAMPTZ(6),
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL,
+
+    CONSTRAINT "round_settlements_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "bets" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "user_id" UUID NOT NULL,
@@ -318,6 +337,12 @@ CREATE INDEX "game_rounds_lock_time_idx" ON "game_rounds"("lock_time");
 CREATE INDEX "game_rounds_end_time_idx" ON "game_rounds"("end_time");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "round_settlements_round_id_key" ON "round_settlements"("round_id");
+
+-- CreateIndex
+CREATE INDEX "round_settlements_status_created_at_idx" ON "round_settlements"("status", "created_at");
+
+-- CreateIndex
 CREATE INDEX "bets_user_id_created_at_idx" ON "bets"("user_id", "created_at");
 
 -- CreateIndex
@@ -325,6 +350,9 @@ CREATE INDEX "bets_round_id_idx" ON "bets"("round_id");
 
 -- CreateIndex
 CREATE INDEX "bets_round_id_status_idx" ON "bets"("round_id", "status");
+
+-- CreateIndex
+CREATE INDEX "bets_round_id_status_choice_user_id_idx" ON "bets"("round_id", "status", "choice", "user_id");
 
 -- CreateIndex
 CREATE INDEX "bets_status_created_at_idx" ON "bets"("status", "created_at");
@@ -358,6 +386,9 @@ ALTER TABLE "coin_ledger" ADD CONSTRAINT "coin_ledger_user_id_fkey" FOREIGN KEY 
 
 -- AddForeignKey
 ALTER TABLE "coin_ledger" ADD CONSTRAINT "coin_ledger_wallet_id_fkey" FOREIGN KEY ("wallet_id") REFERENCES "wallets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "round_settlements" ADD CONSTRAINT "round_settlements_round_id_fkey" FOREIGN KEY ("round_id") REFERENCES "game_rounds"("round_id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "bets" ADD CONSTRAINT "bets_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

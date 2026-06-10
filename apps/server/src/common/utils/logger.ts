@@ -1,18 +1,46 @@
+import pino from "pino";
+
 import { env } from "../../config/env.js";
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 type LogMeta = Record<string, unknown>;
 type LogSink = (entry: { level: LogLevel; message: string; metadata: LogMeta; timestamp: string }) => void;
 
-const levelPriority: Record<LogLevel, number> = {
-  debug: 10,
-  info: 20,
-  warn: 30,
-  error: 40,
-};
-
 const minimumLevel: LogLevel = env.NODE_ENV === "production" ? "info" : "debug";
 let logSink: LogSink | null = null;
+
+export const pinoLogger = pino({
+  level: minimumLevel,
+  base: {
+    service: "color-trading-server",
+    environment: env.NODE_ENV,
+    releaseVersion: env.RELEASE_VERSION,
+  },
+  timestamp: pino.stdTimeFunctions.isoTime,
+  redact: {
+    paths: [
+      "password",
+      "*.password",
+      "authorization",
+      "*.authorization",
+      "req.headers.authorization",
+      "cookie",
+      "*.cookie",
+      "req.headers.cookie",
+      "accessToken",
+      "*.accessToken",
+      "refreshToken",
+      "*.refreshToken",
+      "token",
+      "*.token",
+    ],
+    censor: "[REDACTED]",
+  },
+  serializers: {
+    error: pino.stdSerializers.err,
+    err: pino.stdSerializers.err,
+  },
+});
 
 export const logger = {
   debug(message: string, meta?: LogMeta) {
@@ -29,44 +57,26 @@ export const logger = {
   },
 };
 
-export function setLogSink(sink: LogSink) {
+export function setLogSink(sink: LogSink | null) {
   logSink = sink;
 }
 
 function writeLog(level: LogLevel, message: string, meta: LogMeta = {}) {
-  if (levelPriority[level] < levelPriority[minimumLevel]) {
+  if (!pinoLogger.isLevelEnabled(level)) {
     return;
   }
 
-  const payload = {
-    level,
-    message,
-    service: "color-trading-server",
-    environment: env.NODE_ENV,
-    timestamp: new Date().toISOString(),
-    ...serializeMeta(meta),
-  };
+  const timestamp = new Date().toISOString();
+  const metadata = serializeMeta(meta);
 
   logSink?.({
     level,
     message,
-    metadata: serializeMeta(meta),
-    timestamp: payload.timestamp,
+    metadata,
+    timestamp,
   });
 
-  const line = env.NODE_ENV === "production" ? JSON.stringify(payload) : payload;
-
-  if (level === "error") {
-    console.error(line);
-    return;
-  }
-
-  if (level === "warn") {
-    console.warn(line);
-    return;
-  }
-
-  console.info(line);
+  pinoLogger[level](metadata, message);
 }
 
 function serializeMeta(meta: LogMeta) {

@@ -11,6 +11,10 @@ export function getPostgresPool() {
 
   pool ??= new pg.Pool({
     connectionString: env.DATABASE_URL,
+    max: env.NODE_ENV === "production" ? 20 : 10,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
+    application_name: "color-trading-server",
   });
 
   return pool;

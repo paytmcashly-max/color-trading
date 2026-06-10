@@ -13,8 +13,13 @@ import { getRedisClient, getRedisStatus } from "../../database/redis.client.js";
 import { getObservability } from "../observability/observability.module.js";
 import { publishGameEvent } from "../game/game.events.js";
 import { serializeRound } from "../game/game.serializer.js";
-import { BET_LOCK_AFTER_MS, ROUND_DURATION_MS } from "../game/game.constants.js";
+import {
+  BET_LOCK_AFTER_MS,
+  ROUND_DURATION_MS,
+} from "../game/game.constants.js";
 import { ResultService } from "../game/services/result.service.js";
+import { GameRepository } from "../game/repositories/game.repository.js";
+import { SettlementService } from "../game/services/settlement.service.js";
 import { publishRealtimeEvent } from "../../sockets/socket.events.js";
 import type { WalletService } from "../wallet/wallet.service.js";
 import {
@@ -28,8 +33,11 @@ import {
 } from "./admin.serializer.js";
 import type {
   AdminWalletAdjustmentDto,
+  ForceResultDto,
   ForceStartRoundDto,
   ForceStopRoundDto,
+  GamePauseDto,
+  GameResumeDto,
 } from "./dto/admin.validators.js";
 
 const ACTIVE_ROUND_STATUSES = [
@@ -46,13 +54,58 @@ type RefundWalletUpdate = {
   ledgerEntry: Parameters<WalletService["publishWalletUpdate"]>[2];
 };
 
+type GameControlRecord = {
+  id: string;
+  paused: boolean;
+  reason: string | null;
+  updatedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export class AdminService {
   private readonly resultService = new ResultService();
+  private readonly settlementService: SettlementService;
 
   constructor(
     private readonly prisma: PrismaClient,
     private readonly walletService: WalletService,
-  ) {}
+  ) {
+    this.settlementService = new SettlementService(new GameRepository(prisma), walletService);
+  }
+
+  async getDashboardStats() {
+    const since = new Date(Date.now() - 60 * 60 * 1000);
+    const [health, gameControl, recentBets, recentUsers, recentAuditActions] = await Promise.all([
+      this.getSystemHealth(),
+      this.getGameControl(),
+      this.prisma.bet.count({
+        where: {
+          createdAt: { gte: since },
+        },
+      }),
+      this.prisma.user.count({
+        where: {
+          createdAt: { gte: since },
+        },
+      }),
+      this.prisma.auditLog.count({
+        where: {
+          createdAt: { gte: since },
+        },
+      }),
+    ]);
+
+    return {
+      ...health,
+      gameControl: gameControl.gameControl,
+      activityLastHour: {
+        bets: recentBets,
+        newUsers: recentUsers,
+        adminActions: recentAuditActions,
+      },
+    };
+  }
 
   async listUsers(query?: string) {
     const where = this.buildUserSearchWhere(query);
@@ -353,6 +406,140 @@ export class AdminService {
     return { round: serializeAdminRound({ ...round, _count: { bets: 0 } }) };
   }
 
+  async forceResult(adminUserId: string, dto: ForceResultDto) {
+    const activeRound = await this.prisma.$transaction(async (tx) => {
+      const round = await tx.gameRound.findFirst({
+        where: {
+          status: {
+            in: ACTIVE_ROUND_STATUSES,
+          },
+        },
+        orderBy: { startTime: "desc" },
+      });
+
+      if (!round) {
+        throw new HttpError(404, "ACTIVE_ROUND_NOT_FOUND", "There is no active round to resolve.");
+      }
+
+      if (round.result && round.result !== dto.result) {
+        throw new HttpError(
+          409,
+          "ROUND_RESULT_CONFLICT",
+          "The active round already has a different result.",
+        );
+      }
+
+      await tx.gameRound.updateMany({
+        where: {
+          id: round.id,
+          status: {
+            in: ACTIVE_ROUND_STATUSES,
+          },
+        },
+        data: {
+          status: RoundStatus.RESOLVING,
+          result: dto.result,
+        },
+      });
+
+      return round;
+    }, { isolationLevel: "Serializable", maxWait: 5000, timeout: 15000 });
+
+    const settlement = await this.settlementService.settleRound(activeRound.id, dto.result);
+
+    const round = await this.prisma.gameRound.update({
+      where: { id: activeRound.id },
+      data: {
+        status: RoundStatus.COMPLETED,
+        result: dto.result,
+      },
+    });
+
+    await this.writeAuditLog(adminUserId, "ROUND_FORCE_RESULT", "ROUND", round.id, {
+      result: dto.result,
+      reason: dto.reason,
+      settlement: { ...settlement },
+    });
+
+    publishGameEvent("round:result", {
+      round: serializeRound(round),
+      result: dto.result,
+      forced: true,
+      settlement,
+    });
+    publishGameEvent("round:completed", {
+      round: serializeRound(round),
+      forced: true,
+      settlement,
+    });
+
+    return {
+      round: serializeAdminRound({ ...round, _count: { bets: settlement.totalBets } }),
+      settledBetCount: settlement.totalBets,
+      totalPayoutCoins: settlement.totalPayoutCoins,
+    };
+  }
+
+  async getGameControl() {
+    const gameControl = await this.readGameControl(this.prisma);
+
+    return {
+      gameControl: serializeGameControl(gameControl),
+    };
+  }
+
+  async pauseGame(adminUserId: string, dto: GamePauseDto) {
+    const gameControl = await this.prisma.$transaction(async (tx) => {
+      const control = await this.writeGameControl(tx, true, dto.reason, adminUserId);
+      await tx.auditLog.create({
+        data: {
+          adminUserId,
+          actionType: "GAME_PAUSE",
+          targetType: "SYSTEM",
+          targetId: "global",
+          metadata: {
+            reason: dto.reason,
+          },
+        },
+      });
+      return control;
+    });
+
+    publishRealtimeEvent("game:paused", {
+      gameControl: serializeGameControl(gameControl),
+    });
+
+    return {
+      gameControl: serializeGameControl(gameControl),
+    };
+  }
+
+  async resumeGame(adminUserId: string, dto: GameResumeDto) {
+    const gameControl = await this.prisma.$transaction(async (tx) => {
+      const control = await this.writeGameControl(tx, false, dto.reason ?? null, adminUserId);
+      await tx.auditLog.create({
+        data: {
+          adminUserId,
+          actionType: "GAME_RESUME",
+          targetType: "SYSTEM",
+          targetId: "global",
+          metadata: {
+            reason: dto.reason ?? null,
+          },
+        },
+      });
+      return control;
+    });
+
+    publishRealtimeEvent("game:resumed", {
+      gameControl: serializeGameControl(gameControl),
+    });
+
+    return {
+      gameControl: serializeGameControl(gameControl),
+    };
+  }
+
   async getWallet(userId: string) {
     return this.walletService.getWalletBalance(userId);
   }
@@ -421,7 +608,16 @@ export class AdminService {
   }
 
   async getSystemHealth() {
-    const [postgres, redis, activeRound, activeUsers, totals, highRiskUsers, recentHighSeverityFraud] = await Promise.all([
+    const [
+      postgres,
+      redis,
+      activeRound,
+      activeUsers,
+      totals,
+      highRiskUsers,
+      recentHighSeverityFraud,
+      gameControl,
+    ] = await Promise.all([
       getPostgresStatus(),
       getRedisStatus(),
       this.prisma.gameRound.findFirst({
@@ -456,6 +652,7 @@ export class AdminService {
           },
         },
       }),
+      this.readGameControl(this.prisma),
     ]);
 
     return {
@@ -465,6 +662,7 @@ export class AdminService {
         postgres,
         redis,
       },
+      gameControl: serializeGameControl(gameControl),
       currentRound: activeRound ? serializeAdminRound({ ...activeRound, _count: { bets: 0 } }) : null,
       totals,
       fraud: {
@@ -533,6 +731,56 @@ export class AdminService {
         metadata,
       },
     });
+  }
+
+  private async readGameControl(
+    client: PrismaClient | Prisma.TransactionClient,
+  ) {
+    await client.$executeRaw`
+      INSERT INTO game_controls (id, paused)
+      VALUES ('global', false)
+      ON CONFLICT (id) DO NOTHING
+    `;
+
+    const rows = await client.$queryRaw<GameControlRecord[]>`
+      SELECT
+        id,
+        paused,
+        reason,
+        updated_by::text AS "updatedBy",
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"
+      FROM game_controls
+      WHERE id = 'global'
+      LIMIT 1
+    `;
+
+    const control = rows[0];
+
+    if (!control) {
+      throw new HttpError(500, "GAME_CONTROL_UNAVAILABLE", "Game control state is unavailable.");
+    }
+
+    return control;
+  }
+
+  private async writeGameControl(
+    tx: Prisma.TransactionClient,
+    paused: boolean,
+    reason: string | null,
+    adminUserId: string,
+  ) {
+    await tx.$executeRaw`
+      INSERT INTO game_controls (id, paused, reason, updated_by)
+      VALUES ('global', ${paused}, ${reason}, CAST(${adminUserId} AS uuid))
+      ON CONFLICT (id) DO UPDATE SET
+        paused = EXCLUDED.paused,
+        reason = EXCLUDED.reason,
+        updated_by = EXCLUDED.updated_by,
+        updated_at = now()
+    `;
+
+    return this.readGameControl(tx);
   }
 
   private buildUserSearchWhere(query?: string): Prisma.UserWhereInput | undefined {
@@ -666,4 +914,15 @@ export class AdminService {
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function serializeGameControl(control: GameControlRecord) {
+  return {
+    id: control.id,
+    paused: control.paused,
+    reason: control.reason,
+    updatedBy: control.updatedBy,
+    createdAt: control.createdAt.toISOString(),
+    updatedAt: control.updatedAt.toISOString(),
+  };
 }

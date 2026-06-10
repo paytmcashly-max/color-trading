@@ -3,6 +3,7 @@ import {
   CoinLedgerStatus,
   CoinLedgerType,
   LedgerReferenceType,
+  Prisma,
   UserStatus,
   type PrismaClient,
 } from "@prisma/client";
@@ -55,13 +56,18 @@ export interface RefreshSessionLookupInput {
   now: Date;
 }
 
+export interface RefreshRotationInput extends RefreshSessionLookupInput {
+  replacementSession: CreateSessionInput;
+  userAgent?: string;
+}
+
 export interface AuthRepositoryPort {
   findUserIdByEmail(email: string): Promise<{ id: string } | null>;
   createUserWithInitialWallet(input: CreateUserInput): Promise<SafeUser>;
   findUserByEmailWithPassword(email: string): Promise<AuthUserWithPassword | null>;
   updateLastLoginAt(userId: string, loggedInAt: Date): Promise<void>;
   revokeSession(userId: string, sessionId: string, revokedAt: Date): Promise<void>;
-  rotateRefreshSession(input: RefreshSessionLookupInput, revokedAt: Date): Promise<SafeUser | null>;
+  rotateRefreshSession(input: RefreshRotationInput, revokedAt: Date): Promise<SafeUser | null>;
   findActiveUserById(userId: string): Promise<SafeUser | null>;
   createSession(input: CreateSessionInput): Promise<void>;
 }
@@ -149,20 +155,30 @@ export class AuthRepository implements AuthRepositoryPort {
     });
   }
 
-  rotateRefreshSession(input: RefreshSessionLookupInput, revokedAt: Date) {
+  async rotateRefreshSession(input: RefreshRotationInput, revokedAt: Date) {
+    try {
+      return await this.rotateRefreshSessionOnce(input, revokedAt);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+        return this.rotateRefreshSessionOnce(input, revokedAt);
+      }
+      throw error;
+    }
+  }
+
+  private rotateRefreshSessionOnce(input: RefreshRotationInput, revokedAt: Date) {
     return this.prisma.$transaction(async (tx) => {
       const session = await tx.authSession.findFirst({
         where: {
           id: input.sessionId,
           userId: input.userId,
-          refreshTokenHash: input.refreshTokenHash,
-          revokedAt: null,
-          expiresAt: {
-            gt: input.now,
-          },
         },
         select: {
           id: true,
+          refreshTokenHash: true,
+          userAgent: true,
+          revokedAt: true,
+          expiresAt: true,
           user: {
             select: safeUserSelect,
           },
@@ -173,12 +189,74 @@ export class AuthRepository implements AuthRepositoryPort {
         return null;
       }
 
-      await tx.authSession.update({
-        where: { id: session.id },
+      const isReplay =
+        session.refreshTokenHash !== input.refreshTokenHash ||
+        session.revokedAt !== null ||
+        session.expiresAt <= input.now ||
+        (Boolean(session.userAgent) &&
+          Boolean(input.userAgent) &&
+          session.userAgent !== input.userAgent);
+
+      if (isReplay) {
+        await tx.authSession.updateMany({
+          where: {
+            userId: input.userId,
+            revokedAt: null,
+          },
+          data: { revokedAt },
+        });
+        return null;
+      }
+
+      if (session.user.status !== UserStatus.ACTIVE) {
+        await tx.authSession.updateMany({
+          where: {
+            userId: input.userId,
+            revokedAt: null,
+          },
+          data: { revokedAt },
+        });
+        return null;
+      }
+
+      const consumed = await tx.authSession.updateMany({
+        where: {
+          id: session.id,
+          userId: input.userId,
+          refreshTokenHash: input.refreshTokenHash,
+          revokedAt: null,
+          expiresAt: { gt: input.now },
+        },
         data: { revokedAt },
       });
 
+      if (consumed.count !== 1) {
+        await tx.authSession.updateMany({
+          where: {
+            userId: input.userId,
+            revokedAt: null,
+          },
+          data: { revokedAt },
+        });
+        return null;
+      }
+
+      await tx.authSession.create({
+        data: {
+          id: input.replacementSession.id,
+          userId: input.replacementSession.userId,
+          refreshTokenHash: input.replacementSession.refreshTokenHash,
+          ipAddress: input.replacementSession.ipAddress,
+          userAgent: input.replacementSession.userAgent,
+          expiresAt: input.replacementSession.expiresAt,
+        },
+      });
+
       return session.user;
+    }, {
+      isolationLevel: "Serializable",
+      maxWait: 5000,
+      timeout: 15000,
     });
   }
 

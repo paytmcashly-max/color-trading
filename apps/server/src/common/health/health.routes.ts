@@ -8,6 +8,8 @@ export const healthRouter = Router();
 const healthController = new HealthController();
 
 healthRouter.get("/", asyncHandler(healthController.root));
+healthRouter.get("/live", asyncHandler(healthController.liveness));
+healthRouter.get("/ready", asyncHandler(healthController.readiness));
 healthRouter.get("/db", asyncHandler(healthController.db));
 healthRouter.get("/redis", asyncHandler(healthController.redis));
 healthRouter.get("/socket", asyncHandler(healthController.socket));
