@@ -10,6 +10,7 @@
     "db:validate": "prisma validate",
     "db:format": "prisma format",
     "db:migrate:deploy": "node scripts/apply-schema.mjs",
+    "db:seed:admin": "node scripts/seed-admin.mjs",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint \"src/**/*.ts\""
