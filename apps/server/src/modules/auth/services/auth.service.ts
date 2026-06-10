@@ -1,21 +1,13 @@
 import crypto from "node:crypto";
-import {
-  CoinLedgerDirection,
-  CoinLedgerStatus,
-  CoinLedgerType,
-  LedgerReferenceType,
-  UserStatus,
-  type PrismaClient,
-} from "@prisma/client";
+import { UserStatus } from "@prisma/client";
 
 import { HttpError } from "../../../common/errors/http-error.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../../common/utils/jwt.js";
 import { hashToken } from "../../../common/utils/token-hash.js";
 import { env } from "../../../config/env.js";
 import type { LoginDto, RefreshTokenDto, RegisterDto } from "../dto/auth.dto.js";
+import type { AuthRepositoryPort, SafeUser } from "../repositories/auth.repository.js";
 import { hashPassword, verifyPassword } from "./password.service.js";
-
-const INITIAL_VIRTUAL_COINS = 1000n;
 
 interface RequestMetadata {
   ipAddress?: string;
@@ -23,72 +15,27 @@ interface RequestMetadata {
 }
 
 export class AuthService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly authRepository: AuthRepositoryPort) {}
 
   async register(dto: RegisterDto, metadata: RequestMetadata) {
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-      select: { id: true },
-    });
+    const existingUser = await this.authRepository.findUserIdByEmail(dto.email);
 
     if (existingUser) {
       throw new HttpError(409, "EMAIL_ALREADY_REGISTERED", "Email is already registered.");
     }
 
     const passwordHash = await hashPassword(dto.password);
-
-    const user = await this.prisma.$transaction(async (tx) => {
-      const createdUser = await tx.user.create({
-        data: {
-          email: dto.email,
-          passwordHash,
-          displayName: dto.displayName,
-        },
-        select: safeUserSelect,
-      });
-
-      const wallet = await tx.wallet.create({
-        data: {
-          userId: createdUser.id,
-          depositBalance: INITIAL_VIRTUAL_COINS,
-          winningBalance: 0n,
-        },
-        select: { id: true },
-      });
-
-      await tx.coinLedger.create({
-        data: {
-          userId: createdUser.id,
-          walletId: wallet.id,
-          type: CoinLedgerType.BONUS_CREDIT,
-          direction: CoinLedgerDirection.CREDIT,
-          amountCoins: INITIAL_VIRTUAL_COINS,
-          balanceBeforeCoins: 0n,
-          balanceAfterCoins: INITIAL_VIRTUAL_COINS,
-          idempotencyKey: `user:${createdUser.id}:initial-virtual-coins`,
-          referenceType: LedgerReferenceType.ADMIN_ACTION,
-          referenceId: createdUser.id,
-          status: CoinLedgerStatus.SUCCESS,
-          metadata: {
-            reason: "INITIAL_SIGNUP_BALANCE",
-          },
-        },
-      });
-
-      return createdUser;
+    const user = await this.authRepository.createUserWithInitialWallet({
+      email: dto.email,
+      passwordHash,
+      displayName: dto.displayName,
     });
 
     return this.createTokenPair(user, metadata);
   }
 
   async login(dto: LoginDto, metadata: RequestMetadata) {
-    const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-      select: {
-        ...safeUserSelect,
-        passwordHash: true,
-      },
-    });
+    const user = await this.authRepository.findUserByEmailWithPassword(dto.email);
 
     if (!user || user.status !== UserStatus.ACTIVE) {
       throw new HttpError(401, "INVALID_CREDENTIALS", "Invalid email or password.");
@@ -100,25 +47,13 @@ export class AuthService {
       throw new HttpError(401, "INVALID_CREDENTIALS", "Invalid email or password.");
     }
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
+    await this.authRepository.updateLastLoginAt(user.id, new Date());
 
     return this.createTokenPair(user, metadata);
   }
 
   async logout(userId: string, sessionId: string) {
-    await this.prisma.authSession.updateMany({
-      where: {
-        id: sessionId,
-        userId,
-        revokedAt: null,
-      },
-      data: {
-        revokedAt: new Date(),
-      },
-    });
+    await this.authRepository.revokeSession(userId, sessionId, new Date());
 
     return { success: true };
   }
@@ -126,52 +61,29 @@ export class AuthService {
   async refresh(dto: RefreshTokenDto, metadata: RequestMetadata) {
     const payload = verifyRefreshToken(dto.refreshToken);
     const refreshTokenHash = hashToken(dto.refreshToken);
+    const now = new Date();
 
-    const user = await this.prisma.$transaction(async (tx) => {
-      const session = await tx.authSession.findFirst({
-        where: {
-          id: payload.sessionId,
-          userId: payload.sub,
-          refreshTokenHash,
-          revokedAt: null,
-          expiresAt: {
-            gt: new Date(),
-          },
-        },
-        select: {
-          id: true,
-          user: {
-            select: safeUserSelect,
-          },
-        },
-      });
+    const user = await this.authRepository.rotateRefreshSession(
+      {
+        sessionId: payload.sessionId,
+        userId: payload.sub,
+        refreshTokenHash,
+        now,
+      },
+      now,
+    );
 
-      if (!session || session.user.status !== UserStatus.ACTIVE) {
-        throw new HttpError(401, "INVALID_REFRESH_TOKEN", "Invalid or expired refresh token.");
-      }
-
-      await tx.authSession.update({
-        where: {
-          id: session.id,
-        },
-        data: {
-          revokedAt: new Date(),
-        },
-      });
-
-      return session.user;
-    });
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      throw new HttpError(401, "INVALID_REFRESH_TOKEN", "Invalid or expired refresh token.");
+    }
 
     return this.createTokenPair(user, metadata);
   }
 
   async me(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: safeUserSelect,
-    });
+    const user = await this.authRepository.findActiveUserById(userId);
 
-    if (!user || user.status !== UserStatus.ACTIVE) {
+    if (!user) {
       throw new HttpError(401, "USER_NOT_ACTIVE", "Authenticated user is not active.");
     }
 
@@ -194,15 +106,13 @@ export class AuthService {
       tokenType: "refresh",
     });
 
-    await this.prisma.authSession.create({
-      data: {
-        id: sessionId,
-        userId: user.id,
-        refreshTokenHash: hashToken(refreshToken),
-        ipAddress: metadata.ipAddress,
-        userAgent: metadata.userAgent,
-        expiresAt,
-      },
+    await this.authRepository.createSession({
+      id: sessionId,
+      userId: user.id,
+      refreshTokenHash: hashToken(refreshToken),
+      ipAddress: metadata.ipAddress,
+      userAgent: metadata.userAgent,
+      expiresAt,
     });
 
     return {
@@ -216,23 +126,3 @@ export class AuthService {
     };
   }
 }
-
-const safeUserSelect = {
-  id: true,
-  email: true,
-  displayName: true,
-  status: true,
-  role: true,
-  createdAt: true,
-  updatedAt: true,
-} as const;
-
-type SafeUser = {
-  id: string;
-  email: string;
-  displayName: string | null;
-  status: UserStatus;
-  role: "USER" | "ADMIN";
-  createdAt: Date;
-  updatedAt: Date;
-};

@@ -4,6 +4,7 @@ import { HttpError } from "../../../common/errors/http-error.js";
 import { getRedisClient } from "../../../database/redis.client.js";
 import {
   BET_LOCK_AFTER_MS,
+  ROUND_ENGINE_CONFIG,
   ROUND_DURATION_MS,
   WIN_PAYOUT_MULTIPLIER,
   WINNER_SETTLEMENT_CONCURRENCY,
@@ -26,6 +27,13 @@ export class RoundService {
 
     return {
       round: round ? serializeRound(round) : null,
+      config: ROUND_ENGINE_CONFIG,
+    };
+  }
+
+  getRoundConfig() {
+    return {
+      config: ROUND_ENGINE_CONFIG,
     };
   }
 
@@ -300,9 +308,12 @@ export class RoundService {
       roundId: round.id,
       status: payload.round.status,
       dbStatus: round.status,
+      lifecycleStatus: payload.round.lifecycleStatus,
+      engineStatus: payload.round.engineStatus,
       remainingSeconds: payload.remainingSeconds,
       lockTime: round.lockTime.toISOString(),
       endTime: round.endTime.toISOString(),
+      config: ROUND_ENGINE_CONFIG,
     });
     publishGameEvent("round:update", payload);
     publishGameEvent("round:state", payload);
@@ -321,6 +332,7 @@ export class RoundService {
       remainingSeconds,
       lockTime: round.lockTime.toISOString(),
       endTime: round.endTime.toISOString(),
+      config: ROUND_ENGINE_CONFIG,
       syncedAt: new Date().toISOString(),
     };
   }

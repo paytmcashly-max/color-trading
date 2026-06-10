@@ -39,6 +39,16 @@ interface LedgerCreateInput {
   metadata?: Prisma.InputJsonValue;
 }
 
+interface WalletTransactionRow {
+  id: string;
+  userId: string;
+  type: string;
+  amount: bigint;
+  balanceBefore: bigint | null;
+  balanceAfter: bigint | null;
+  createdAt: Date;
+}
+
 export class WalletRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -176,6 +186,23 @@ export class WalletRepository {
       orderBy: { createdAt: "desc" },
       take: limit,
     });
+  }
+
+  getWalletTransactions(userId: string, limit = 50) {
+    return this.prisma.$queryRaw<WalletTransactionRow[]>`
+      SELECT
+        id::text AS "id",
+        user_id::text AS "userId",
+        type::text AS "type",
+        amount,
+        balance_before AS "balanceBefore",
+        balance_after AS "balanceAfter",
+        created_at AS "createdAt"
+      FROM wallet_transactions
+      WHERE user_id = CAST(${userId} AS uuid)
+      ORDER BY created_at DESC
+      LIMIT ${limit}
+    `;
   }
 
   getWalletBalanceFromLedger(userId: string) {

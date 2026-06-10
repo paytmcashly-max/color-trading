@@ -10,6 +10,11 @@ export class RoundController {
     res.status(200).json(result);
   };
 
+  config = async (_req: Request, res: Response) => {
+    const result = this.roundService.getRoundConfig();
+    res.status(200).json(result);
+  };
+
   history = async (_req: Request, res: Response) => {
     const result = await this.roundService.getRoundHistory();
     res.status(200).json(result);

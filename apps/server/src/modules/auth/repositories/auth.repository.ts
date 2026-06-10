@@ -1,0 +1,207 @@
+import {
+  CoinLedgerDirection,
+  CoinLedgerStatus,
+  CoinLedgerType,
+  LedgerReferenceType,
+  UserStatus,
+  type PrismaClient,
+} from "@prisma/client";
+
+const INITIAL_VIRTUAL_COINS = 1000n;
+
+export const safeUserSelect = {
+  id: true,
+  email: true,
+  displayName: true,
+  status: true,
+  role: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+export type SafeUser = {
+  id: string;
+  email: string;
+  displayName: string | null;
+  status: UserStatus;
+  role: "USER" | "ADMIN";
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type AuthUserWithPassword = SafeUser & {
+  passwordHash: string;
+};
+
+export interface CreateUserInput {
+  email: string;
+  passwordHash: string;
+  displayName?: string;
+}
+
+export interface CreateSessionInput {
+  id: string;
+  userId: string;
+  refreshTokenHash: string;
+  ipAddress?: string;
+  userAgent?: string;
+  expiresAt: Date;
+}
+
+export interface RefreshSessionLookupInput {
+  sessionId: string;
+  userId: string;
+  refreshTokenHash: string;
+  now: Date;
+}
+
+export interface AuthRepositoryPort {
+  findUserIdByEmail(email: string): Promise<{ id: string } | null>;
+  createUserWithInitialWallet(input: CreateUserInput): Promise<SafeUser>;
+  findUserByEmailWithPassword(email: string): Promise<AuthUserWithPassword | null>;
+  updateLastLoginAt(userId: string, loggedInAt: Date): Promise<void>;
+  revokeSession(userId: string, sessionId: string, revokedAt: Date): Promise<void>;
+  rotateRefreshSession(input: RefreshSessionLookupInput, revokedAt: Date): Promise<SafeUser | null>;
+  findActiveUserById(userId: string): Promise<SafeUser | null>;
+  createSession(input: CreateSessionInput): Promise<void>;
+}
+
+export class AuthRepository implements AuthRepositoryPort {
+  constructor(private readonly prisma: PrismaClient) {}
+
+  findUserIdByEmail(email: string) {
+    return this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+  }
+
+  createUserWithInitialWallet(input: CreateUserInput) {
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: input.email,
+          passwordHash: input.passwordHash,
+          displayName: input.displayName,
+        },
+        select: safeUserSelect,
+      });
+
+      const wallet = await tx.wallet.create({
+        data: {
+          userId: user.id,
+          depositBalance: INITIAL_VIRTUAL_COINS,
+          winningBalance: 0n,
+        },
+        select: { id: true },
+      });
+
+      await tx.coinLedger.create({
+        data: {
+          userId: user.id,
+          walletId: wallet.id,
+          type: CoinLedgerType.BONUS_CREDIT,
+          direction: CoinLedgerDirection.CREDIT,
+          amountCoins: INITIAL_VIRTUAL_COINS,
+          balanceBeforeCoins: 0n,
+          balanceAfterCoins: INITIAL_VIRTUAL_COINS,
+          idempotencyKey: `user:${user.id}:initial-virtual-coins`,
+          referenceType: LedgerReferenceType.ADMIN_ACTION,
+          referenceId: user.id,
+          status: CoinLedgerStatus.SUCCESS,
+          metadata: {
+            reason: "INITIAL_SIGNUP_BALANCE",
+          },
+        },
+      });
+
+      return user;
+    });
+  }
+
+  findUserByEmailWithPassword(email: string) {
+    return this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        ...safeUserSelect,
+        passwordHash: true,
+      },
+    });
+  }
+
+  async updateLastLoginAt(userId: string, loggedInAt: Date) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { lastLoginAt: loggedInAt },
+    });
+  }
+
+  async revokeSession(userId: string, sessionId: string, revokedAt: Date) {
+    await this.prisma.authSession.updateMany({
+      where: {
+        id: sessionId,
+        userId,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt,
+      },
+    });
+  }
+
+  rotateRefreshSession(input: RefreshSessionLookupInput, revokedAt: Date) {
+    return this.prisma.$transaction(async (tx) => {
+      const session = await tx.authSession.findFirst({
+        where: {
+          id: input.sessionId,
+          userId: input.userId,
+          refreshTokenHash: input.refreshTokenHash,
+          revokedAt: null,
+          expiresAt: {
+            gt: input.now,
+          },
+        },
+        select: {
+          id: true,
+          user: {
+            select: safeUserSelect,
+          },
+        },
+      });
+
+      if (!session) {
+        return null;
+      }
+
+      await tx.authSession.update({
+        where: { id: session.id },
+        data: { revokedAt },
+      });
+
+      return session.user;
+    });
+  }
+
+  findActiveUserById(userId: string) {
+    return this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        status: UserStatus.ACTIVE,
+      },
+      select: safeUserSelect,
+    });
+  }
+
+  async createSession(input: CreateSessionInput) {
+    await this.prisma.authSession.create({
+      data: {
+        id: input.id,
+        userId: input.userId,
+        refreshTokenHash: input.refreshTokenHash,
+        ipAddress: input.ipAddress,
+        userAgent: input.userAgent,
+        expiresAt: input.expiresAt,
+      },
+    });
+  }
+}

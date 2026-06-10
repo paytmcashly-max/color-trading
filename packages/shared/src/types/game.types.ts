@@ -8,6 +8,7 @@ export type UserStatus = "ACTIVE" | "SUSPENDED" | "DELETED";
 
 export type RoundStatus = "INIT" | "OPEN" | "LOCKED" | "RESOLVING" | "COMPLETED" | "CANCELLED";
 export type RoundLifecycleStatus = "BETTING_OPEN" | "BETTING_CLOSED" | "RESULT_DECLARED";
+export type RoundEngineStatus = "WAITING" | "BETTING" | "LOCKED" | "RESULT" | "SETTLED";
 
 export type BetStatus = "PENDING" | "WON" | "LOST" | "CANCELLED";
 
@@ -35,6 +36,8 @@ export interface GameRound {
   id: EntityId;
   roundNumber: number;
   status: RoundStatus | RoundLifecycleStatus;
+  lifecycleStatus?: RoundEngineStatus;
+  engineStatus?: RoundEngineStatus;
   resultColor: PredictionColor | null;
   startsAt: ISODateString;
   locksAt: ISODateString;

@@ -18,12 +18,14 @@ const walletService = new WalletService(walletRepository);
 const walletController = new WalletController(walletService);
 
 walletRouter.get("/balance", authGuard, asyncHandler(walletController.balance));
+walletRouter.get("/", authGuard, asyncHandler(walletController.balance));
 walletRouter.get("/ledger", authGuard, asyncHandler(walletController.history));
 walletRouter.get("/transactions", authGuard, asyncHandler(walletController.transactions));
 
 walletRouter.post(
   "/bonus-credit",
   authGuard,
+  roleGuard(UserRole.ADMIN),
   validateBody(ledgerMutationSchema),
   asyncHandler(walletController.bonusCredit),
 );
@@ -31,6 +33,7 @@ walletRouter.post(
 walletRouter.post(
   "/bet-debit",
   authGuard,
+  roleGuard(UserRole.ADMIN),
   validateBody(ledgerMutationSchema),
   asyncHandler(walletController.betDebit),
 );

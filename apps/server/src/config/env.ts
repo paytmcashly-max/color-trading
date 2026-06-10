@@ -22,6 +22,10 @@ const rawEnvSchema = z.object({
   JWT_REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(7),
   JWT_ISSUER: z.string().default("color-trading-api"),
   JWT_AUDIENCE: z.string().default("color-trading-client"),
+  GAME_ROUND_DURATION_SECONDS: z.coerce.number().int().min(10).max(3600).default(60),
+  GAME_BETTING_DURATION_SECONDS: z.coerce.number().int().min(1).max(3599).default(45),
+  GAME_SCHEDULER_TICK_MS: z.coerce.number().int().min(250).max(10_000).default(1000),
+  GAME_ROUND_LOCK_TTL_MS: z.coerce.number().int().min(1000).max(60_000).default(5000),
   GAME_ENGINE_ENABLED: z
     .preprocess((value) => {
       if (typeof value === "string") {
@@ -65,8 +69,19 @@ const envSchema = rawEnvSchema
       JWT_REFRESH_TOKEN_TTL_DAYS: z.number().int().positive(),
       JWT_ISSUER: z.string(),
       JWT_AUDIENCE: z.string(),
+      GAME_ROUND_DURATION_SECONDS: z.number().int(),
+      GAME_BETTING_DURATION_SECONDS: z.number().int(),
+      GAME_SCHEDULER_TICK_MS: z.number().int(),
+      GAME_ROUND_LOCK_TTL_MS: z.number().int(),
       GAME_ENGINE_ENABLED: z.boolean(),
     }),
+  )
+  .refine(
+    (value) => value.GAME_BETTING_DURATION_SECONDS < value.GAME_ROUND_DURATION_SECONDS,
+    {
+      message: "GAME_BETTING_DURATION_SECONDS must be less than GAME_ROUND_DURATION_SECONDS.",
+      path: ["GAME_BETTING_DURATION_SECONDS"],
+    },
   );
 
 const parsed = envSchema.safeParse(process.env);

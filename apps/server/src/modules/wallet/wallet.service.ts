@@ -12,7 +12,7 @@ import { hashToken } from "../../common/utils/token-hash.js";
 import { logger } from "../../common/utils/logger.js";
 import { publishRealtimeEvent } from "../../sockets/socket.events.js";
 import type { WalletRepository, LedgerRecord, LockedWallet } from "./wallet.repository.js";
-import { serializeLedgerEntry, serializeWallet, serializeWalletTransaction } from "./wallet.serializer.js";
+import { serializeLedgerEntry, serializeWallet, serializeWalletTransactionView } from "./wallet.serializer.js";
 
 interface LedgerMutationInput {
   userId: string;
@@ -115,10 +115,10 @@ export class WalletService {
   }
 
   async getTransactionHistory(userId: string) {
-    const entries = await this.walletRepository.getLedgerHistory(userId);
+    const entries = await this.walletRepository.getWalletTransactions(userId);
 
     return {
-      transactions: entries.map(serializeWalletTransaction),
+      transactions: entries.map(serializeWalletTransactionView),
     };
   }
 

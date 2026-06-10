@@ -22,6 +22,12 @@ export interface AuthSession {
   tokens: AuthTokenPair;
 }
 
+export interface AuthResponse {
+  success: boolean;
+  message: string;
+  data: AuthSession;
+}
+
 export interface RegisterRequest {
   email: string;
   password: string;
@@ -35,4 +41,18 @@ export interface LoginRequest {
 
 export interface RefreshTokenRequest {
   refreshToken: string;
+}
+
+export interface CurrentUserResponse {
+  success: boolean;
+  message: string;
+  data: {
+    user: AuthUser;
+  };
+}
+
+export interface LogoutResponse {
+  success: boolean;
+  message: string;
+  data: null;
 }

@@ -252,6 +252,18 @@ model CoinLedger {
   @@map("coin_ledger")
 }
 
+model WalletTransaction {
+  id            String   @id @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  type          String   @db.VarChar(80)
+  amount        BigInt
+  balanceBefore BigInt?  @map("balance_before")
+  balanceAfter  BigInt?  @map("balance_after")
+  createdAt     DateTime @map("created_at") @db.Timestamptz(6)
+
+  @@map("wallet_transactions")
+}
+
 model GameRound {
   id          String           @id @default(dbgenerated("gen_random_uuid()")) @map("round_id") @db.Uuid
   roundNumber BigInt           @unique @map("round_number")

@@ -8,6 +8,7 @@ export interface WalletBalance {
   depositBalance: string;
   winningBalance: string;
   totalBalance: string;
+  availableBalance: string;
   ledgerVersion: string;
   status: WalletStatus;
   createdAt?: string;
@@ -37,4 +38,33 @@ export interface WalletUpdateEvent {
     status: string;
     createdAt: string;
   };
+}
+
+export interface WalletBalanceResponse {
+  wallet: WalletBalance;
+}
+
+export interface WalletTransactionsResponse {
+  transactions: WalletTransaction[];
+}
+
+export interface WalletLedgerEntry {
+  id: string;
+  userId: string;
+  walletId: string;
+  type: string;
+  direction: "DEBIT" | "CREDIT";
+  amountCoins: string;
+  balanceBeforeCoins: string | null;
+  balanceAfterCoins: string | null;
+  idempotencyKey: string;
+  referenceType: string | null;
+  referenceId: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WalletLedgerResponse {
+  entries: WalletLedgerEntry[];
 }

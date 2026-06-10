@@ -21,6 +21,7 @@ export function serializeWallet(
     depositBalance: wallet.depositBalance.toString(),
     winningBalance: wallet.winningBalance.toString(),
     totalBalance: totalBalance.toString(),
+    availableBalance: totalBalance.toString(),
     ledgerVersion: wallet.ledgerVersion.toString(),
     status: wallet.status,
     createdAt: wallet.createdAt.toISOString(),
@@ -88,6 +89,28 @@ export function serializeWalletTransaction(
     amount: entry.amountCoins.toString(),
     balanceBefore: balanceBefore.toString(),
     balanceAfter: balanceAfter.toString(),
+    createdAt: entry.createdAt.toISOString(),
+  };
+}
+
+export function serializeWalletTransactionView(
+  entry: {
+    id: string;
+    userId: string;
+    type: string;
+    amount: bigint;
+    balanceBefore: bigint | null;
+    balanceAfter: bigint | null;
+    createdAt: Date;
+  },
+) {
+  return {
+    id: entry.id,
+    userId: entry.userId,
+    type: entry.type,
+    amount: entry.amount.toString(),
+    balanceBefore: entry.balanceBefore?.toString() ?? "0",
+    balanceAfter: entry.balanceAfter?.toString() ?? "0",
     createdAt: entry.createdAt.toISOString(),
   };
 }

@@ -2,6 +2,7 @@ import { RoundStatus, type Bet, type GameRound } from "@prisma/client";
 
 export function serializeRound(round: GameRound) {
   const lifecycleStatus = toRealtimeRoundStatus(round.status);
+  const engineStatus = toRoundEngineStatus(round.status);
 
   return {
     id: round.id,
@@ -14,12 +15,31 @@ export function serializeRound(round: GameRound) {
     status: lifecycleStatus,
     dbStatus: round.status,
     phase: lifecycleStatus,
+    lifecycleStatus: engineStatus,
+    engineStatus,
     result: round.result,
     seedHash: round.seedHash,
     seedReveal: round.seedReveal,
     createdAt: round.createdAt.toISOString(),
     updatedAt: round.updatedAt.toISOString(),
   };
+}
+
+function toRoundEngineStatus(status: RoundStatus) {
+  switch (status) {
+    case RoundStatus.INIT:
+      return "WAITING";
+    case RoundStatus.OPEN:
+      return "BETTING";
+    case RoundStatus.LOCKED:
+      return "LOCKED";
+    case RoundStatus.RESOLVING:
+      return "RESULT";
+    case RoundStatus.COMPLETED:
+      return "SETTLED";
+    case RoundStatus.CANCELLED:
+      return "SETTLED";
+  }
 }
 
 function toRealtimeRoundStatus(status: RoundStatus) {

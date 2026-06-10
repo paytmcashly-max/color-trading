@@ -25,6 +25,7 @@ const betController = new BetController(betService);
 const roundController = new RoundController(roundService);
 
 gameRouter.get("/round/current", asyncHandler(roundController.current));
+gameRouter.get("/round/config", asyncHandler(roundController.config));
 gameRouter.get("/rounds/history", asyncHandler(roundController.history));
 gameRouter.get("/bets/me", authGuard, asyncHandler(roundController.myBets));
 gameRouter.post(

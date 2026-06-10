@@ -9,10 +9,12 @@ import { fraudAuthRateLimit } from "../fraud/fraud.middleware.js";
 import { AuthController } from "./auth.controller.js";
 import { loginSchema, refreshTokenSchema, registerSchema } from "./auth.dto.js";
 import { AuthService } from "./auth.service.js";
+import { AuthRepository } from "./repositories/auth.repository.js";
 
 export const authRouter = Router();
 
-const authService = new AuthService(getPrismaClient());
+const authRepository = new AuthRepository(getPrismaClient());
+const authService = new AuthService(authRepository);
 const authController = new AuthController(authService);
 
 const authRateLimiter = rateLimit({
