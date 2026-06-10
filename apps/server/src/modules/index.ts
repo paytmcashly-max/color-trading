@@ -1,5 +1,6 @@
 import type { Express } from "express";
 
+import { API_PREFIX } from "../common/http/api-prefix.js";
 import { adminRouter } from "./admin/admin.routes.js";
 import { authRouter } from "./auth/auth.routes.js";
 import { betRouter } from "./bet/bet.routes.js";
@@ -8,9 +9,7 @@ import { userRouter } from "./user/user.routes.js";
 import { walletRouter } from "./wallet/wallet.routes.js";
 
 export function registerModuleRoutes(app: Express) {
-  registerRoutesAt(app, "");
-  registerRoutesAt(app, "/api");
-  registerRoutesAt(app, "/v1");
+  registerRoutesAt(app, API_PREFIX);
 }
 
 function registerRoutesAt(app: Express, prefix: string) {
