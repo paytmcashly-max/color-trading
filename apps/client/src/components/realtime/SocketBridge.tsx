@@ -6,6 +6,8 @@ import { clearActiveSocket, createSocket, joinGameRoomOverSocket, joinRoundOverS
 import { useAuthStore } from "@/store/auth-store";
 import { useGameStore } from "@/store/game-store";
 
+const ROUND_RESYNC_INTERVAL_MS = 15_000;
+
 export function SocketBridge() {
   const accessToken = useAuthStore((state) => state.tokens?.accessToken);
   const setConnected = useGameStore((state) => state.setSocketConnected);
@@ -47,7 +49,23 @@ export function SocketBridge() {
     socket.on("system:health", (payload) => applyRealtimeEvent("system:health", payload));
     socket.on("system:error", (payload) => applyRealtimeEvent("system:error", payload));
 
+    const resync = () => {
+      if (socket.connected) {
+        socket.emit("state:sync");
+      }
+    };
+    const intervalId = window.setInterval(resync, ROUND_RESYNC_INTERVAL_MS);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        resync();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       clearActiveSocket(socket);
       socket.disconnect();
       setConnected(false);

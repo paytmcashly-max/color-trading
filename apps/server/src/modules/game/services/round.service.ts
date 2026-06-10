@@ -1,7 +1,7 @@
 import { RoundStatus } from "@prisma/client";
 
 import { HttpError } from "../../../common/errors/http-error.js";
-import { getRedisClient } from "../../../database/redis.client.js";
+import { pageInfo, type PaginationInput } from "../../../common/utils/pagination.js";
 import {
   BET_LOCK_AFTER_MS,
   ROUND_ENGINE_CONFIG,
@@ -11,6 +11,7 @@ import { publishGameEvent } from "../game.events.js";
 import { serializeBet, serializeRound } from "../game.serializer.js";
 import type { GameRepository, GameRoundRecord } from "../repositories/game.repository.js";
 import type { ResultService } from "./result.service.js";
+import { clearRoundSeedReveal, readRoundSeedReveal, storeRoundSeedReveal } from "./round-seed.service.js";
 import type { SettlementService } from "./settlement.service.js";
 
 export class RoundService {
@@ -35,22 +36,25 @@ export class RoundService {
     };
   }
 
-  async getRoundHistory() {
-    const rounds = await this.gameRepository.findRoundHistory();
+  async getRoundHistory(pagination: PaginationInput = { limit: 30 }) {
+    const rounds = await this.gameRepository.findRoundHistory(pagination);
+    const page = pageInfo(rounds, pagination.limit, (round) => round.id);
 
     return {
-      rounds: rounds.map((round) => ({
+      rounds: page.items.map((round) => ({
         ...serializeRound(round),
         betCount: round._count.bets,
       })),
+      pageInfo: page.pageInfo,
     };
   }
 
-  async getUserBetHistory(userId: string) {
-    const bets = await this.gameRepository.findUserBetHistory(userId);
+  async getUserBetHistory(userId: string, pagination: PaginationInput = { limit: 50 }) {
+    const bets = await this.gameRepository.findUserBetHistory(userId, pagination);
+    const page = pageInfo(bets, pagination.limit, (bet) => bet.id);
 
     return {
-      bets: bets.map((bet) => ({
+      bets: page.items.map((bet) => ({
         ...serializeBet(bet),
         round: {
           roundNumber: bet.round.roundNumber.toString(),
@@ -60,6 +64,7 @@ export class RoundService {
           endTime: bet.round.endTime.toISOString(),
         },
       })),
+      pageInfo: page.pageInfo,
     };
   }
 
@@ -133,14 +138,10 @@ export class RoundService {
         lockTime,
         endTime,
         seedHash: seed.seedHash,
-        seedReveal: seed.seedReveal,
       });
     });
 
-    const redis = getRedisClient();
-    if (redis) {
-      await redis.set(`game:round:${round.id}:seed`, seed.seedReveal, "PX", ROUND_DURATION_MS * 2);
-    }
+    await storeRoundSeedReveal(round.id, seed.seedReveal);
 
     const openRound = await this.openRound(round);
     publishGameEvent("round:start", this.buildRoundPayload(openRound));
@@ -234,6 +235,8 @@ export class RoundService {
         settlement,
       });
 
+      await clearRoundSeedReveal(completedRound.id);
+
       return this.createNextRound();
     }
 
@@ -241,8 +244,7 @@ export class RoundService {
   }
 
   private async getSeedReveal(roundId: string) {
-    const redis = getRedisClient();
-    const seedReveal = redis ? await redis.get(`game:round:${roundId}:seed`) : null;
+    const seedReveal = await readRoundSeedReveal(roundId);
 
     if (!seedReveal) {
       throw new HttpError(500, "ROUND_SEED_REVEAL_MISSING", "Round seed reveal is missing.");

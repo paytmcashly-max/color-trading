@@ -49,10 +49,10 @@ Only the instance that acquires the lock creates, locks, or resolves rounds. Rel
 
 ## Betting Flow
 
-1. `POST /game/bets` authenticates the user.
+1. `POST /api/v1/game/bets` authenticates the user.
 2. The round row is locked with `SELECT ... FOR UPDATE`.
 3. The server verifies the round is `OPEN` and `now() < lock_time`.
-4. A `PENDING` bet is inserted. Unique `(user_id, round_id)` prevents duplicate bets.
+4. A `PENDING` bet is inserted. The bet idempotency key prevents duplicate submissions.
 5. Wallet debit is performed through `WalletService.debitCoins()` with a deterministic ledger idempotency key.
 6. `bet:placed` and `wallet:update` are emitted.
 
@@ -61,7 +61,7 @@ If wallet debit fails, the bet is marked `CANCELLED`.
 ## Resolution Flow
 
 1. Scheduler transitions `LOCKED -> RESOLVING`.
-2. `ResultService` uses `crypto.randomInt()` to select `RED`, `GREEN`, or `VIOLET`.
+2. `ResultService` uses the private seed reveal to derive `RED`, `GREEN`, or `VIOLET`.
 3. Pending bets are read for the round.
 4. Losing bets are marked `LOST`.
 5. Winning bets are credited through `WalletService.creditBetWinnings()` and then marked `WON`.
@@ -78,3 +78,15 @@ If wallet debit fails, the bet is marked `CANCELLED`.
 - `wallet:update`
 
 Socket.io uses Redis Pub/Sub via `@socket.io/redis-adapter` when `REDIS_URL` is configured.
+
+Rounds store `seed_hash` when created. The private seed reveal is kept in Redis
+and saved to PostgreSQL only when the round is resolving or completed.
+
+## Risk Limits
+
+Bet placement enforces:
+
+- `GAME_MAX_BET_PER_USER_PER_ROUND`: maximum total stake by one user in one round.
+- `GAME_MAX_EXPOSURE_PER_COLOR`: maximum total stake on one color in one round.
+
+Both checks run inside the serializable bet transaction before wallet debit.

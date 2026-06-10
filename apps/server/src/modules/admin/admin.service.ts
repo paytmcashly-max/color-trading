@@ -8,8 +8,9 @@ import {
 } from "@prisma/client";
 
 import { HttpError } from "../../common/errors/http-error.js";
+import { pageInfo, type PaginationInput } from "../../common/utils/pagination.js";
 import { getPostgresStatus } from "../../database/postgres.client.js";
-import { getRedisClient, getRedisStatus } from "../../database/redis.client.js";
+import { getRedisStatus } from "../../database/redis.client.js";
 import { getObservability } from "../observability/observability.module.js";
 import { publishGameEvent } from "../game/game.events.js";
 import { serializeRound } from "../game/game.serializer.js";
@@ -18,6 +19,7 @@ import {
   ROUND_DURATION_MS,
 } from "../game/game.constants.js";
 import { ResultService } from "../game/services/result.service.js";
+import { clearRoundSeedReveal, readRoundSeedReveal, storeRoundSeedReveal } from "../game/services/round-seed.service.js";
 import { GameRepository } from "../game/repositories/game.repository.js";
 import { SettlementService } from "../game/services/settlement.service.js";
 import { publishRealtimeEvent } from "../../sockets/socket.events.js";
@@ -291,7 +293,7 @@ export class AdminService {
           },
         },
       });
-      const refunds = await this.refundPendingBetsForCancelledRounds(tx, activeRounds);
+      const refunds = await this.refundPendingBetsForCancelledRounds(tx, activeRounds, adminUserId);
 
       await tx.gameRound.updateMany({
         where: {
@@ -317,7 +319,6 @@ export class AdminService {
           endTime,
           status: RoundStatus.OPEN,
           seedHash: seed.seedHash,
-          seedReveal: seed.seedReveal,
         },
       });
 
@@ -329,10 +330,7 @@ export class AdminService {
       };
     }, { isolationLevel: "Serializable", maxWait: 5000, timeout: 20000 });
 
-    const redis = getRedisClient();
-    if (redis) {
-      await redis.set(`game:round:${round.id}:seed`, seed.seedReveal, "PX", ROUND_DURATION_MS * 2);
-    }
+    await storeRoundSeedReveal(round.id, seed.seedReveal);
 
     await this.writeAuditLog(adminUserId, "ROUND_FORCE_START", "ROUND", round.id, {
       reason: dto.reason ?? null,
@@ -374,7 +372,7 @@ export class AdminService {
         throw new HttpError(404, "ACTIVE_ROUND_NOT_FOUND", "There is no active round to stop.");
       }
 
-      const refunds = await this.refundPendingBetsForCancelledRounds(tx, [activeRound]);
+      const refunds = await this.refundPendingBetsForCancelledRounds(tx, [activeRound], adminUserId);
       const round = await tx.gameRound.update({
         where: { id: activeRound.id },
         data: { status: RoundStatus.CANCELLED },
@@ -445,6 +443,7 @@ export class AdminService {
       return round;
     }, { isolationLevel: "Serializable", maxWait: 5000, timeout: 15000 });
 
+    const seedReveal = activeRound.seedReveal ?? (await this.getSeedReveal(activeRound.id));
     const settlement = await this.settlementService.settleRound(activeRound.id, dto.result);
 
     const round = await this.prisma.gameRound.update({
@@ -452,6 +451,7 @@ export class AdminService {
       data: {
         status: RoundStatus.COMPLETED,
         result: dto.result,
+        seedReveal,
       },
     });
 
@@ -472,6 +472,7 @@ export class AdminService {
       forced: true,
       settlement,
     });
+    await clearRoundSeedReveal(round.id);
 
     return {
       round: serializeAdminRound({ ...round, _count: { bets: settlement.totalBets } }),
@@ -544,14 +545,16 @@ export class AdminService {
     return this.walletService.getWalletBalance(userId);
   }
 
-  async getLedger(userId: string) {
+  async getLedger(userId: string, pagination: PaginationInput = { limit: 100 }) {
     const entries = await this.prisma.coinLedger.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      take: 100,
+      take: pagination.limit + 1,
+      ...(pagination.cursor ? { cursor: { id: pagination.cursor }, skip: 1 } : {}),
     });
+    const page = pageInfo(entries, pagination.limit, (entry) => entry.id);
 
-    return { entries: entries.map(serializeAdminLedger) };
+    return { entries: page.items.map(serializeAdminLedger), pageInfo: page.pageInfo };
   }
 
   async adjustWallet(adminUserId: string, userId: string, dto: AdminWalletAdjustmentDto) {
@@ -572,7 +575,8 @@ export class AdminService {
     return result;
   }
 
-  async listBets(filters: { roundId?: string; userId?: string }) {
+  async listBets(filters: { roundId?: string; userId?: string; pagination?: PaginationInput }) {
+    const pagination = filters.pagination ?? { limit: 100 };
     const where: Prisma.BetWhereInput = {
       ...(filters.roundId ? { roundId: filters.roundId } : {}),
       ...(filters.userId ? { userId: filters.userId } : {}),
@@ -582,7 +586,8 @@ export class AdminService {
       this.prisma.bet.findMany({
         where,
         orderBy: { createdAt: "desc" },
-        take: 200,
+        take: pagination.limit + 1,
+        ...(pagination.cursor ? { cursor: { id: pagination.cursor }, skip: 1 } : {}),
         include: {
           user: {
             select: {
@@ -600,10 +605,12 @@ export class AdminService {
       }),
       this.findSuspiciousBettingPatterns(),
     ]);
+    const page = pageInfo(bets, pagination.limit, (bet) => bet.id);
 
     return {
-      bets: bets.map(serializeAdminBet),
+      bets: page.items.map(serializeAdminBet),
       suspiciousUsers,
+      pageInfo: page.pageInfo,
     };
   }
 
@@ -850,6 +857,16 @@ export class AdminService {
       }));
   }
 
+  private async getSeedReveal(roundId: string) {
+    const seedReveal = await readRoundSeedReveal(roundId);
+
+    if (!seedReveal) {
+      throw new HttpError(500, "ROUND_SEED_REVEAL_MISSING", "Round seed reveal is missing.");
+    }
+
+    return seedReveal;
+  }
+
   private async refundPendingBetsForCancelledRounds(
     tx: Prisma.TransactionClient,
     rounds: Array<{
@@ -860,6 +877,7 @@ export class AdminService {
         coinsStaked: bigint;
       }>;
     }>,
+    adminUserId: string,
   ) {
     const refunds: RefundWalletUpdate[] = [];
 
@@ -885,6 +903,21 @@ export class AdminService {
           data: {
             status: BetStatus.CANCELLED,
             payoutAmount: 0n,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            adminUserId,
+            actionType: "BET_REFUND",
+            targetType: "BET",
+            targetId: bet.id,
+            metadata: {
+              roundId: round.id,
+              userId: bet.userId,
+              amountCoins,
+              reason: "ROUND_CANCELLED",
+            },
           },
         });
 
