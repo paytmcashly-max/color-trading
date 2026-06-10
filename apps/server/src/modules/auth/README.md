@@ -18,14 +18,14 @@ modules/auth/
 
 ## Endpoints
 
-### POST /auth/register
+### POST /api/v1/auth/register
 
 Request:
 
 ```json
 {
   "email": "player@example.com",
-  "password": "StrongPass123!",
+  "password": "secret1",
   "displayName": "Player One"
 }
 ```
@@ -45,27 +45,33 @@ Response:
   },
   "tokens": {
     "accessToken": "jwt",
-    "refreshToken": "jwt",
     "tokenType": "Bearer",
     "expiresInSeconds": 900
   }
 }
 ```
 
-### POST /auth/login
+The refresh token is not returned in JSON. It is set as an httpOnly cookie.
+
+### POST /api/v1/auth/login
 
 Request:
 
 ```json
 {
   "email": "player@example.com",
-  "password": "StrongPass123!"
+  "password": "secret1"
 }
 ```
 
 Response shape matches register.
 
-### POST /auth/logout
+### POST /api/v1/auth/refresh
+
+No request body is required. The server reads the refresh cookie, rotates it,
+sets a replacement cookie, and returns a new access token.
+
+### POST /api/v1/auth/logout
 
 Headers:
 
@@ -81,7 +87,11 @@ Response:
 }
 ```
 
-### GET /auth/me
+### POST /api/v1/auth/logout-all
+
+Revokes every active session for the current user and clears the refresh cookie.
+
+### GET /api/v1/auth/me
 
 Headers:
 
@@ -107,13 +117,14 @@ Response:
 
 ## Admin Endpoint
 
-`GET /admin/users` requires an access token for a user with `ADMIN` role.
+`GET /api/v1/admin/users` requires an access token for a user with `ADMIN` role.
 
 ## Security Notes
 
 - Passwords are hashed with bcrypt using 12 salt rounds.
 - JWT secrets are required from environment variables and are never hardcoded.
-- Access tokens are short-lived; refresh tokens are stored only as SHA-256 hashes in `auth_sessions`.
+- Access tokens are short-lived and kept in browser memory only.
+- Refresh tokens are delivered only through httpOnly cookies and stored server-side only as SHA-256 hashes in `auth_sessions`.
 - Logout revokes the current auth session. The auth guard verifies both JWT validity and active session state.
 - Register and login are protected by IP-based rate limiting.
 - Zod validates email format and password strength before service logic runs.

@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 
 import { HttpError } from "../errors/http-error.js";
+import { API_PREFIX } from "../http/api-prefix.js";
 
 const BODY_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const FORBIDDEN_KEYS = new Set(["__proto__", "prototype", "constructor"]);
@@ -8,7 +9,7 @@ const MAX_INPUT_DEPTH = 12;
 const MAX_OBJECT_KEYS = 200;
 const MAX_ARRAY_ITEMS = 500;
 const MAX_STRING_LENGTH = 4096;
-const SENSITIVE_ROUTE_PREFIXES = ["/auth", "/wallet", "/bets", "/admin"];
+const SENSITIVE_ROUTE_PREFIXES = [`${API_PREFIX}/auth`, `${API_PREFIX}/wallet`, `${API_PREFIX}/bets`, `${API_PREFIX}/admin`];
 
 export function securityMiddleware(req: Request, res: Response, next: NextFunction) {
   if (BODY_METHODS.has(req.method) && hasRequestBody(req) && !req.is("application/json")) {
@@ -24,12 +25,16 @@ export function securityMiddleware(req: Request, res: Response, next: NextFuncti
   assertSafeInput(req.params);
   assertIdempotencyHeaderMatchesBody(req);
 
-  if (SENSITIVE_ROUTE_PREFIXES.some((prefix) => req.path.includes(prefix))) {
+  if (isSensitiveRoute(req.path)) {
     res.setHeader("cache-control", "no-store");
     res.setHeader("pragma", "no-cache");
   }
 
   next();
+}
+
+export function isSensitiveRoute(path: string) {
+  return SENSITIVE_ROUTE_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 
 function hasRequestBody(req: Request) {
