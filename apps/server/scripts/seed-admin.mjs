@@ -6,13 +6,31 @@ import { PrismaPg } from "@prisma/adapter-pg";
 dotenv.config();
 
 const databaseUrl = process.env.DATABASE_URL;
-const email = process.env.ADMIN_SEED_EMAIL ?? "kishan@gmail.com";
-const password = process.env.ADMIN_SEED_PASSWORD ?? "admin pass";
-const displayName = process.env.ADMIN_SEED_DISPLAY_NAME ?? "Kishan Admin";
+const seedEnabled = process.env.ADMIN_SEED_ENABLED === "true";
+const email = process.env.ADMIN_SEED_EMAIL;
+const password = process.env.ADMIN_SEED_PASSWORD;
+const displayName = process.env.ADMIN_SEED_DISPLAY_NAME ?? "Admin";
 const initialCoins = BigInt(process.env.ADMIN_SEED_INITIAL_COINS ?? "1000");
+
+if (!seedEnabled) {
+  console.log("Admin seed skipped.");
+  process.exit(0);
+}
 
 if (!databaseUrl) {
   throw new Error("DATABASE_URL is required to seed the admin user.");
+}
+
+if (!email) {
+  throw new Error("ADMIN_SEED_EMAIL is required when ADMIN_SEED_ENABLED=true.");
+}
+
+if (!password) {
+  throw new Error("ADMIN_SEED_PASSWORD is required when ADMIN_SEED_ENABLED=true.");
+}
+
+if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  throw new Error("ADMIN_SEED_EMAIL must be a valid email address.");
 }
 
 if (password.length < 6 || password.length > 72) {
@@ -49,11 +67,7 @@ try {
             status: "ACTIVE",
             displayName,
           },
-          select: {
-            id: true,
-            email: true,
-            role: true,
-          },
+          select: { id: true },
         })
       : await tx.user.create({
           data: {
@@ -63,11 +77,7 @@ try {
             role: "ADMIN",
             status: "ACTIVE",
           },
-          select: {
-            id: true,
-            email: true,
-            role: true,
-          },
+          select: { id: true },
         });
 
     const wallet =
@@ -103,15 +113,12 @@ try {
     }
 
     return {
-      id: user.id,
-      email: user.email,
-      role: user.role,
       created: !existingUser,
       walletCreated: !existingUser?.wallet,
     };
   });
 
-  console.log(JSON.stringify(result, null, 2));
+  console.log(JSON.stringify({ ok: true, ...result }, null, 2));
 } finally {
   await prisma.$disconnect();
 }
