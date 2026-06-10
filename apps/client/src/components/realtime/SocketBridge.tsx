@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 
+import { refreshSession } from "@/services/api-client";
 import { clearActiveSocket, createSocket, joinGameRoomOverSocket, joinRoundOverSocket } from "@/services/socket";
 import { useAuthStore } from "@/store/auth-store";
 import { useGameStore } from "@/store/game-store";
@@ -10,6 +11,8 @@ const ROUND_RESYNC_INTERVAL_MS = 15_000;
 
 export function SocketBridge() {
   const accessToken = useAuthStore((state) => state.tokens?.accessToken);
+  const setSession = useAuthStore((state) => state.setSession);
+  const clearSession = useAuthStore((state) => state.clearSession);
   const setConnected = useGameStore((state) => state.setSocketConnected);
   const applyRealtimeEvent = useGameStore((state) => state.applyRealtimeEvent);
 
@@ -20,11 +23,31 @@ export function SocketBridge() {
     }
 
     const socket = createSocket(accessToken);
+    let refreshInFlight = false;
 
     socket.on("connect", () => {
       setConnected(true);
       joinGameRoomOverSocket();
       socket.emit("state:sync");
+    });
+    socket.on("connect_error", (error) => {
+      if (!isSocketAuthError(error) || refreshInFlight) {
+        return;
+      }
+
+      refreshInFlight = true;
+      refreshSession()
+        .then((session) => {
+          setSession(session.user, session.tokens);
+          socket.disconnect();
+        })
+        .catch(() => {
+          clearSession();
+          socket.disconnect();
+        })
+        .finally(() => {
+          refreshInFlight = false;
+        });
     });
     socket.on("disconnect", () => setConnected(false));
     socket.on("system:sync", (payload) => {
@@ -70,7 +93,7 @@ export function SocketBridge() {
       socket.disconnect();
       setConnected(false);
     };
-  }, [accessToken, applyRealtimeEvent, setConnected]);
+  }, [accessToken, applyRealtimeEvent, clearSession, setConnected, setSession]);
 
   return null;
 }
@@ -89,4 +112,9 @@ function joinPayloadRound(payload: unknown) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isSocketAuthError(error: Error) {
+  const message = error.message.toLowerCase();
+  return message.includes("auth") || message.includes("session") || message.includes("token");
 }

@@ -16,13 +16,19 @@ Set these values in the backend hosting environment:
 - `REDIS_URL`
 - `JWT_ACCESS_SECRET`
 - `JWT_REFRESH_SECRET`
+- `COOKIE_SECRET`
 - `CLIENT_URL`
 - `CLIENT_ORIGIN`
 - `ALLOWED_ORIGINS`
 - `SOCKET_CORS_ORIGIN`
 - `SOCKET_ALLOWED_ORIGINS`
+- `ADMIN_BOOTSTRAP_EMAIL` only while bootstrapping
+- `ADMIN_BOOTSTRAP_PASSWORD` only while bootstrapping
+- `ADMIN_BOOTSTRAP_TOKEN` only while bootstrapping or disabling bootstrap
 
-`JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` must be different in production.
+`JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, and `COOKIE_SECRET` must be unique,
+high-entropy values in production. Access and refresh JWT secrets must be
+different, and placeholders are rejected at startup.
 Set `GAME_MAX_BET_PER_USER_PER_ROUND` and `GAME_MAX_EXPOSURE_PER_COLOR` to
 match your risk limits. Admin-sensitive APIs require the admin user's
 `email_verified_at` column to be set; the bootstrap command marks bootstrap
@@ -39,7 +45,8 @@ Set these values in Vercel:
 The browser stores only the short-lived access token in memory. Refresh sessions
 are kept in an httpOnly cookie set by the backend. In production, the backend
 sets that cookie with `Secure` and `SameSite=None` so the Vercel frontend can
-refresh sessions against the Render API over CORS.
+refresh sessions against the Render API over CORS. The refresh cookie is scoped
+to `/api/v1/auth`.
 
 Vercel is expected to redeploy the frontend automatically on every push to the
 GitHub `main` branch. GitHub Actions does not need a Vercel token for this flow.
@@ -65,18 +72,29 @@ the first admin with a private one-time operations command in the production env
 
 ```bash
 ADMIN_BOOTSTRAP_EMAIL="admin@example.com" \
-ADMIN_BOOTSTRAP_PASSWORD="<private-one-time-password>" \
-ADMIN_BOOTSTRAP_DISPLAY_NAME="Admin" \
-npm run ops:bootstrap-admin -w @color-trading/server
+ADMIN_BOOTSTRAP_PASSWORD="<private-strong-password>" \
+ADMIN_BOOTSTRAP_TOKEN="<private-one-time-bootstrap-token>" \
+npm run db:seed:admin -w @color-trading/server
 ```
 
-After the first admin can log in:
+`ADMIN_BOOTSTRAP_PASSWORD` must be 6-12 characters and include uppercase,
+lowercase, number, and symbol. If `ADMIN_BOOTSTRAP_EMAIL` already belongs to a normal user,
+set `ADMIN_BOOTSTRAP_CONFIRM=PROMOTE_ADMIN`; otherwise the script refuses to
+promote the account. In production, `ADMIN_BOOTSTRAP_TOKEN` is required and only
+a hash prefix is stored in audit metadata.
+
+Once any admin exists, the bootstrap script refuses to create or promote another
+admin account. After the first admin can log in:
 
 - remove the bootstrap environment values from the hosting environment
+- run `npm run db:disable-admin-bootstrap -w @color-trading/server`
 - rotate the password from a secure admin flow or by rerunning the command with `ADMIN_BOOTSTRAP_ROTATE_PASSWORD=true`
 - keep normal Render deploys limited to schema migration and app startup
 
-The bootstrap script is idempotent, does not print credentials, and writes an audit log.
+The bootstrap script is idempotent, does not print credentials, writes an audit
+log, and revokes existing admin sessions when it changes the admin password.
+Admin TOTP/2FA is intentionally left as a production TODO before broad admin
+rollout.
 
 ## Local Production-Like Stack
 

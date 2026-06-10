@@ -1,12 +1,13 @@
-import type {
-  AuditLog,
-  Bet,
-  CoinLedger,
-  FraudLog,
-  GameRound,
-  User,
-  UserRiskProfile,
-  Wallet,
+import {
+  RoundStatus,
+  type AuditLog,
+  type Bet,
+  type CoinLedger,
+  type FraudLog,
+  type GameRound,
+  type User,
+  type UserRiskProfile,
+  type Wallet,
 } from "@prisma/client";
 
 export function serializeAdminUser(
@@ -57,11 +58,15 @@ export function serializeAdminRound(
     status: round.status,
     result: round.result,
     seedHash: round.seedHash,
-    seedReveal: round.seedReveal,
+    seedReveal: canExposeAdminSeedReveal(round.status) ? round.seedReveal : null,
     createdAt: round.createdAt.toISOString(),
     updatedAt: round.updatedAt.toISOString(),
     betCount: round._count?.bets ?? 0,
   };
+}
+
+function canExposeAdminSeedReveal(status: GameRound["status"]) {
+  return status === RoundStatus.COMPLETED || status === RoundStatus.CANCELLED;
 }
 
 export function serializeAdminBet(

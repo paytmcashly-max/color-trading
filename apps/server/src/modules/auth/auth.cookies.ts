@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 
 import { env } from "../../config/env.js";
+import { API_PREFIX } from "../../common/http/api-prefix.js";
 
 interface InternalTokenPair {
   accessToken: string;
@@ -10,13 +11,13 @@ interface InternalTokenPair {
 }
 
 export const REFRESH_TOKEN_COOKIE_NAME =
-  env.NODE_ENV === "production" ? "__Host-color_trading_refresh" : "color_trading_refresh";
+  env.NODE_ENV === "production" ? "__Secure-color_trading_refresh" : "color_trading_refresh";
 
 const refreshCookieOptions = {
   httpOnly: true,
   secure: env.NODE_ENV === "production",
   sameSite: env.NODE_ENV === "production" ? "none" : "lax",
-  path: "/",
+  path: `${API_PREFIX}/auth`,
   maxAge: env.JWT_REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
 } as const;
 

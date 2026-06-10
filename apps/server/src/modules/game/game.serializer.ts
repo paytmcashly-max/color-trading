@@ -20,10 +20,14 @@ export function serializeRound(round: GameRound) {
     engineStatus,
     result: round.result,
     seedHash: round.seedHash,
-    seedReveal: round.seedReveal,
+    seedReveal: canExposeSeedReveal(round.status) ? round.seedReveal : null,
     createdAt: round.createdAt.toISOString(),
     updatedAt: round.updatedAt.toISOString(),
   };
+}
+
+export function canExposeSeedReveal(status: RoundStatus) {
+  return status === RoundStatus.COMPLETED || status === RoundStatus.CANCELLED;
 }
 
 function toRoundEngineStatus(status: RoundStatus): RoundEngineStatus {

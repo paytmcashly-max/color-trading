@@ -6,9 +6,15 @@ import {
   type Prisma,
   type PrismaClient,
 } from "@prisma/client";
+import crypto from "node:crypto";
 
 import { HttpError } from "../../common/errors/http-error.js";
-import { pageInfo, type PaginationInput } from "../../common/utils/pagination.js";
+import {
+  createdAtIdDescWhere,
+  encodeCreatedAtIdCursor,
+  pageInfo,
+  type PaginationInput,
+} from "../../common/utils/pagination.js";
 import { getPostgresStatus } from "../../database/postgres.client.js";
 import { getRedisStatus } from "../../database/redis.client.js";
 import { getObservability } from "../observability/observability.module.js";
@@ -547,27 +553,33 @@ export class AdminService {
 
   async getLedger(userId: string, pagination: PaginationInput = { limit: 100 }) {
     const entries = await this.prisma.coinLedger.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
+      where: {
+        userId,
+        ...createdAtIdDescWhere(pagination.cursor),
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: pagination.limit + 1,
-      ...(pagination.cursor ? { cursor: { id: pagination.cursor }, skip: 1 } : {}),
     });
-    const page = pageInfo(entries, pagination.limit, (entry) => entry.id);
+    const page = pageInfo(entries, pagination.limit, (entry) =>
+      encodeCreatedAtIdCursor(entry.createdAt, entry.id),
+    );
 
     return { entries: page.items.map(serializeAdminLedger), pageInfo: page.pageInfo };
   }
 
   async adjustWallet(adminUserId: string, userId: string, dto: AdminWalletAdjustmentDto) {
+    const ledgerReferenceId = stableUuidFromIdempotencyKey(dto.idempotencyKey);
     const auditLog = await this.writeAuditLog(adminUserId, "WALLET_ADMIN_ADJUSTMENT", "USER", userId, {
       amountCoins: dto.amountCoins,
       direction: dto.direction,
       reason: dto.reason,
+      ledgerReferenceId,
     });
 
     const result = await this.walletService.adminAdjustCoins({
       userId,
       amountCoins: dto.amountCoins,
-      referenceId: auditLog.id,
+      referenceId: ledgerReferenceId,
       idempotencyKey: dto.idempotencyKey ?? `admin:${auditLog.id}:wallet-adjustment`,
       direction: dto.direction as CoinLedgerDirection,
     });
@@ -580,14 +592,14 @@ export class AdminService {
     const where: Prisma.BetWhereInput = {
       ...(filters.roundId ? { roundId: filters.roundId } : {}),
       ...(filters.userId ? { userId: filters.userId } : {}),
+      ...createdAtIdDescWhere(pagination.cursor),
     };
 
     const [bets, suspiciousUsers] = await Promise.all([
       this.prisma.bet.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: pagination.limit + 1,
-        ...(pagination.cursor ? { cursor: { id: pagination.cursor }, skip: 1 } : {}),
         include: {
           user: {
             select: {
@@ -605,7 +617,9 @@ export class AdminService {
       }),
       this.findSuspiciousBettingPatterns(),
     ]);
-    const page = pageInfo(bets, pagination.limit, (bet) => bet.id);
+    const page = pageInfo(bets, pagination.limit, (bet) =>
+      encodeCreatedAtIdCursor(bet.createdAt, bet.id),
+    );
 
     return {
       bets: page.items.map(serializeAdminBet),
@@ -958,4 +972,19 @@ function serializeGameControl(control: GameControlRecord) {
     createdAt: control.createdAt.toISOString(),
     updatedAt: control.updatedAt.toISOString(),
   };
+}
+
+function stableUuidFromIdempotencyKey(idempotencyKey: string) {
+  const bytes = crypto.createHash("sha256").update(idempotencyKey).digest();
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = bytes.toString("hex").slice(0, 32);
+
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32),
+  ].join("-");
 }

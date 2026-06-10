@@ -10,7 +10,7 @@ import {
   WalletStatus,
 } from "@prisma/client";
 
-import type { PaginationInput } from "../../common/utils/pagination.js";
+import { createdAtIdDescWhere, type PaginationInput } from "../../common/utils/pagination.js";
 
 type TxClient = Prisma.TransactionClient;
 const INITIAL_VIRTUAL_COINS = 1000n;
@@ -174,19 +174,23 @@ export class WalletRepository {
 
   getLedgerHistory(userId: string, pagination: PaginationInput = { limit: 50 }) {
     return this.prisma.coinLedger.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
+      where: {
+        userId,
+        ...createdAtIdDescWhere(pagination.cursor),
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: pagination.limit + 1,
-      ...(pagination.cursor ? { cursor: { id: pagination.cursor }, skip: 1 } : {}),
     });
   }
 
   getWalletTransactions(userId: string, pagination: PaginationInput = { limit: 50 }) {
     return this.prisma.walletTransaction.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
+      where: {
+        userId,
+        ...createdAtIdDescWhere(pagination.cursor),
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: pagination.limit + 1,
-      ...(pagination.cursor ? { cursor: { id: pagination.cursor }, skip: 1 } : {}),
     });
   }
 

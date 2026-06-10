@@ -25,7 +25,7 @@ Request:
 ```json
 {
   "email": "player@example.com",
-  "password": "secret1",
+  "password": "Aa1!aa",
   "displayName": "Player One"
 }
 ```
@@ -51,7 +51,8 @@ Response:
 }
 ```
 
-The refresh token is not returned in JSON. It is set as an httpOnly cookie.
+The refresh token is not returned in JSON. It is set as an httpOnly cookie
+scoped to `/api/v1/auth`.
 
 ### POST /api/v1/auth/login
 
@@ -60,7 +61,7 @@ Request:
 ```json
 {
   "email": "player@example.com",
-  "password": "secret1"
+  "password": "Aa1!aa"
 }
 ```
 
@@ -125,6 +126,7 @@ Response:
 - JWT secrets are required from environment variables and are never hardcoded.
 - Access tokens are short-lived and kept in browser memory only.
 - Refresh tokens are delivered only through httpOnly cookies and stored server-side only as SHA-256 hashes in `auth_sessions`.
+- Production refresh cookies use `Secure` and `SameSite=None`; refresh, logout, and logout-all also require a trusted `Origin`.
 - Logout revokes the current auth session. The auth guard verifies both JWT validity and active session state.
 - Register and login are protected by IP-based rate limiting.
 - Zod validates email format and password strength before service logic runs.

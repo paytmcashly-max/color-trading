@@ -16,6 +16,8 @@
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "db:migrate:deploy": "node apps/server/scripts/apply-schema.mjs",
+    "db:seed:admin": "npm run db:seed:admin -w @color-trading/server",
+    "db:disable-admin-bootstrap": "npm run db:disable-admin-bootstrap -w @color-trading/server",
     "docker:server:build": "docker build -f apps/server/Dockerfile -t color-trading-api:local .",
     "compose:up": "docker compose up --build",
     "compose:down": "docker compose down"

@@ -3,6 +3,7 @@ import rateLimit from "express-rate-limit";
 
 import { asyncHandler } from "../../common/middleware/async-handler.js";
 import { createRateLimitStore } from "../../common/middleware/global-rate-limit.js";
+import { requireTrustedOrigin } from "../../common/middleware/origin-guard.js";
 import { validateBody } from "../../common/middleware/validate-request.js";
 import { getPrismaClient } from "../../database/prisma.client.js";
 import { authMiddleware } from "../../middlewares/auth.middleware.js";
@@ -48,12 +49,13 @@ authRouter.post(
   validateBody(loginSchema),
   asyncHandler(authController.login),
 );
-authRouter.post("/logout", authMiddleware, asyncHandler(authController.logout));
-authRouter.post("/logout-all", authMiddleware, asyncHandler(authController.logoutAll));
+authRouter.post("/logout", requireTrustedOrigin, authMiddleware, asyncHandler(authController.logout));
+authRouter.post("/logout-all", requireTrustedOrigin, authMiddleware, asyncHandler(authController.logoutAll));
 authRouter.post(
   "/refresh",
   authRateLimiter,
   fraudAuthRateLimit,
+  requireTrustedOrigin,
   asyncHandler(authController.refresh),
 );
 authRouter.get("/me", authMiddleware, asyncHandler(authController.me));

@@ -69,6 +69,10 @@ export function createRateLimitStore(name: string) {
   const redis = getRedisClient();
 
   if (!redis) {
+    if (env.NODE_ENV === "production") {
+      throw new Error(`Redis rate-limit store is required in production for ${name}.`);
+    }
+
     return undefined;
   }
 

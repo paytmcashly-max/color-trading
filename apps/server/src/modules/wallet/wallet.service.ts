@@ -10,7 +10,7 @@ import {
 import { HttpError } from "../../common/errors/http-error.js";
 import { hashToken } from "../../common/utils/token-hash.js";
 import { logger } from "../../common/utils/logger.js";
-import { pageInfo, type PaginationInput } from "../../common/utils/pagination.js";
+import { encodeCreatedAtIdCursor, pageInfo, type PaginationInput } from "../../common/utils/pagination.js";
 import { publishRealtimeEvent } from "../../sockets/socket.events.js";
 import type { WalletRepository, LedgerRecord, LockedWallet } from "./wallet.repository.js";
 import { serializeLedgerEntry, serializeWallet, serializeWalletTransactionView } from "./wallet.serializer.js";
@@ -109,7 +109,9 @@ export class WalletService {
 
   async getLedgerHistory(userId: string, pagination: PaginationInput = { limit: 50 }) {
     const entries = await this.walletRepository.getLedgerHistory(userId, pagination);
-    const page = pageInfo(entries, pagination.limit, (entry) => entry.id);
+    const page = pageInfo(entries, pagination.limit, (entry) =>
+      encodeCreatedAtIdCursor(entry.createdAt, entry.id),
+    );
 
     return {
       entries: page.items.map(serializeLedgerEntry),
@@ -119,7 +121,9 @@ export class WalletService {
 
   async getTransactionHistory(userId: string, pagination: PaginationInput = { limit: 50 }) {
     const entries = await this.walletRepository.getWalletTransactions(userId, pagination);
-    const page = pageInfo(entries, pagination.limit, (entry) => entry.id);
+    const page = pageInfo(entries, pagination.limit, (entry) =>
+      encodeCreatedAtIdCursor(entry.createdAt, entry.id),
+    );
 
     return {
       transactions: page.items.map(serializeWalletTransactionView),
@@ -463,7 +467,6 @@ export class WalletService {
       referenceType: input.referenceType,
       referenceId: input.referenceId,
       amountCoins: input.amountCoins,
-      idempotencyKey: input.idempotencyKey,
       idempotencyKeyHash: hashToken(input.idempotencyKey).slice(0, 16),
       ...metadata,
     });

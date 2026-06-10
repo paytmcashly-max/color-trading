@@ -78,12 +78,12 @@ export function RegisterPage() {
             autoComplete="new-password"
             minLength={6}
             maxLength={12}
-            title="Use 6 to 12 characters."
+            title="Use 6 to 12 characters with uppercase, lowercase, number, and symbol."
             required
           />
         </label>
         <p className="text-xs font-semibold leading-5 text-muted">
-          Use 6 to 12 characters.
+          Use 6 to 12 characters with uppercase, lowercase, number, and symbol.
         </p>
         {mutation.error ? (
           <p className="rounded-md bg-[#fee2e2] px-3 py-2 text-sm font-semibold text-[#991b1b]">

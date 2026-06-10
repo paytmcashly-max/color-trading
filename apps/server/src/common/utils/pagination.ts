@@ -43,3 +43,67 @@ export function pageInfo<TItem>(
     },
   };
 }
+
+export function encodeCreatedAtIdCursor(createdAt: Date, id: string) {
+  return Buffer.from(
+    JSON.stringify({
+      createdAt: createdAt.toISOString(),
+      id,
+    }),
+    "utf8",
+  ).toString("base64url");
+}
+
+export function decodeCreatedAtIdCursor(cursor: string | undefined) {
+  if (!cursor) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as {
+      createdAt?: unknown;
+      id?: unknown;
+    };
+
+    if (typeof parsed.createdAt !== "string" || typeof parsed.id !== "string") {
+      return null;
+    }
+
+    const createdAt = new Date(parsed.createdAt);
+
+    if (Number.isNaN(createdAt.getTime())) {
+      return null;
+    }
+
+    return {
+      createdAt,
+      id: parsed.id,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function createdAtIdDescWhere(cursor: string | undefined) {
+  const decoded = decodeCreatedAtIdCursor(cursor);
+
+  if (!decoded) {
+    return {};
+  }
+
+  return {
+    OR: [
+      {
+        createdAt: {
+          lt: decoded.createdAt,
+        },
+      },
+      {
+        createdAt: decoded.createdAt,
+        id: {
+          lt: decoded.id,
+        },
+      },
+    ],
+  };
+}

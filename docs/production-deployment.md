@@ -37,18 +37,26 @@ Backend:
 ```bash
 DATABASE_URL=postgresql://...
 REDIS_URL=redis://...
-JWT_SECRET=replace-with-32-plus-character-secret
+JWT_ACCESS_SECRET=replace-with-32-plus-character-access-secret
+JWT_REFRESH_SECRET=replace-with-different-32-plus-character-refresh-secret
+COOKIE_SECRET=replace-with-different-32-plus-character-cookie-secret
 CLIENT_URL=https://your-client.vercel.app
+CLIENT_ORIGIN=https://your-client.vercel.app
+ALLOWED_ORIGINS=https://your-client.vercel.app
 SOCKET_CORS_ORIGIN=https://your-client.vercel.app
+SOCKET_ALLOWED_ORIGINS=https://your-client.vercel.app
 GAME_ENGINE_ENABLED=true
 ```
 
-For stronger secret rotation, set `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` instead of the single `JWT_SECRET` fallback.
+Production startup fails if PostgreSQL, Redis, JWT secrets, `COOKIE_SECRET`, or
+configured origins are missing. `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET`
+must be different values.
 
 Frontend:
 
 ```bash
 NEXT_PUBLIC_API_URL=https://your-api.onrender.com
+NEXT_PUBLIC_API_BASE_PATH=/api/v1
 NEXT_PUBLIC_SOCKET_URL=https://your-api.onrender.com
 ```
 
@@ -59,7 +67,9 @@ Use separate Vercel and Render environment groups for development, staging, and 
 1. Push this repository to GitHub, GitLab, or Bitbucket.
 2. In Render, create a Blueprint from `render.yaml`.
 3. Set the `sync: false` secrets in the dashboard:
-   `REDIS_URL`, `JWT_SECRET`, `CLIENT_URL`, `SOCKET_CORS_ORIGIN`.
+   `DATABASE_URL`, `REDIS_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`,
+   `COOKIE_SECRET`, `CLIENT_URL`, `CLIENT_ORIGIN`, `ALLOWED_ORIGINS`,
+   `SOCKET_CORS_ORIGIN`, `SOCKET_ALLOWED_ORIGINS`.
 4. Create a deploy hook for `color-trading-api`.
 5. Save the hook as GitHub secret `RENDER_DEPLOY_HOOK_URL`.
 6. Push to `main`; GitHub Actions verifies the app and triggers Render.
@@ -81,7 +91,8 @@ Use Vercel Git integration for the frontend.
 - Build command: `npm run build`
 - Output: Next.js default
 - Production env:
-  `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SOCKET_URL`
+  `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_API_BASE_PATH=/api/v1`,
+  `NEXT_PUBLIC_SOCKET_URL`
 
 Preview deployments should point to a staging Render backend. Production deployments should point to the production Render API.
 
@@ -155,6 +166,8 @@ Recommended production additions:
 - [ ] Real production secrets set in Render and Vercel
 - [ ] `DATABASE_URL` points to managed PostgreSQL
 - [ ] `REDIS_URL` points to managed Redis or Upstash
+- [ ] `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, and `COOKIE_SECRET` are unique non-placeholder values
+- [ ] `ALLOWED_ORIGINS` and `SOCKET_ALLOWED_ORIGINS` equal the production Vercel URL
 - [ ] `SOCKET_CORS_ORIGIN` equals the production Vercel URL
 - [ ] `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_SOCKET_URL` point to Render
 - [ ] PostgreSQL schema migration process defined before first launch

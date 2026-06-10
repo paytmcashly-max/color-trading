@@ -98,9 +98,9 @@ Request:
 }
 ```
 
-### POST /api/v1/wallet/admin/users/:userId/adjust
+### POST /api/v1/admin/wallet/:userId/adjust
 
-Requires `ADMIN` role.
+Requires `ADMIN` role and verified admin email.
 
 ```json
 {

@@ -6,7 +6,7 @@ import { roleGuard } from "../../common/guards/role.guard.js";
 import { asyncHandler } from "../../common/middleware/async-handler.js";
 import { validateBody } from "../../common/middleware/validate-request.js";
 import { getPrismaClient } from "../../database/prisma.client.js";
-import { adminAdjustmentSchema, ledgerMutationSchema } from "./dto/wallet.dto.js";
+import { ledgerMutationSchema } from "./dto/wallet.dto.js";
 import { WalletController } from "./wallet.controller.js";
 import { WalletRepository } from "./wallet.repository.js";
 import { WalletService } from "./wallet.service.js";
@@ -36,12 +36,4 @@ walletRouter.post(
   roleGuard(UserRole.ADMIN),
   validateBody(ledgerMutationSchema),
   asyncHandler(walletController.betDebit),
-);
-
-walletRouter.post(
-  "/admin/users/:userId/adjust",
-  authGuard,
-  roleGuard(UserRole.ADMIN),
-  validateBody(adminAdjustmentSchema),
-  asyncHandler(walletController.adminAdjustment),
 );

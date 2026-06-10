@@ -4,7 +4,7 @@
 
 | Area | Status | Evidence |
 | --- | --- | --- |
-| Auth JWT secrets from env | YES | `JWT_SECRET` / access-refresh secrets validated at boot |
+| Auth JWT and cookie secrets from env | YES | Distinct `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, and `COOKIE_SECRET` validated at boot |
 | RBAC admin protection | YES | Admin routes use `authGuard` + `roleGuard(ADMIN)` |
 | Token expiry/session revocation | YES | Auth sessions checked on HTTP and socket auth |
 | Ledger-only wallet mutations | YES | Wallet service writes ledger then snapshot in transaction |

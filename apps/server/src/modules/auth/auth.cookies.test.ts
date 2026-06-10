@@ -21,8 +21,8 @@ test("stripRefreshToken removes refresh tokens from public auth payloads", () =>
   assert.equal("refreshToken" in publicTokens, false);
 });
 
-test("refresh cookie uses a host-prefixed name in production", () => {
-  assert.equal(REFRESH_TOKEN_COOKIE_NAME, "__Host-color_trading_refresh");
+test("refresh cookie uses a secure-prefixed name in production", () => {
+  assert.equal(REFRESH_TOKEN_COOKIE_NAME, "__Secure-color_trading_refresh");
 });
 
 test("readRefreshTokenCookie extracts the refresh cookie value", () => {
@@ -41,6 +41,9 @@ function setRequiredEnv() {
   process.env.DATABASE_URL = "postgresql://user:pass@localhost:5432/color_trading";
   process.env.REDIS_URL = "redis://localhost:6379";
   process.env.CLIENT_ORIGIN = "https://client.example.com";
+  process.env.ALLOWED_ORIGINS = "https://client.example.com";
+  process.env.SOCKET_ALLOWED_ORIGINS = "https://client.example.com";
   process.env.JWT_ACCESS_SECRET = "access-secret-for-tests-at-least-thirty-two-chars";
   process.env.JWT_REFRESH_SECRET = "refresh-secret-for-tests-at-least-thirty-two-chars";
+  process.env.COOKIE_SECRET = "cookie-secret-for-tests-at-least-thirty-two-chars";
 }

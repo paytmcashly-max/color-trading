@@ -1,7 +1,7 @@
 import { RoundStatus } from "@prisma/client";
 
 import { HttpError } from "../../../common/errors/http-error.js";
-import { pageInfo, type PaginationInput } from "../../../common/utils/pagination.js";
+import { encodeCreatedAtIdCursor, pageInfo, type PaginationInput } from "../../../common/utils/pagination.js";
 import {
   BET_LOCK_AFTER_MS,
   ROUND_ENGINE_CONFIG,
@@ -38,7 +38,9 @@ export class RoundService {
 
   async getRoundHistory(pagination: PaginationInput = { limit: 30 }) {
     const rounds = await this.gameRepository.findRoundHistory(pagination);
-    const page = pageInfo(rounds, pagination.limit, (round) => round.id);
+    const page = pageInfo(rounds, pagination.limit, (round) =>
+      encodeCreatedAtIdCursor(round.createdAt, round.id),
+    );
 
     return {
       rounds: page.items.map((round) => ({
@@ -51,7 +53,9 @@ export class RoundService {
 
   async getUserBetHistory(userId: string, pagination: PaginationInput = { limit: 50 }) {
     const bets = await this.gameRepository.findUserBetHistory(userId, pagination);
-    const page = pageInfo(bets, pagination.limit, (bet) => bet.id);
+    const page = pageInfo(bets, pagination.limit, (bet) =>
+      encodeCreatedAtIdCursor(bet.createdAt, bet.id),
+    );
 
     return {
       bets: page.items.map((bet) => ({
@@ -125,24 +129,29 @@ export class RoundService {
     const endTime = new Date(startTime.getTime() + ROUND_DURATION_MS);
     const seed = this.resultService.createSeed();
 
-    const round = await this.gameRepository.transaction(async (tx) => {
+    const { round, created } = await this.gameRepository.transaction(async (tx) => {
       const existingRound = await this.gameRepository.findCurrentRoundInTx(tx);
 
       if (existingRound) {
-        return existingRound;
+        return { round: existingRound, created: false };
       }
 
-      return this.gameRepository.createRound(tx, {
+      const createdRound = await this.gameRepository.createRound(tx, {
         roundNumber,
         startTime,
         lockTime,
         endTime,
         seedHash: seed.seedHash,
       });
+
+      return { round: createdRound, created: true };
     });
 
-    await storeRoundSeedReveal(round.id, seed.seedReveal);
+    if (!created) {
+      return round;
+    }
 
+    await storeRoundSeedReveal(round.id, seed.seedReveal);
     const openRound = await this.openRound(round);
     publishGameEvent("round:start", this.buildRoundPayload(openRound));
     publishGameEvent("round:update", this.buildRoundPayload(openRound));
@@ -199,7 +208,6 @@ export class RoundService {
         RoundStatus.RESOLVING,
         {
           result,
-          seedReveal,
         },
       );
 

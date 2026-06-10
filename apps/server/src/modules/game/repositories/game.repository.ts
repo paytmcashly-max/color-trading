@@ -8,7 +8,7 @@ import {
   type PrismaClient,
 } from "@prisma/client";
 
-import type { PaginationInput } from "../../../common/utils/pagination.js";
+import { createdAtIdDescWhere, type PaginationInput } from "../../../common/utils/pagination.js";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -27,7 +27,6 @@ interface RoundCreateInput {
   lockTime: Date;
   endTime: Date;
   seedHash: string;
-  seedReveal?: string | null;
 }
 
 interface PendingBetInput {
@@ -86,7 +85,6 @@ export class GameRepository {
         endTime: input.endTime,
         status: RoundStatus.INIT,
         seedHash: input.seedHash,
-        seedReveal: input.seedReveal ?? null,
       },
     });
   }
@@ -436,10 +434,10 @@ export class GameRepository {
         status: {
           in: [RoundStatus.COMPLETED, RoundStatus.CANCELLED],
         },
+        ...createdAtIdDescWhere(pagination.cursor),
       },
-      orderBy: { startTime: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: pagination.limit + 1,
-      ...(pagination.cursor ? { cursor: { id: pagination.cursor }, skip: 1 } : {}),
       include: {
         _count: {
           select: {
@@ -452,10 +450,12 @@ export class GameRepository {
 
   findUserBetHistory(userId: string, pagination: PaginationInput = { limit: 50 }) {
     return this.prisma.bet.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
+      where: {
+        userId,
+        ...createdAtIdDescWhere(pagination.cursor),
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: pagination.limit + 1,
-      ...(pagination.cursor ? { cursor: { id: pagination.cursor }, skip: 1 } : {}),
       include: {
         round: {
           select: {
