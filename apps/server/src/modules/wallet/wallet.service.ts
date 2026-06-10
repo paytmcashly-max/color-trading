@@ -10,6 +10,7 @@ import {
 import { HttpError } from "../../common/errors/http-error.js";
 import { hashToken } from "../../common/utils/token-hash.js";
 import { logger } from "../../common/utils/logger.js";
+import { pageInfo, type PaginationInput } from "../../common/utils/pagination.js";
 import { publishRealtimeEvent } from "../../sockets/socket.events.js";
 import type { WalletRepository, LedgerRecord, LockedWallet } from "./wallet.repository.js";
 import { serializeLedgerEntry, serializeWallet, serializeWalletTransactionView } from "./wallet.serializer.js";
@@ -106,19 +107,23 @@ export class WalletService {
     });
   }
 
-  async getLedgerHistory(userId: string) {
-    const entries = await this.walletRepository.getLedgerHistory(userId);
+  async getLedgerHistory(userId: string, pagination: PaginationInput = { limit: 50 }) {
+    const entries = await this.walletRepository.getLedgerHistory(userId, pagination);
+    const page = pageInfo(entries, pagination.limit, (entry) => entry.id);
 
     return {
-      entries: entries.map(serializeLedgerEntry),
+      entries: page.items.map(serializeLedgerEntry),
+      pageInfo: page.pageInfo,
     };
   }
 
-  async getTransactionHistory(userId: string) {
-    const entries = await this.walletRepository.getWalletTransactions(userId);
+  async getTransactionHistory(userId: string, pagination: PaginationInput = { limit: 50 }) {
+    const entries = await this.walletRepository.getWalletTransactions(userId, pagination);
+    const page = pageInfo(entries, pagination.limit, (entry) => entry.id);
 
     return {
-      transactions: entries.map(serializeWalletTransactionView),
+      transactions: page.items.map(serializeWalletTransactionView),
+      pageInfo: page.pageInfo,
     };
   }
 

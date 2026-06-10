@@ -10,6 +10,8 @@ import {
   WalletStatus,
 } from "@prisma/client";
 
+import type { PaginationInput } from "../../common/utils/pagination.js";
+
 type TxClient = Prisma.TransactionClient;
 const INITIAL_VIRTUAL_COINS = 1000n;
 
@@ -37,16 +39,6 @@ interface LedgerCreateInput {
   referenceId: string;
   status: CoinLedgerStatus;
   metadata?: Prisma.InputJsonValue;
-}
-
-interface WalletTransactionRow {
-  id: string;
-  userId: string;
-  type: string;
-  amount: bigint;
-  balanceBefore: bigint | null;
-  balanceAfter: bigint | null;
-  createdAt: Date;
 }
 
 export class WalletRepository {
@@ -180,29 +172,22 @@ export class WalletRepository {
     });
   }
 
-  getLedgerHistory(userId: string, limit = 50) {
+  getLedgerHistory(userId: string, pagination: PaginationInput = { limit: 50 }) {
     return this.prisma.coinLedger.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      take: limit,
+      take: pagination.limit + 1,
+      ...(pagination.cursor ? { cursor: { id: pagination.cursor }, skip: 1 } : {}),
     });
   }
 
-  getWalletTransactions(userId: string, limit = 50) {
-    return this.prisma.$queryRaw<WalletTransactionRow[]>`
-      SELECT
-        id::text AS "id",
-        user_id::text AS "userId",
-        type::text AS "type",
-        amount,
-        balance_before AS "balanceBefore",
-        balance_after AS "balanceAfter",
-        created_at AS "createdAt"
-      FROM wallet_transactions
-      WHERE user_id = CAST(${userId} AS uuid)
-      ORDER BY created_at DESC
-      LIMIT ${limit}
-    `;
+  getWalletTransactions(userId: string, pagination: PaginationInput = { limit: 50 }) {
+    return this.prisma.walletTransaction.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: pagination.limit + 1,
+      ...(pagination.cursor ? { cursor: { id: pagination.cursor }, skip: 1 } : {}),
+    });
   }
 
   getWalletBalanceFromLedger(userId: string) {

@@ -10,10 +10,11 @@ import { formatCoinString } from "@/utils/format-coins";
 
 export function HistoryPage() {
   const token = useAuthStore((state) => state.tokens?.accessToken);
+  const userId = useAuthStore((state) => state.user?.id);
   const betsQuery = useQuery({
-    queryKey: ["my-bet-history"],
-    queryFn: () => fetchMyBetHistory(token!),
-    enabled: Boolean(token),
+    queryKey: ["my-bet-history", userId, { limit: 50 }],
+    queryFn: () => fetchMyBetHistory(token!, { limit: 50 }),
+    enabled: Boolean(token && userId),
     refetchInterval: 20_000,
   });
   const bets = betsQuery.data?.bets ?? [];

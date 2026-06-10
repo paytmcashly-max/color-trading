@@ -2,6 +2,7 @@ import { CoinLedgerDirection } from "@prisma/client";
 import type { Request, Response } from "express";
 
 import { HttpError } from "../../common/errors/http-error.js";
+import { readPagination } from "../../common/utils/pagination.js";
 import type { WalletService } from "./wallet.service.js";
 
 export class WalletController {
@@ -13,12 +14,12 @@ export class WalletController {
   };
 
   history = async (req: Request, res: Response) => {
-    const result = await this.walletService.getLedgerHistory(req.auth!.userId);
+    const result = await this.walletService.getLedgerHistory(req.auth!.userId, readPagination(req));
     res.status(200).json(result);
   };
 
   transactions = async (req: Request, res: Response) => {
-    const result = await this.walletService.getTransactionHistory(req.auth!.userId);
+    const result = await this.walletService.getTransactionHistory(req.auth!.userId, readPagination(req));
     res.status(200).json(result);
   };
 

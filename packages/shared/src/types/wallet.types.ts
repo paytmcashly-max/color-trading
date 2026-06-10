@@ -40,12 +40,18 @@ export interface WalletUpdateEvent {
   };
 }
 
+export interface PageInfo {
+  limit: number;
+  nextCursor: string | null;
+}
+
 export interface WalletBalanceResponse {
   wallet: WalletBalance;
 }
 
 export interface WalletTransactionsResponse {
   transactions: WalletTransaction[];
+  pageInfo: PageInfo;
 }
 
 export interface WalletLedgerEntry {
@@ -67,4 +73,5 @@ export interface WalletLedgerEntry {
 
 export interface WalletLedgerResponse {
   entries: WalletLedgerEntry[];
+  pageInfo: PageInfo;
 }

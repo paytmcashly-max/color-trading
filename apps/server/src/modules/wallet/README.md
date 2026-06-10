@@ -28,7 +28,7 @@ modules/wallet/
 
 All wallet endpoints require `Authorization: Bearer <accessToken>`.
 
-### GET /wallet/balance
+### GET /api/v1/wallet/balance
 
 Response:
 
@@ -48,7 +48,7 @@ Response:
 }
 ```
 
-### GET /wallet/ledger
+### GET /api/v1/wallet/ledger?limit=50&cursor=<nextCursor>
 
 Response:
 
@@ -64,11 +64,15 @@ Response:
       "status": "SUCCESS",
       "idempotencyKey": "bet:user:round:v1"
     }
-  ]
+  ],
+  "pageInfo": {
+    "limit": 50,
+    "nextCursor": null
+  }
 }
 ```
 
-### POST /wallet/bonus-credit
+### POST /api/v1/wallet/bonus-credit
 
 Request:
 
@@ -80,7 +84,7 @@ Request:
 }
 ```
 
-### POST /wallet/bet-debit
+### POST /api/v1/wallet/bet-debit
 
 Prepared for future bet placement. It debits coins with `BET_DEBIT`; it does not create bets or rounds.
 
@@ -94,7 +98,7 @@ Request:
 }
 ```
 
-### POST /wallet/admin/users/:userId/adjust
+### POST /api/v1/wallet/admin/users/:userId/adjust
 
 Requires `ADMIN` role.
 

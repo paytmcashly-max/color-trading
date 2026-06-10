@@ -9,20 +9,21 @@ import { useGameStore } from "@/store/game-store";
 
 export function useWallet() {
   const token = useAuthStore((state) => state.tokens?.accessToken);
+  const userId = useAuthStore((state) => state.user?.id);
   const wallet = useGameStore((state) => state.wallet);
   const setWallet = useGameStore((state) => state.setWallet);
 
   const walletQuery = useQuery({
-    queryKey: ["wallet"],
+    queryKey: ["wallet", userId],
     queryFn: () => fetchWallet(token!),
-    enabled: Boolean(token),
+    enabled: Boolean(token && userId),
     staleTime: 15_000,
   });
 
   const transactionsQuery = useQuery({
-    queryKey: ["wallet-transactions"],
-    queryFn: () => fetchWalletTransactions(token!),
-    enabled: Boolean(token),
+    queryKey: ["wallet-transactions", userId, { limit: 50 }],
+    queryFn: () => fetchWalletTransactions(token!, { limit: 50 }),
+    enabled: Boolean(token && userId),
     staleTime: 10_000,
   });
 

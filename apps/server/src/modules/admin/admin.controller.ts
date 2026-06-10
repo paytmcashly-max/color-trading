@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 
 import { HttpError } from "../../common/errors/http-error.js";
+import { readPagination } from "../../common/utils/pagination.js";
 import type { AdminService } from "./admin.service.js";
 
 export class AdminController {
@@ -72,7 +73,7 @@ export class AdminController {
   };
 
   ledger = async (req: Request, res: Response) => {
-    const result = await this.adminService.getLedger(readParam(req, "userId"));
+    const result = await this.adminService.getLedger(readParam(req, "userId"), readPagination(req));
     res.status(200).json(result);
   };
 
@@ -85,6 +86,7 @@ export class AdminController {
     const result = await this.adminService.listBets({
       roundId: readStringQuery(req.query.roundId),
       userId: readStringQuery(req.query.userId),
+      pagination: readPagination(req, 100),
     });
     res.status(200).json(result);
   };
