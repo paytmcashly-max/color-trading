@@ -539,7 +539,7 @@ function OrdersPanel({
         <span>Select</span>
         <span className="text-right">Point</span>
       </div>
-      <div className="max-h-[178px] overflow-hidden px-4 pb-4">
+      <div className="h-[250px] overflow-hidden px-4 pb-4">
         {rows.length === 0 ? (
           <p className="rounded-2xl bg-[#f8faf7] px-3 py-4 text-center text-sm font-bold text-muted">
             {tab === "everyone" ? "No current round orders." : "Your orders will appear here."}
