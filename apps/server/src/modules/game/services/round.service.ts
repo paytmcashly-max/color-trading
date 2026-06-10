@@ -111,6 +111,7 @@ export class RoundService {
         lockTime,
         endTime,
         seedHash: seed.seedHash,
+        seedReveal: seed.seedReveal,
       });
     });
 
@@ -257,7 +258,11 @@ export class RoundService {
     const redis = getRedisClient();
     const seedReveal = redis ? await redis.get(`game:round:${roundId}:seed`) : null;
 
-    return seedReveal ?? this.resultService!.createSeed().seedReveal;
+    if (!seedReveal) {
+      throw new HttpError(500, "ROUND_SEED_REVEAL_MISSING", "Round seed reveal is missing.");
+    }
+
+    return seedReveal;
   }
 
   private emitTimer(round: GameRoundRecord) {

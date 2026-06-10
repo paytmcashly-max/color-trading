@@ -16,6 +16,7 @@ interface RoundCreateInput {
   lockTime: Date;
   endTime: Date;
   seedHash: string;
+  seedReveal: string;
 }
 
 interface PendingBetInput {
@@ -74,6 +75,7 @@ export class GameRepository {
         endTime: input.endTime,
         status: RoundStatus.INIT,
         seedHash: input.seedHash,
+        seedReveal: input.seedReveal,
       },
     });
   }

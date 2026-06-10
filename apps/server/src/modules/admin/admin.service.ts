@@ -230,6 +230,7 @@ export class AdminService {
           endTime,
           status: RoundStatus.OPEN,
           seedHash: seed.seedHash,
+          seedReveal: seed.seedReveal,
         },
       });
 
