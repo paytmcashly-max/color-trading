@@ -34,13 +34,13 @@ export function ResultReveal({
       {isWin ? <ConfettiDots /> : null}
       <div className="relative flex items-center justify-between gap-4">
         <div>
-          <p className="text-xs font-black uppercase text-muted">Result declared</p>
+          <p className="text-xs font-black uppercase text-muted">Round result</p>
           <h2 className="mt-2 flex items-center gap-2 text-2xl font-black text-ink">
             {isWin ? <Trophy size={24} aria-hidden="true" /> : <X size={24} aria-hidden="true" />}
-            {isWin ? "You won" : outcome === "LOSS" ? "Round missed" : "Result"}
+            {isWin ? "You won" : outcome === "LOSS" ? "You lost" : "Result"}
           </h2>
           <p className="mt-1 text-sm font-bold text-muted">
-            Winning color {result}. Your pick {selection ?? "--"}.
+            Result: {colorLabel(result)}. Your pick: {colorLabel(selection)}.
           </p>
         </div>
         <motion.div
@@ -53,6 +53,10 @@ export function ResultReveal({
       </div>
     </motion.section>
   );
+}
+
+function colorLabel(value: string | null | undefined) {
+  return value ? value.charAt(0) + value.slice(1).toLowerCase() : "Waiting";
 }
 
 function ConfettiDots() {

@@ -40,6 +40,7 @@ export interface BetDto {
   id: string;
   userId: string;
   roundId: string;
+  roundNumber?: string;
   choice: PredictionColor;
   selection?: PredictionColor;
   amount?: string;
@@ -57,6 +58,9 @@ export interface BetDto {
 export interface UserBetHistoryDto extends BetDto {
   betId?: string;
   roundNumber?: string;
+  stakeAmount?: string;
+  displayStatus?: BetStatus | "REFUNDED";
+  roundStartTime?: string;
   roundEndTime?: string;
   round?: {
     roundNumber: string;
@@ -124,6 +128,13 @@ export interface AdminUserDto extends UserDto {
 
 export interface AdminRoundDto extends RoundDto {
   betCount: number;
+  pendingSettlement?: boolean;
+  settlementWarning?: string | null;
+  exposure?: Array<{
+    choice: PredictionColor;
+    betCount: number;
+    coinsStaked: string;
+  }>;
   cancellation: {
     reason: string | null;
     actorId: string | null;

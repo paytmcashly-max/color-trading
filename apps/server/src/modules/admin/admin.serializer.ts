@@ -52,6 +52,7 @@ export function serializeAdminRound(
     reason: string | null;
     actorId: string | null;
   },
+  exposure?: Array<{ choice: string; betCount: number; coinsStaked: bigint }>,
 ) {
   return {
     id: round.id,
@@ -66,6 +67,16 @@ export function serializeAdminRound(
     createdAt: round.createdAt.toISOString(),
     updatedAt: round.updatedAt.toISOString(),
     betCount: round._count?.bets ?? 0,
+    exposure: exposure?.map((item) => ({
+      choice: item.choice,
+      betCount: item.betCount,
+      coinsStaked: item.coinsStaked.toString(),
+    })) ?? [],
+    pendingSettlement: round.status === RoundStatus.RESOLVING,
+    settlementWarning:
+      round.status === RoundStatus.RESOLVING && Date.now() - round.updatedAt.getTime() > 30_000
+        ? "Settlement has been processing for more than 30 seconds."
+        : null,
     cancellation: round.status === RoundStatus.CANCELLED
       ? {
           reason: cancellation?.reason ?? null,

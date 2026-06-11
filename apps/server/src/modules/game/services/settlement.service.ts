@@ -26,6 +26,11 @@ export interface SettlementResult {
 
 const WINNER_USER_BATCH_SIZE = 250;
 
+interface RecoveryRefund {
+  bet: Awaited<ReturnType<GameRepository["findPendingBetsForRound"]>>[number];
+  walletResult: Awaited<ReturnType<WalletService["refundCancelledBetInTransaction"]>>;
+}
+
 export class SettlementService {
   constructor(
     private readonly gameRepository: GameRepository,
@@ -111,6 +116,74 @@ export class SettlementService {
     });
 
     return toSettlementResult(roundId, result, stats, creditedUsers);
+  }
+
+  async recoverUnresolvableRound(roundId: string, reason: string) {
+    const recovery = await this.gameRepository.transaction(async (tx) => {
+      const cancelled = await this.gameRepository.cancelActiveRoundInTx(tx, roundId);
+
+      if (cancelled.count === 0) {
+        return { recovered: false, refunds: [] as RecoveryRefund[] };
+      }
+
+      const pendingBets = await this.gameRepository.findPendingBetsForRoundInTx(tx, roundId);
+      const refunds: RecoveryRefund[] = [];
+
+      for (const bet of pendingBets) {
+        if (bet.coinsStaked > BigInt(Number.MAX_SAFE_INTEGER)) {
+          throw new HttpError(500, "REFUND_TOO_LARGE", "Bet refund exceeds safe service limits.");
+        }
+
+        const walletResult = await this.walletService.refundCancelledBetInTransaction(tx, {
+          userId: bet.userId,
+          amountCoins: Number(bet.coinsStaked),
+          referenceId: bet.id,
+          idempotencyKey: `round:${roundId}:bet:${bet.id}:recovery-refund`,
+        });
+        await this.gameRepository.updatePendingBetStatusInTx(tx, bet.id, BetStatus.CANCELLED, 0n);
+        refunds.push({ bet, walletResult });
+      }
+
+      return { recovered: true, refunds };
+    });
+
+    if (!recovery.recovered) {
+      return recovery;
+    }
+
+    for (const refund of recovery.refunds) {
+      if ("wallet" in refund.walletResult && refund.walletResult.wallet) {
+        this.walletService.publishWalletUpdate(
+          refund.bet.userId,
+          refund.walletResult.wallet,
+          refund.walletResult.ledgerEntry,
+        );
+      }
+      publishGameEvent("bet:settled", serializeSettledBet(
+        { ...refund.bet, status: BetStatus.CANCELLED, payoutAmount: 0n, updatedAt: new Date() },
+        null,
+      ));
+    }
+
+    await getObservability().audit.write({
+      actorId: "round-engine",
+      actorType: "SYSTEM",
+      action: "ROUND_RECOVERY_CANCELLED",
+      targetType: "ROUND",
+      targetId: roundId,
+      metadata: {
+        reason,
+        refundedBetCount: recovery.refunds.length,
+      },
+    });
+    publishGameEvent("system:error", {
+      code: reason,
+      message: "Round was cancelled and pending bets were refunded because settlement was not recoverable.",
+      roundId,
+      recovered: true,
+    });
+
+    return recovery;
   }
 
   private async settleWinningUsers(roundId: string, result: PredictionColor) {

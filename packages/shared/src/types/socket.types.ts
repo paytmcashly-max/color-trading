@@ -53,6 +53,7 @@ export interface BetSettledEvent {
   id: EntityId;
   userId: EntityId;
   roundId: EntityId;
+  roundNumber?: string;
   status: "WON" | "LOST" | "CANCELLED";
   choice: PredictionColor;
   result: PredictionColor | null;
@@ -89,6 +90,8 @@ export interface ServerToClientEventPayloads {
   wallet_update: WalletUpdateEvent;
   result_declared: ResultDeclaredEvent;
   bet_settled: BetSettledEvent;
+  game_paused: { reason: string | null };
+  game_resumed: { reason: string | null };
 }
 
 export type ClientToServerEventName = keyof ClientToServerEventPayloads;

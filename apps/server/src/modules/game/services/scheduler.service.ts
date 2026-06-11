@@ -11,6 +11,8 @@ import type { RedisLockService } from "./redis-lock.service.js";
 export class SchedulerService {
   private interval: NodeJS.Timeout | null = null;
   private running = false;
+  private lastReportedFailure = "";
+  private lastReportedFailureAt = 0;
 
   constructor(
     private readonly roundService: RoundService,
@@ -24,24 +26,12 @@ export class SchedulerService {
 
     this.interval = setInterval(() => {
       this.tick().catch((error: unknown) => {
-        logger.error("round_engine_tick_failed", { error });
-        getObservability().alerts.send({
-          type: "ROUND_ENGINE_FAILURE",
-          severity: "HIGH",
-          message: "Game scheduler tick failed.",
-          metadata: { error: String(error) },
-        });
+        this.reportFailure("ROUND_ENGINE_FAILURE", "round_engine_tick_failed", error);
       });
     }, ROUND_SCHEDULER_TICK_MS);
 
     this.tick().catch((error: unknown) => {
-      logger.error("round_engine_initial_tick_failed", { error });
-      getObservability().alerts.send({
-        type: "ROUND_ENGINE_INITIAL_FAILURE",
-        severity: "HIGH",
-        message: "Initial game scheduler tick failed.",
-        metadata: { error: String(error) },
-      });
+      this.reportFailure("ROUND_ENGINE_INITIAL_FAILURE", "round_engine_initial_tick_failed", error);
     });
   }
 
@@ -72,5 +62,24 @@ export class SchedulerService {
     } finally {
       this.running = false;
     }
+  }
+
+  private reportFailure(type: string, message: string, error: unknown) {
+    const signature = `${type}:${String(error)}`;
+    const now = Date.now();
+
+    if (signature === this.lastReportedFailure && now - this.lastReportedFailureAt < 60_000) {
+      return;
+    }
+
+    this.lastReportedFailure = signature;
+    this.lastReportedFailureAt = now;
+    logger.error(message, { error });
+    getObservability().alerts.send({
+      type,
+      severity: "HIGH",
+      message: "Game scheduler tick failed.",
+      metadata: { error: String(error) },
+    });
   }
 }

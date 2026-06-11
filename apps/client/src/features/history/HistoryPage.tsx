@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/layout/AppShell";
 import { fetchMyBetHistory } from "@/services/api-client";
 import { useAuthStore } from "@/store/auth-store";
+import { betStatusLabel } from "@/lib/player-copy";
 import { formatCoinString } from "@/utils/format-coins";
 
 export function HistoryPage() {
@@ -33,9 +34,9 @@ export function HistoryPage() {
         </div>
 
         <div className="mt-3 grid gap-2">
-          {betsQuery.isLoading ? <p className="text-sm font-bold text-muted">Loading predictions...</p> : null}
+          {betsQuery.isLoading ? <p className="text-sm font-bold text-muted">Loading your bets...</p> : null}
           {!betsQuery.isLoading && bets.length === 0 ? (
-            <p className="text-sm font-bold text-muted">Your predictions will appear here.</p>
+            <p className="text-sm font-bold text-muted">Your bets will appear here.</p>
           ) : null}
           {bets.map((bet) => (
             <article key={bet.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-2xl border border-line bg-[#f8faf7] px-3 py-2">
@@ -43,10 +44,10 @@ export function HistoryPage() {
                 <ResultBadge result={bet.choice} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-black text-ink">
-                    #{bet.round?.roundNumber ?? bet.roundId.slice(0, 6)} | {bet.choice}
+                    #{bet.round?.roundNumber ?? bet.roundId.slice(0, 6)} | {colorLabel(bet.choice)}
                   </p>
                   <p className="mt-0.5 truncate text-[11px] font-bold text-muted">
-                    Result {bet.result ?? bet.round?.result ?? "--"} | Stake {formatCoinString(bet.coinsStaked)} | Payout {formatCoinString(bet.payoutAmount)} | Net {formatNet(bet.netProfitLoss)}
+                    Result {colorLabel(bet.result ?? bet.round?.result)} | Bet amount {formatCoinString(bet.coinsStaked)} | {resultValue(bet.status, bet.payoutAmount, bet.netProfitLoss)}
                   </p>
                 </div>
               </div>
@@ -70,13 +71,19 @@ function OutcomePill({ status }: { status: string }) {
           ? "bg-[#eef1ef] text-muted"
           : "bg-[#fff3cd] text-[#8a5a00]";
 
-  return <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${className}`}>{status === "CANCELLED" ? "REFUNDED" : status}</span>;
+  return <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${className}`}>{betStatusLabel(status)}</span>;
 }
 
-function formatNet(value: string | null | undefined) {
-  if (value === null || value === undefined) return "Pending";
+function resultValue(status: string, payout: string, value: string | null | undefined) {
+  if (value === null || value === undefined) return "Waiting for result";
+  if (status === "CANCELLED") return "No loss. Amount returned.";
   const amount = Number(value);
-  return `${amount > 0 ? "+" : ""}${formatCoinString(value)}`;
+  if (status === "WON") return `You received ${formatCoinString(payout)} | +${formatCoinString(value)} profit`;
+  return `${formatCoinString(Math.abs(amount))} loss`;
+}
+
+function colorLabel(value: string | null | undefined) {
+  return value ? value.charAt(0) + value.slice(1).toLowerCase() : "Waiting";
 }
 
 function ResultBadge({ result }: { result: string | null }) {

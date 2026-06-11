@@ -39,6 +39,7 @@ export function SocketBridge() {
       setConnected(true);
       joinGameRoomOverSocket();
       socket.emit("state:sync");
+      void resyncQueries(queryClient);
     });
     socket.on("connect_error", (error) => {
       if (!isSocketAuthError(error) || refreshInFlight) {
@@ -84,6 +85,11 @@ export function SocketBridge() {
         queryClient.invalidateQueries({ queryKey: ["round-history"] }),
       ]);
     });
+    socket.on("game:paused", (payload) => applyRealtimeEvent("game:paused", payload));
+    socket.on("game:resumed", (payload) => {
+      applyRealtimeEvent("game:resumed", payload);
+      void resyncQueries(queryClient);
+    });
     socket.on("bet:placed", (payload) => applyRealtimeEvent("bet:placed", payload));
     socket.on("bet:settled", (payload) => {
       const betId = readBetId(payload);
@@ -114,6 +120,7 @@ export function SocketBridge() {
     const resync = () => {
       if (socket.connected) {
         socket.emit("state:sync");
+        void resyncQueries(queryClient);
       }
     };
     const intervalId = window.setInterval(resync, ROUND_RESYNC_INTERVAL_MS);
@@ -150,6 +157,16 @@ function joinPayloadRound(payload: unknown) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function resyncQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["current-round"] }),
+    queryClient.invalidateQueries({ queryKey: ["wallet"] }),
+    queryClient.invalidateQueries({ queryKey: ["wallet-transactions"] }),
+    queryClient.invalidateQueries({ queryKey: ["my-bet-history"] }),
+    queryClient.invalidateQueries({ queryKey: ["round-history"] }),
+  ]);
 }
 
 function isSocketAuthError(error: Error) {

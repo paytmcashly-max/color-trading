@@ -122,9 +122,25 @@ function RoundSection({
             </span>
             <span>Ends: <b>{new Date(round.endTime).toLocaleTimeString()}</b></span>
           </div>
+          {round.exposure && round.exposure.length > 0 ? (
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {round.exposure.map((item) => (
+                <div key={item.choice} className="rounded-md bg-[#f8faf7] px-2 py-2 text-center">
+                  <p className="text-[10px] font-black uppercase text-muted">{item.choice}</p>
+                  <p className="text-sm font-black text-ink">{item.coinsStaked}</p>
+                  <p className="text-[10px] font-bold text-muted">{item.betCount} bets</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
           {cancelled && round.cancellation?.reason ? (
             <p className="mt-3 rounded-md border border-[#f1c1c1] bg-[#fff7f7] px-3 py-2 text-sm font-bold text-[#8d1f1f]">
               {round.cancellation.reason}
+            </p>
+          ) : null}
+          {round.settlementWarning ? (
+            <p className="mt-3 rounded-md border border-[#f7df9e] bg-[#fff8e6] px-3 py-2 text-sm font-bold text-[#8a5a00]">
+              {round.settlementWarning} Use emergency stop to cancel and refund if recovery does not complete.
             </p>
           ) : null}
         </Card>

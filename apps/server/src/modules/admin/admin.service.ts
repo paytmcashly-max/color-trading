@@ -295,6 +295,14 @@ export class AdminService {
           orderBy: { createdAt: "desc" },
         })
       : [];
+    const exposureRows = page.items.length > 0
+      ? await this.prisma.bet.groupBy({
+          by: ["roundId", "choice"],
+          where: { roundId: { in: page.items.map((round) => round.id) } },
+          _count: { id: true },
+          _sum: { coinsStaked: true },
+        })
+      : [];
     const cancellationsByRoundId = new Map<string, { reason: string | null; actorId: string | null }>();
     for (const log of cancellationLogs) {
       if (log.targetId && !cancellationsByRoundId.has(log.targetId)) {
@@ -307,7 +315,17 @@ export class AdminService {
 
     return {
       rounds: page.items.map((round) =>
-        serializeAdminRound(round, cancellationsByRoundId.get(round.id)),
+        serializeAdminRound(
+          round,
+          cancellationsByRoundId.get(round.id),
+          exposureRows
+            .filter((item) => item.roundId === round.id)
+            .map((item) => ({
+              choice: item.choice,
+              betCount: item._count.id,
+              coinsStaked: item._sum.coinsStaked ?? 0n,
+            })),
+        ),
       ),
       pageInfo: page.pageInfo,
     };
@@ -330,7 +348,28 @@ export class AdminService {
       },
     });
 
-    return { round: round ? serializeAdminRound(round) : null };
+    if (!round) {
+      return { round: null };
+    }
+
+    const exposureRows = await this.prisma.bet.groupBy({
+      by: ["choice"],
+      where: { roundId: round.id },
+      _count: { id: true },
+      _sum: { coinsStaked: true },
+    });
+
+    return {
+      round: serializeAdminRound(
+        round,
+        undefined,
+        exposureRows.map((item) => ({
+          choice: item.choice,
+          betCount: item._count.id,
+          coinsStaked: item._sum.coinsStaked ?? 0n,
+        })),
+      ),
+    };
   }
 
   async forceStartRound(adminUserId: string, dto: ForceStartRoundDto) {

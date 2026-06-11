@@ -5,6 +5,7 @@ import { ArrowDownLeft, ArrowUpRight, RefreshCw, WalletCards } from "lucide-reac
 import { AppShell } from "@/components/layout/AppShell";
 import { WalletCard } from "@/components/wallet/WalletCard";
 import { useWallet } from "@/hooks/useWallet";
+import { walletActivityLabel } from "@/lib/player-copy";
 import { formatCoinString } from "@/utils/format-coins";
 
 export function WalletPage() {
@@ -30,15 +31,15 @@ export function WalletPage() {
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <WalletCards size={18} className="text-[#16874f]" aria-hidden="true" />
-            <h2 className="font-black">Transaction history</h2>
+            <h2 className="font-black">Recent activity</h2>
           </div>
           <span className="rounded-full bg-[#eef3ee] px-2.5 py-1 text-[10px] font-black uppercase text-muted">
-            {transactions.length} rows
+            {transactions.length} activities
           </span>
         </div>
         <div className="mt-3 grid gap-2">
           {isTransactionsLoading ? (
-            <p className="text-sm font-bold text-muted">Loading transactions...</p>
+            <p className="text-sm font-bold text-muted">Loading recent activity...</p>
           ) : null}
           {!isTransactionsLoading && transactions.length === 0 ? (
             <p className="text-sm font-bold text-muted">Wallet activity will appear here.</p>
@@ -58,9 +59,9 @@ export function WalletPage() {
                       <Icon size={19} aria-hidden="true" />
                     </span>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-black text-ink">{formatTransactionType(transaction.type)}</p>
+                      <p className="truncate text-sm font-black text-ink">{walletActivityLabel(transaction.type).title}</p>
                       <p className="mt-0.5 text-[11px] font-bold text-muted">
-                        {transactionDescription(transaction.type)} · {formatTransactionDate(transaction.createdAt)}
+                        {walletActivityLabel(transaction.type).description} | {formatTransactionDate(transaction.createdAt)}
                       </p>
                     </div>
                   </div>
@@ -69,7 +70,7 @@ export function WalletPage() {
                       {credit ? "+" : "-"}{formatCoinString(transaction.amount)}
                     </p>
                     <p className="mt-0.5 text-[10px] font-black uppercase text-muted">
-                      Bal {formatCoinString(transaction.balanceAfter)}
+                      Balance {formatCoinString(transaction.balanceAfter)}
                     </p>
                   </div>
                 </div>
@@ -80,22 +81,6 @@ export function WalletPage() {
       </section>
     </AppShell>
   );
-}
-
-function formatTransactionType(type: string) {
-  if (type === "BET" || type === "BET_PLACED") return "Bet placed";
-  if (type === "WIN" || type === "BET_WIN_PAYOUT") return "Bet win payout";
-  if (type === "BET_REFUND") return "Bet refund";
-
-  return type.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function transactionDescription(type: string) {
-  if (type === "BET" || type === "BET_PLACED") return "Amount locked in bet";
-  if (type === "WIN" || type === "BET_WIN_PAYOUT") return "Winning payout credited";
-  if (type === "BET_REFUND") return "Refunded due to cancelled round";
-  if (type === "LOSS") return "Bet settled as lost";
-  return "Wallet balance updated";
 }
 
 function formatTransactionDate(value: string) {

@@ -315,6 +315,31 @@ export class GameRepository {
     });
   }
 
+  findPendingBetsForRoundInTx(tx: TxClient, roundId: string) {
+    return tx.bet.findMany({
+      where: {
+        roundId,
+        status: BetStatus.PENDING,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+  }
+
+  cancelActiveRoundInTx(tx: TxClient, roundId: string) {
+    return tx.gameRound.updateMany({
+      where: {
+        id: roundId,
+        status: {
+          in: [RoundStatus.INIT, RoundStatus.OPEN, RoundStatus.LOCKED, RoundStatus.RESOLVING],
+        },
+      },
+      data: {
+        status: RoundStatus.CANCELLED,
+        result: null,
+      },
+    });
+  }
+
   findLosingBetsForRound(roundId: string) {
     return this.prisma.bet.findMany({
       where: {

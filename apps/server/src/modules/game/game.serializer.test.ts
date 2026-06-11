@@ -48,6 +48,9 @@ test("cancelled history bet is neutral and includes round result fields", () => 
   assert.equal(serialized.netProfitLoss, "0");
   assert.equal(serialized.result, null);
   assert.equal(serialized.roundNumber, "123");
+  assert.equal(serialized.stakeAmount, "100");
+  assert.equal(serialized.displayStatus, "REFUNDED");
+  assert.equal(serialized.roundStartTime, bet.createdAt.toISOString());
   assert.equal(serialized.roundEndTime, bet.updatedAt.toISOString());
 });
 

@@ -6,6 +6,7 @@ import { useGameStore } from "./game-store";
 
 afterEach(() => {
   useGameStore.setState({
+    socketConnected: false,
     currentRound: null,
     recentResults: [],
     lastResult: null,
@@ -14,6 +15,8 @@ afterEach(() => {
     activeBets: [],
     settlementNotice: null,
     shownSettlementIds: [],
+    gamePaused: false,
+    gamePauseReason: null,
   });
 });
 
@@ -66,6 +69,33 @@ test("round cancellation clears stale result state without adding a winner resul
     roundId: cancelled.id,
     reason: "Emergency operational stop",
   });
+});
+
+test("game pause and resume realtime events update betting state", () => {
+  useGameStore.getState().applyRealtimeEvent("game:paused", {
+    gameControl: { paused: true, reason: "Maintenance" },
+  });
+
+  assert.equal(useGameStore.getState().gamePaused, true);
+  assert.equal(useGameStore.getState().gamePauseReason, "Maintenance");
+
+  useGameStore.getState().applyRealtimeEvent("game:resumed", {
+    gameControl: { paused: false },
+  });
+  assert.equal(useGameStore.getState().gamePaused, false);
+  assert.equal(useGameStore.getState().gamePauseReason, null);
+});
+
+test("reconnect snapshot restores current game pause state", () => {
+  useGameStore.getState().applyRealtimeEvent("system:sync", {
+    gameControl: { paused: true, reason: "Settlement review" },
+  });
+  assert.equal(useGameStore.getState().gamePaused, true);
+
+  useGameStore.getState().applyRealtimeEvent("system:sync", {
+    gameControl: { paused: false, reason: null },
+  });
+  assert.equal(useGameStore.getState().gamePaused, false);
 });
 
 function buildRound(status: "COMPLETED" | "CANCELLED", result: "RED" | null): RoundDto {

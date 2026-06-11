@@ -190,15 +190,18 @@ export class RoundService {
       throw new HttpError(500, "GAME_ENGINE_NOT_CONFIGURED", "Game engine services are not configured.");
     }
 
-    const seedReveal = await this.getSeedReveal(round.id);
+    let seedReveal: string;
+    try {
+      seedReveal = await this.getSeedReveal(round.id);
+    } catch (error) {
+      if (error instanceof HttpError && error.code === "ROUND_SEED_REVEAL_MISSING") {
+        return this.recoverUnresolvableRound(round, error.code);
+      }
+      throw error;
+    }
 
     if (!this.resultService.seedHashMatches(seedReveal, round.seedHash)) {
-      publishGameEvent("system:error", {
-        code: "ROUND_SEED_HASH_MISMATCH",
-        message: "Durable round seed does not match the committed seed hash.",
-        roundId: round.id,
-      });
-      throw new HttpError(500, "ROUND_SEED_HASH_MISMATCH", "Round seed integrity check failed.");
+      return this.recoverUnresolvableRound(round, "ROUND_SEED_HASH_MISMATCH");
     }
 
     const result = round.result ?? this.resultService.generateResult(seedReveal);
@@ -252,6 +255,29 @@ export class RoundService {
     }
 
     return completedRound;
+  }
+
+  private async recoverUnresolvableRound(round: GameRoundRecord, reason: string) {
+    if (!this.settlementService) {
+      throw new HttpError(500, "GAME_ENGINE_NOT_CONFIGURED", "Settlement service is not configured.");
+    }
+
+    const recovery = await this.settlementService.recoverUnresolvableRound(round.id, reason);
+    const cancelledRound = await this.gameRepository.findRoundById(round.id);
+
+    if (recovery.recovered && cancelledRound) {
+      const payload = {
+        ...this.buildRoundPayload(cancelledRound),
+        reason,
+        refundedBetCount: recovery.refunds.length,
+      };
+      publishGameEvent("round:cancelled", payload);
+      publishGameEvent("round:update", payload);
+      publishGameEvent("round:state", payload);
+      await clearRoundSeedReveal(round.id);
+    }
+
+    return this.createNextRound();
   }
 
   private async getSeedReveal(roundId: string) {

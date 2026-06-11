@@ -20,7 +20,7 @@ export function WalletCard({
       <div className="pointer-events-none absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-[#16874f] via-[#21a67a] to-[#6e46b9]" />
       <div className="relative flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-black uppercase tracking-normal text-muted">Total balance</p>
+          <p className="text-[11px] font-black uppercase tracking-normal text-muted">Your balance</p>
           <p className="mt-1 flex min-w-0 items-center gap-2 text-3xl font-black tracking-normal text-ink">
             <Coins size={24} className="shrink-0 text-[#16874f]" aria-hidden="true" />
             {isLoading && !wallet ? "..." : formatCoinString(wallet?.totalBalance)}
@@ -34,12 +34,12 @@ export function WalletCard({
       <div className="relative mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-muted">
         <BalanceTile
           icon={<Landmark size={18} aria-hidden="true" />}
-          label="Deposit"
+          label="Added coins"
           value={wallet?.depositBalance}
         />
         <BalanceTile
           icon={<Trophy size={18} aria-hidden="true" />}
-          label="Winning"
+          label="Winnings"
           value={wallet?.winningBalance}
         />
       </div>

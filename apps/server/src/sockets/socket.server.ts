@@ -338,7 +338,7 @@ async function leaveRoundRoom(
 
 async function buildStateSnapshot(userId: string) {
   const prisma = getPrismaClient();
-  const [currentRound, wallet] = await Promise.all([
+  const [currentRound, wallet, gameControl] = await Promise.all([
     prisma.gameRound.findFirst({
       where: {
         status: {
@@ -359,6 +359,14 @@ async function buildStateSnapshot(userId: string) {
         updatedAt: true,
       },
     }),
+    prisma.gameControl.findUnique({
+      where: { id: "global" },
+      select: {
+        paused: true,
+        reason: true,
+        updatedAt: true,
+      },
+    }),
   ]);
 
   return {
@@ -376,6 +384,11 @@ async function buildStateSnapshot(userId: string) {
           updatedAt: wallet.updatedAt.toISOString(),
         }
       : null,
+    gameControl: {
+      paused: gameControl?.paused ?? false,
+      reason: gameControl?.reason ?? null,
+      updatedAt: gameControl?.updatedAt.toISOString() ?? null,
+    },
     syncedAt: new Date().toISOString(),
   };
 }

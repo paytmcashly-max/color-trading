@@ -110,6 +110,9 @@ export function serializeUserBetHistory(
     roundNumber: bet.round?.roundNumber.toString(),
     result: bet.round?.result ?? null,
     stake: bet.coinsStaked.toString(),
+    stakeAmount: bet.coinsStaked.toString(),
+    displayStatus: bet.status === "CANCELLED" ? "REFUNDED" : bet.status,
+    roundStartTime: bet.round?.startTime.toISOString(),
     roundEndTime: bet.round?.endTime.toISOString(),
     round: bet.round
       ? {

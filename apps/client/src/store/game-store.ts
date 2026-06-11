@@ -17,6 +17,8 @@ type EventName =
   | "round:cancelled"
   | "bet:placed"
   | "bet:settled"
+  | "game:paused"
+  | "game:resumed"
   | "wallet:update"
   | "user:balance_sync"
   | "system:health"
@@ -32,6 +34,8 @@ interface GameState {
   timerRemainingSeconds: number;
   lastResult: string | null;
   lastCancellation: { roundId: string; reason: string | null } | null;
+  gamePaused: boolean;
+  gamePauseReason: string | null;
   settlementNotice: BetDto | null;
   shownSettlementIds: string[];
   lastError: string | null;
@@ -55,6 +59,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   timerRemainingSeconds: 0,
   lastResult: null,
   lastCancellation: null,
+  gamePaused: false,
+  gamePauseReason: null,
   settlementNotice: null,
   shownSettlementIds: [],
   lastError: null,
@@ -68,9 +74,24 @@ export const useGameStore = create<GameState>((set, get) => ({
   dismissSettlementNotice: () => set({ settlementNotice: null }),
   applyRealtimeEvent: (name, payload) => {
     if (name === "system:sync" && isRecord(payload)) {
+      const control = isRecord(payload.gameControl) ? payload.gameControl : payload;
+      const paused = payload.type === "GAME_PAUSED" || control.paused === true;
       set({
         currentRound: isRound(payload.currentRound) ? payload.currentRound : get().currentRound,
         wallet: isWallet(payload.wallet) ? payload.wallet : get().wallet,
+        gamePaused: paused,
+        gamePauseReason:
+          paused && typeof control.reason === "string" ? control.reason : null,
+      });
+      return;
+    }
+
+    if ((name === "game:paused" || name === "game:resumed") && isRecord(payload)) {
+      const control = isRecord(payload.gameControl) ? payload.gameControl : payload;
+      set({
+        gamePaused: name === "game:paused",
+        gamePauseReason:
+          name === "game:paused" && typeof control.reason === "string" ? control.reason : null,
       });
       return;
     }
@@ -130,7 +151,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       isRecord(payload) &&
       (isBet(payload.bet) || isBet(payload))
     ) {
-      const bet = extractBet(payload);
+      const extractedBet = extractBet(payload);
+      const bet =
+        extractedBet && extractedBet.roundId === get().currentRound?.id
+          ? { ...extractedBet, roundNumber: get().currentRound?.roundNumber }
+          : extractedBet;
       if (!bet) {
         return;
       }
