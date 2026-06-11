@@ -65,6 +65,12 @@ function toRealtimeRoundStatus(status: RoundStatus): RoundLifecycleStatus {
 }
 
 export function serializeBet(bet: Bet) {
+  const netProfitLoss = calculateNetProfitLoss(
+    bet.status,
+    bet.coinsStaked,
+    bet.payoutAmount,
+  );
+
   return {
     id: bet.id,
     userId: bet.userId,
@@ -75,6 +81,8 @@ export function serializeBet(bet: Bet) {
     coinsStaked: bet.coinsStaked.toString(),
     status: bet.status,
     payoutAmount: bet.payoutAmount.toString(),
+    netProfitLoss: netProfitLoss?.toString() ?? null,
+    settledAt: bet.status === "PENDING" ? null : bet.updatedAt.toISOString(),
     createdAt: bet.createdAt.toISOString(),
     updatedAt: bet.updatedAt.toISOString(),
   };
@@ -98,6 +106,11 @@ export function serializeUserBetHistory(
 ) {
   return {
     ...serializeBet(bet),
+    betId: bet.id,
+    roundNumber: bet.round?.roundNumber.toString(),
+    result: bet.round?.result ?? null,
+    stake: bet.coinsStaked.toString(),
+    roundEndTime: bet.round?.endTime.toISOString(),
     round: bet.round
       ? {
           roundNumber: bet.round.roundNumber.toString(),
@@ -108,4 +121,30 @@ export function serializeUserBetHistory(
         }
       : undefined,
   };
+}
+
+export function serializeSettledBet(bet: Bet, result: Bet["choice"] | null) {
+  return {
+    ...serializeBet(bet),
+    betId: bet.id,
+    result,
+    stake: bet.coinsStaked.toString(),
+  };
+}
+
+function calculateNetProfitLoss(
+  status: Bet["status"],
+  stake: bigint,
+  payoutAmount: bigint,
+) {
+  switch (status) {
+    case "PENDING":
+      return null;
+    case "WON":
+      return payoutAmount - stake;
+    case "LOST":
+      return -stake;
+    case "CANCELLED":
+      return 0n;
+  }
 }

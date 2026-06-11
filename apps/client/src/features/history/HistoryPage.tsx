@@ -46,7 +46,7 @@ export function HistoryPage() {
                     #{bet.round?.roundNumber ?? bet.roundId.slice(0, 6)} | {bet.choice}
                   </p>
                   <p className="mt-0.5 truncate text-[11px] font-bold text-muted">
-                    Result {bet.round?.result ?? "--"} | Stake {formatCoinString(bet.coinsStaked)} | Payout {formatCoinString(bet.payoutAmount)}
+                    Result {bet.result ?? bet.round?.result ?? "--"} | Stake {formatCoinString(bet.coinsStaked)} | Payout {formatCoinString(bet.payoutAmount)} | Net {formatNet(bet.netProfitLoss)}
                   </p>
                 </div>
               </div>
@@ -66,9 +66,17 @@ function OutcomePill({ status }: { status: string }) {
       ? "bg-[#dff8e9] text-[#106b3d]"
       : status === "LOST"
         ? "bg-[#fee2e2] text-[#991b1b]"
-        : "bg-[#fff3cd] text-[#8a5a00]";
+        : status === "CANCELLED"
+          ? "bg-[#eef1ef] text-muted"
+          : "bg-[#fff3cd] text-[#8a5a00]";
 
-  return <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${className}`}>{status}</span>;
+  return <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${className}`}>{status === "CANCELLED" ? "REFUNDED" : status}</span>;
+}
+
+function formatNet(value: string | null | undefined) {
+  if (value === null || value === undefined) return "Pending";
+  const amount = Number(value);
+  return `${amount > 0 ? "+" : ""}${formatCoinString(value)}`;
 }
 
 function ResultBadge({ result }: { result: string | null }) {

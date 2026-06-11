@@ -6,7 +6,7 @@ import { getObservability } from "../../observability/observability.module.js";
 import type { WalletService } from "../../wallet/wallet.service.js";
 import { WIN_PAYOUT_MULTIPLIER, WINNER_SETTLEMENT_CONCURRENCY } from "../game.constants.js";
 import { publishGameEvent } from "../game.events.js";
-import { serializeBet } from "../game.serializer.js";
+import { serializeSettledBet } from "../game.serializer.js";
 import type {
   GameRepository,
   SettlementStatsRow,
@@ -53,6 +53,12 @@ export class SettlementService {
     }
 
     const losingUpdate = await this.gameRepository.markLosingBetsForRound(roundId, result);
+    const losingBets = await this.gameRepository.findLosingBetsForRound(roundId);
+    for (const bet of losingBets) {
+      publishGameEvent("bet:settled", {
+        ...serializeSettledBet(bet, result),
+      });
+    }
     const creditedUsers = await this.settleWinningUsers(roundId, result);
     const stats = await this.gameRepository.getRoundSettlementStats(roundId);
 
@@ -195,14 +201,11 @@ export class SettlementService {
       );
     }
 
-    publishGameEvent("bet:settled", {
-      roundId,
-      userId: settlement.userId,
-      result,
-      betCount: settlement.bets.length,
-      payoutAmount: settlement.payoutAmount.toString(),
-      bets: settlement.bets.map(serializeBet),
-    });
+    for (const bet of settlement.bets) {
+      publishGameEvent("bet:settled", {
+        ...serializeSettledBet(bet, result),
+      });
+    }
 
     logger.info("winner_user_settled", {
       roundId,

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, Circle, Flame, Gem, Loader2, LockKeyhole, Timer, Zap } from "lucide-react";
+import { Check, Circle, Flame, Gem, Loader2, LockKeyhole, Timer, X, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -61,6 +61,8 @@ export function GamePage({ title = "Fast Parity" }: { title?: string } = {}) {
   const lastResult = useGameStore((state) => state.lastResult);
   const lastCancellation = useGameStore((state) => state.lastCancellation);
   const recentResults = useGameStore((state) => state.recentResults);
+  const settlementNotice = useGameStore((state) => state.settlementNotice);
+  const dismissSettlementNotice = useGameStore((state) => state.dismissSettlementNotice);
   const setRound = useGameStore((state) => state.setRound);
   const setWallet = useGameStore((state) => state.setWallet);
   const addBet = useGameStore((state) => state.addBet);
@@ -100,6 +102,15 @@ export function GamePage({ title = "Fast Parity" }: { title?: string } = {}) {
 
     return () => window.clearInterval(intervalId);
   }, []);
+
+  useEffect(() => {
+    if (!settlementNotice) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(dismissSettlementNotice, 7000);
+    return () => window.clearTimeout(timeoutId);
+  }, [dismissSettlementNotice, settlementNotice]);
 
   const selectedForRound = selectedRoundId === currentRound?.id ? selectedChoices : [];
   const roundRemainingSeconds = currentRound
@@ -416,6 +427,9 @@ export function GamePage({ title = "Fast Parity" }: { title?: string } = {}) {
           </div>
         </div>
       </section>
+      {settlementNotice ? (
+        <BetResultNotice bet={settlementNotice} onClose={dismissSettlementNotice} />
+      ) : null}
     </AppShell>
   );
 }
@@ -512,7 +526,9 @@ function OrdersPanel({
           choice: bet.choice,
           amount: bet.coinsStaked,
           period: bet.roundId.slice(0, 6),
-          outcome: getOrderOutcome(bet.status),
+          status: bet.status,
+          payoutAmount: bet.payoutAmount,
+          netProfitLoss: bet.netProfitLoss,
         }))
       : myBets.map((bet) => ({
           id: bet.id,
@@ -520,7 +536,9 @@ function OrdersPanel({
           choice: bet.choice,
           amount: bet.coinsStaked,
           period: getBetPeriodLabel(bet),
-          outcome: getOrderOutcome(bet.status),
+          status: bet.status,
+          payoutAmount: bet.payoutAmount,
+          netProfitLoss: bet.netProfitLoss,
         }));
   const rows = tab === "everyone" ? [...liveRows, ...dummyOrders].slice(0, 4) : liveRows;
   const tickerRows = tab === "everyone" ? [...rows, ...rows] : rows;
@@ -575,7 +593,7 @@ function OrdersPanel({
                 <ResultDot result={order.choice} small />
                 {order.choice.slice(0, 1)}
               </span>
-              <OrderAmount amount={order.amount} outcome={order.outcome} />
+              <OrderAmount order={order} />
             </motion.div>
           ))}
           </motion.div>
@@ -585,12 +603,25 @@ function OrdersPanel({
   );
 }
 
-function OrderAmount({ amount, outcome }: { amount: string | number; outcome: "WIN" | "LOSS" }) {
-  const win = outcome === "WIN";
+function OrderAmount({ order }: { order: OrderRow }) {
+  if (order.status === "PENDING") {
+    return (
+      <span className="truncate text-right font-black tabular-nums text-[#8a5a00]">
+        {formatCoinString(order.amount)} locked
+      </span>
+    );
+  }
+
+  if (order.status === "CANCELLED") {
+    return <span className="truncate text-right font-black text-muted">Refunded</span>;
+  }
+
+  const net = Number(order.netProfitLoss ?? (order.status === "WON" ? order.payoutAmount : -Number(order.amount)));
+  const win = net > 0;
 
   return (
     <span className={`truncate text-right font-black tabular-nums ${win ? "text-[#106b3d]" : "text-[#991b1b]"}`}>
-      {win ? "+" : "-"}{formatCoinString(amount)}
+      {win ? "+" : ""}{formatCoinString(net)}
     </span>
   );
 }
@@ -624,25 +655,73 @@ function dedupeBets<TBet extends BetDto>(bets: TBet[]) {
   return bets.filter((bet, index, all) => all.findIndex((item) => item.id === bet.id) === index);
 }
 
-function getOrderOutcome(status: string): "WIN" | "LOSS" {
-  return status === "WON" ? "WIN" : "LOSS";
-}
-
 interface OrderRow {
   id: string;
   user: string;
   period: string;
   choice: PredictionColor;
   amount: string | number;
-  outcome: "WIN" | "LOSS";
+  status: string;
+  payoutAmount?: string;
+  netProfitLoss?: string | null;
 }
 
 const dummyOrders: OrderRow[] = [
-  { id: "dummy-live-1", user: "***114", period: "#live", choice: "GREEN", amount: 50, outcome: "WIN" },
-  { id: "dummy-live-2", user: "***821", period: "#live", choice: "RED", amount: 100, outcome: "LOSS" },
-  { id: "dummy-live-3", user: "***309", period: "#live", choice: "VIOLET", amount: 20, outcome: "WIN" },
-  { id: "dummy-live-4", user: "***640", period: "#live", choice: "GREEN", amount: 200, outcome: "LOSS" },
+  { id: "dummy-live-1", user: "***114", period: "#live", choice: "GREEN", amount: 50, status: "PENDING" },
+  { id: "dummy-live-2", user: "***821", period: "#live", choice: "RED", amount: 100, status: "PENDING" },
+  { id: "dummy-live-3", user: "***309", period: "#live", choice: "VIOLET", amount: 20, status: "PENDING" },
+  { id: "dummy-live-4", user: "***640", period: "#live", choice: "GREEN", amount: 200, status: "PENDING" },
 ];
+
+function BetResultNotice({ bet, onClose }: { bet: BetDto; onClose: () => void }) {
+  const refunded = bet.status === "CANCELLED";
+  const won = bet.status === "WON";
+  const net = Number(bet.netProfitLoss ?? 0);
+  const title = refunded ? "Bet refunded" : won ? "You won" : "You lost";
+  const surface = refunded
+    ? "border-[#d9dfd9] bg-[#f6f8f6]"
+    : won
+      ? "border-[#9fddba] bg-[#effbf4]"
+      : "border-[#f1c1c1] bg-[#fff5f5]";
+
+  return (
+    <motion.aside
+      initial={{ opacity: 0, y: 24, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 12 }}
+      className={`fixed inset-x-4 bottom-24 z-50 mx-auto max-w-md rounded-3xl border p-4 shadow-[0_18px_48px_rgba(23,32,26,0.18)] ${surface}`}
+      role="status"
+      aria-live="polite"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-lg font-black text-ink">{title}</p>
+          <p className="mt-0.5 text-xs font-bold text-muted">
+            {refunded ? "Refunded due to cancelled round" : `Your bet: ${bet.choice} · Result: ${bet.result ?? "--"}`}
+          </p>
+        </div>
+        <button type="button" className="grid size-9 place-items-center rounded-full bg-white text-ink shadow-sm" onClick={onClose} aria-label="Close result">
+          <X size={17} aria-hidden="true" />
+        </button>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+        <ResultMetric label="Stake" value={bet.coinsStaked} />
+        <ResultMetric label="Payout" value={bet.payoutAmount} />
+        <ResultMetric label={won ? "Profit" : refunded ? "Net" : "Loss"} value={`${net > 0 ? "+" : ""}${net}`} tone={won ? "win" : refunded ? "neutral" : "loss"} />
+      </div>
+    </motion.aside>
+  );
+}
+
+function ResultMetric({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "win" | "loss" | "neutral" }) {
+  const toneClass = tone === "win" ? "text-[#106b3d]" : tone === "loss" ? "text-[#991b1b]" : "text-ink";
+  return (
+    <div className="rounded-2xl bg-white px-2 py-2 shadow-sm">
+      <p className="text-[9px] font-black uppercase text-muted">{label}</p>
+      <p className={`mt-0.5 text-sm font-black tabular-nums ${toneClass}`}>{formatCoinString(value)}</p>
+    </div>
+  );
+}
 
 function getOutcome(
   result: string | null | undefined,

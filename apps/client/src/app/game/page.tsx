@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { GameLobbyPage } from "@/features/games/GameLobbyPage";
 
 export default function Page() {
-  redirect("/games");
+  return <GameLobbyPage showAllGames />;
 }

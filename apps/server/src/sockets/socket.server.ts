@@ -423,6 +423,13 @@ function routeRealtimeEvent(io: Server, event: RealtimeEvent) {
     return;
   }
 
+  if (event.name === "bet:settled") {
+    if (userId) {
+      io.to(`user:${userId}`).to("admin").emit(event.name, event.payload);
+    }
+    return;
+  }
+
   if (event.name.startsWith("bet:")) {
     io.to(GLOBAL_GAME_ROOM).to("admin").emit(event.name, event.payload);
     return;

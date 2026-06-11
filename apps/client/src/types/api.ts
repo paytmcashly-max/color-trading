@@ -46,11 +46,18 @@ export interface BetDto {
   coinsStaked: string;
   status: BetStatus;
   payoutAmount: string;
+  netProfitLoss?: string | null;
+  settledAt?: string | null;
+  result?: PredictionColor | null;
+  stake?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface UserBetHistoryDto extends BetDto {
+  betId?: string;
+  roundNumber?: string;
+  roundEndTime?: string;
   round?: {
     roundNumber: string;
     status: RoundStatus;

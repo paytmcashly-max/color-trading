@@ -48,6 +48,21 @@ export interface RoundCancelledEvent extends RoundUpdateEvent {
   refundedCoins: number;
 }
 
+export interface BetSettledEvent {
+  betId: EntityId;
+  id: EntityId;
+  userId: EntityId;
+  roundId: EntityId;
+  status: "WON" | "LOST" | "CANCELLED";
+  choice: PredictionColor;
+  result: PredictionColor | null;
+  stake: string;
+  coinsStaked: string;
+  payoutAmount: string;
+  netProfitLoss: string;
+  settledAt: ISODateString;
+}
+
 export interface SocketSuccessAck<TData = undefined> {
   ok: true;
   data?: TData;
@@ -73,6 +88,7 @@ export interface ServerToClientEventPayloads {
   round_cancelled: RoundCancelledEvent;
   wallet_update: WalletUpdateEvent;
   result_declared: ResultDeclaredEvent;
+  bet_settled: BetSettledEvent;
 }
 
 export type ClientToServerEventName = keyof ClientToServerEventPayloads;

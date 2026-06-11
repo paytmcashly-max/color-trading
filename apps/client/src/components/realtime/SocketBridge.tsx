@@ -85,8 +85,28 @@ export function SocketBridge() {
       ]);
     });
     socket.on("bet:placed", (payload) => applyRealtimeEvent("bet:placed", payload));
-    socket.on("bet:settled", (payload) => applyRealtimeEvent("bet:settled", payload));
-    socket.on("wallet:update", (payload) => applyRealtimeEvent("wallet:update", payload));
+    socket.on("bet:settled", (payload) => {
+      const betId = readBetId(payload);
+      if (betId && wasSettlementShown(betId)) {
+        useGameStore.getState().markSettlementShown(betId);
+      }
+      applyRealtimeEvent("bet:settled", payload);
+      if (betId) {
+        rememberSettlementShown(betId);
+      }
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["my-bet-history"] }),
+        queryClient.invalidateQueries({ queryKey: ["wallet"] }),
+        queryClient.invalidateQueries({ queryKey: ["wallet-transactions"] }),
+      ]);
+    });
+    socket.on("wallet:update", (payload) => {
+      applyRealtimeEvent("wallet:update", payload);
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["wallet"] }),
+        queryClient.invalidateQueries({ queryKey: ["wallet-transactions"] }),
+      ]);
+    });
     socket.on("user:balance_sync", (payload) => applyRealtimeEvent("user:balance_sync", payload));
     socket.on("system:health", (payload) => applyRealtimeEvent("system:health", payload));
     socket.on("system:error", (payload) => applyRealtimeEvent("system:error", payload));
@@ -135,4 +155,36 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isSocketAuthError(error: Error) {
   const message = error.message.toLowerCase();
   return message.includes("auth") || message.includes("session") || message.includes("token");
+}
+
+const SETTLEMENT_SESSION_KEY = "shown-settled-bet-ids";
+
+function readBetId(payload: unknown) {
+  if (!isRecord(payload)) return null;
+  if (typeof payload.betId === "string") return payload.betId;
+  if (typeof payload.id === "string") return payload.id;
+  return isRecord(payload.bet) && typeof payload.bet.id === "string" ? payload.bet.id : null;
+}
+
+function wasSettlementShown(betId: string) {
+  return readShownSettlementIds().includes(betId);
+}
+
+function rememberSettlementShown(betId: string) {
+  try {
+    const ids = [betId, ...readShownSettlementIds().filter((id) => id !== betId)].slice(0, 100);
+    window.sessionStorage.setItem(SETTLEMENT_SESSION_KEY, JSON.stringify(ids));
+  } catch {
+    // Session storage is optional; in-memory dedupe remains active.
+  }
+}
+
+function readShownSettlementIds(): string[] {
+  try {
+    const value = window.sessionStorage.getItem(SETTLEMENT_SESSION_KEY);
+    const parsed: unknown = value ? JSON.parse(value) : [];
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
 }

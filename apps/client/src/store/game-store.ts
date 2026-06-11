@@ -32,12 +32,16 @@ interface GameState {
   timerRemainingSeconds: number;
   lastResult: string | null;
   lastCancellation: { roundId: string; reason: string | null } | null;
+  settlementNotice: BetDto | null;
+  shownSettlementIds: string[];
   lastError: string | null;
   lastSocketHealthAt: string | null;
   setSocketConnected: (connected: boolean) => void;
   setRound: (round: RoundDto | null) => void;
   setWallet: (wallet: WalletDto | null) => void;
   addBet: (bet: BetDto) => void;
+  markSettlementShown: (betId: string) => void;
+  dismissSettlementNotice: () => void;
   applyRealtimeEvent: (name: EventName, payload: unknown) => void;
 }
 
@@ -51,12 +55,17 @@ export const useGameStore = create<GameState>((set, get) => ({
   timerRemainingSeconds: 0,
   lastResult: null,
   lastCancellation: null,
+  settlementNotice: null,
+  shownSettlementIds: [],
   lastError: null,
   lastSocketHealthAt: null,
   setSocketConnected: (connected) => set({ socketConnected: connected }),
   setRound: (round) => set({ currentRound: round }),
   setWallet: (wallet) => set({ wallet }),
   addBet: (bet) => set({ activeBets: upsertBet(get().activeBets, bet) }),
+  markSettlementShown: (betId) =>
+    set({ shownSettlementIds: [betId, ...get().shownSettlementIds].slice(0, 100) }),
+  dismissSettlementNotice: () => set({ settlementNotice: null }),
   applyRealtimeEvent: (name, payload) => {
     if (name === "system:sync" && isRecord(payload)) {
       set({
@@ -116,11 +125,24 @@ export const useGameStore = create<GameState>((set, get) => ({
       return;
     }
 
-    if ((name === "bet:placed" || name === "bet:settled") && isRecord(payload) && isBet(payload.bet)) {
-      const bet = payload.bet;
+    if (
+      (name === "bet:placed" || name === "bet:settled") &&
+      isRecord(payload) &&
+      (isBet(payload.bet) || isBet(payload))
+    ) {
+      const bet = extractBet(payload);
+      if (!bet) {
+        return;
+      }
+      const alreadyShown = get().shownSettlementIds.includes(bet.id);
       set({
         activeBets: upsertBet(get().activeBets, bet),
         liveActivity: prependActivity(get().liveActivity, formatBetActivity(name, bet)),
+        settlementNotice: name === "bet:settled" && !alreadyShown ? bet : get().settlementNotice,
+        shownSettlementIds:
+          name === "bet:settled" && !alreadyShown
+            ? [bet.id, ...get().shownSettlementIds].slice(0, 100)
+            : get().shownSettlementIds,
       });
       return;
     }
@@ -219,4 +241,12 @@ function isWallet(value: unknown): value is WalletDto {
 
 function isBet(value: unknown): value is BetDto {
   return isRecord(value) && typeof value.id === "string" && typeof value.choice === "string";
+}
+
+function extractBet(payload: Record<string, unknown>): BetDto | null {
+  if (isBet(payload.bet)) {
+    return payload.bet;
+  }
+
+  return isBet(payload) ? payload : null;
 }

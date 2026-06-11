@@ -8,7 +8,7 @@ import {
   ROUND_DURATION_MS,
 } from "../game.constants.js";
 import { publishGameEvent } from "../game.events.js";
-import { serializeBet, serializeRound } from "../game.serializer.js";
+import { serializeRound, serializeUserBetHistory } from "../game.serializer.js";
 import type { GameRepository, GameRoundRecord } from "../repositories/game.repository.js";
 import type { ResultService } from "./result.service.js";
 import { clearRoundSeedReveal, readRoundSeedReveal, storeRoundSeedReveal } from "./round-seed.service.js";
@@ -58,16 +58,7 @@ export class RoundService {
     );
 
     return {
-      bets: page.items.map((bet) => ({
-        ...serializeBet(bet),
-        round: {
-          roundNumber: bet.round.roundNumber.toString(),
-          status: bet.round.status,
-          result: bet.round.result,
-          startTime: bet.round.startTime.toISOString(),
-          endTime: bet.round.endTime.toISOString(),
-        },
-      })),
+      bets: page.items.map(serializeUserBetHistory),
       pageInfo: page.pageInfo,
     };
   }

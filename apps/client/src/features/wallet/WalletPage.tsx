@@ -60,7 +60,7 @@ export function WalletPage() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-black text-ink">{formatTransactionType(transaction.type)}</p>
                       <p className="mt-0.5 text-[11px] font-bold text-muted">
-                        {formatTransactionDate(transaction.createdAt)}
+                        {transactionDescription(transaction.type)} · {formatTransactionDate(transaction.createdAt)}
                       </p>
                     </div>
                   </div>
@@ -83,7 +83,19 @@ export function WalletPage() {
 }
 
 function formatTransactionType(type: string) {
+  if (type === "BET" || type === "BET_PLACED") return "Bet placed";
+  if (type === "WIN" || type === "BET_WIN_PAYOUT") return "Bet win payout";
+  if (type === "BET_REFUND") return "Bet refund";
+
   return type.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function transactionDescription(type: string) {
+  if (type === "BET" || type === "BET_PLACED") return "Amount locked in bet";
+  if (type === "WIN" || type === "BET_WIN_PAYOUT") return "Winning payout credited";
+  if (type === "BET_REFUND") return "Refunded due to cancelled round";
+  if (type === "LOSS") return "Bet settled as lost";
+  return "Wallet balance updated";
 }
 
 function formatTransactionDate(value: string) {
@@ -96,11 +108,11 @@ function formatTransactionDate(value: string) {
 }
 
 function isCredit(type: string, before: string, after: string) {
-  if (type === "DEPOSIT" || type === "WIN") {
+  if (type === "DEPOSIT" || type === "WIN" || type === "BET_WIN_PAYOUT" || type === "BET_REFUND") {
     return true;
   }
 
-  if (type === "BET" || type === "LOSS") {
+  if (type === "BET" || type === "BET_PLACED" || type === "LOSS") {
     return false;
   }
 

@@ -315,6 +315,16 @@ export class GameRepository {
     });
   }
 
+  findLosingBetsForRound(roundId: string) {
+    return this.prisma.bet.findMany({
+      where: {
+        roundId,
+        status: BetStatus.LOST,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+  }
+
   async findPendingWinnerPayouts(
     roundId: string,
     result: PredictionColor,

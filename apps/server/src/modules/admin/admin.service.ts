@@ -59,6 +59,9 @@ const ACTIVE_ROUND_STATUSES = [
 ];
 
 type RefundWalletUpdate = {
+  betId: string;
+  roundId: string;
+  choice: "RED" | "GREEN" | "VIOLET";
   userId: string;
   amountCoins: number;
   wallet: Parameters<WalletService["publishWalletUpdate"]>[1];
@@ -352,6 +355,7 @@ export class AdminService {
               id: true,
               userId: true,
               coinsStaked: true,
+              choice: true,
             },
           },
         },
@@ -438,6 +442,7 @@ export class AdminService {
               id: true,
               userId: true,
               coinsStaked: true,
+              choice: true,
             },
           },
         },
@@ -1043,6 +1048,7 @@ export class AdminService {
         id: string;
         userId: string;
         coinsStaked: bigint;
+        choice: "RED" | "GREEN" | "VIOLET";
       }>;
     }>,
     adminUserId: string,
@@ -1092,6 +1098,9 @@ export class AdminService {
         if ("wallet" in refund && refund.wallet) {
           const { wallet, ledgerEntry } = refund;
           refunds.push({
+            betId: bet.id,
+            roundId: round.id,
+            choice: bet.choice,
             userId: bet.userId,
             amountCoins,
             wallet,
@@ -1109,6 +1118,20 @@ export class AdminService {
   ) {
     for (const refund of refunds) {
       this.walletService.publishWalletUpdate(refund.userId, refund.wallet, refund.ledgerEntry);
+      publishGameEvent("bet:settled", {
+        id: refund.betId,
+        betId: refund.betId,
+        userId: refund.userId,
+        roundId: refund.roundId,
+        choice: refund.choice,
+        result: null,
+        status: BetStatus.CANCELLED,
+        stake: String(refund.amountCoins),
+        coinsStaked: String(refund.amountCoins),
+        payoutAmount: "0",
+        netProfitLoss: "0",
+        settledAt: new Date().toISOString(),
+      });
     }
   }
 }

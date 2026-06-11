@@ -1,4 +1,12 @@
-export type WalletTransactionType = "DEPOSIT" | "BET" | "WIN" | "LOSS" | "ADMIN_ADJUSTMENT";
+export type WalletTransactionType =
+  | "DEPOSIT"
+  | "BET"
+  | "WIN"
+  | "LOSS"
+  | "BET_PLACED"
+  | "BET_WIN_PAYOUT"
+  | "BET_REFUND"
+  | "ADMIN_ADJUSTMENT";
 
 export type WalletStatus = "ACTIVE" | "FROZEN" | "CLOSED";
 

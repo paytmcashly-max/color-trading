@@ -34,9 +34,21 @@ test("initial sync and sensitive socket handlers require live-session authorizat
   }
 });
 
-function readFunctionBody(file: string, functionName: string) {
-  const start = file.indexOf(`async function ${functionName}`);
+test("bet settlement events are delivered only to the affected user and admins", () => {
+  const functionBody = readFunctionBody(source, "routeRealtimeEvent", false);
+  const settlementBranch = functionBody.slice(
+    functionBody.indexOf('event.name === "bet:settled"'),
+    functionBody.indexOf('event.name.startsWith("bet:")'),
+  );
+
+  assert.match(settlementBranch, /user:\$\{userId\}/);
+  assert.match(settlementBranch, /\.to\("admin"\)/);
+  assert.doesNotMatch(settlementBranch, /GLOBAL_GAME_ROOM/);
+});
+
+function readFunctionBody(file: string, functionName: string, async = true) {
+  const start = file.indexOf(`${async ? "async " : ""}function ${functionName}`);
   assert.notEqual(start, -1, `${functionName} must exist`);
-  const nextFunction = file.indexOf("\nasync function ", start + 1);
+  const nextFunction = file.indexOf(`\n${async ? "async " : ""}function `, start + 1);
   return file.slice(start, nextFunction === -1 ? file.length : nextFunction);
 }
