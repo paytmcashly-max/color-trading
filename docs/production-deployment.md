@@ -40,24 +40,25 @@ REDIS_URL=redis://...
 JWT_ACCESS_SECRET=replace-with-32-plus-character-access-secret
 JWT_REFRESH_SECRET=replace-with-different-32-plus-character-refresh-secret
 COOKIE_SECRET=replace-with-different-32-plus-character-cookie-secret
-CLIENT_URL=https://your-client.vercel.app
+ROUND_SEED_ENCRYPTION_KEY=replace-with-stable-different-32-plus-character-round-seed-key
 CLIENT_ORIGIN=https://your-client.vercel.app
 ALLOWED_ORIGINS=https://your-client.vercel.app
-SOCKET_CORS_ORIGIN=https://your-client.vercel.app
 SOCKET_ALLOWED_ORIGINS=https://your-client.vercel.app
 GAME_ENGINE_ENABLED=true
 ```
 
-Production startup fails if PostgreSQL, Redis, JWT secrets, `COOKIE_SECRET`, or
-configured origins are missing. `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET`
+Production startup fails if PostgreSQL, Redis, JWT secrets, `COOKIE_SECRET`,
+`ROUND_SEED_ENCRYPTION_KEY`, or configured origins are missing.
+`JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET`
 must be different values.
 
 Frontend:
 
 ```bash
-NEXT_PUBLIC_API_URL=https://your-api.onrender.com
+NEXT_PUBLIC_API_URL=
 NEXT_PUBLIC_API_BASE_PATH=/api/v1
 NEXT_PUBLIC_SOCKET_URL=https://your-api.onrender.com
+BACKEND_API_URL=https://your-api.onrender.com
 ```
 
 Use separate Vercel and Render environment groups for development, staging, and production. Never commit real secrets.
@@ -68,8 +69,8 @@ Use separate Vercel and Render environment groups for development, staging, and 
 2. In Render, create a Blueprint from `render.yaml`.
 3. Set the `sync: false` secrets in the dashboard:
    `DATABASE_URL`, `REDIS_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`,
-   `COOKIE_SECRET`, `CLIENT_URL`, `CLIENT_ORIGIN`, `ALLOWED_ORIGINS`,
-   `SOCKET_CORS_ORIGIN`, `SOCKET_ALLOWED_ORIGINS`.
+   `COOKIE_SECRET`, `CLIENT_ORIGIN`, `ALLOWED_ORIGINS`, and
+   `SOCKET_ALLOWED_ORIGINS`.
 4. Create a deploy hook for `color-trading-api`.
 5. Save the hook as GitHub secret `RENDER_DEPLOY_HOOK_URL`.
 6. Push to `main`; GitHub Actions verifies the app and triggers Render.
@@ -168,8 +169,8 @@ Recommended production additions:
 - [ ] `REDIS_URL` points to managed Redis or Upstash
 - [ ] `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, and `COOKIE_SECRET` are unique non-placeholder values
 - [ ] `ALLOWED_ORIGINS` and `SOCKET_ALLOWED_ORIGINS` equal the production Vercel URL
-- [ ] `SOCKET_CORS_ORIGIN` equals the production Vercel URL
-- [ ] `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_SOCKET_URL` point to Render
+- [ ] `SOCKET_ALLOWED_ORIGINS` equals the production Vercel URL
+- [ ] `NEXT_PUBLIC_API_URL` is empty, `BACKEND_API_URL` points to Render, and `NEXT_PUBLIC_SOCKET_URL` points to Render
 - [ ] PostgreSQL schema migration process defined before first launch
 - [ ] Render health check passes on `/health`
 - [ ] Minimum 2 backend instances configured

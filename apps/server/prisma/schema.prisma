@@ -292,12 +292,25 @@ model GameRound {
 
   bets       Bet[]
   settlement RoundSettlement?
+  secret     GameRoundSecret?
 
   @@index([status, startTime])
   @@index([startTime])
   @@index([lockTime])
   @@index([endTime])
   @@map("game_rounds")
+}
+
+model GameRoundSecret {
+  roundId             String    @id @map("round_id") @db.Uuid
+  seedRevealEncrypted String    @map("seed_reveal_encrypted") @db.Text
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  revealedAt          DateTime? @map("revealed_at") @db.Timestamptz(6)
+
+  round GameRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@index([revealedAt])
+  @@map("game_round_secrets")
 }
 
 model RoundSettlement {

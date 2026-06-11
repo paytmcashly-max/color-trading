@@ -6,7 +6,7 @@ services:
     dockerfilePath: ./apps/server/Dockerfile
     dockerContext: .
     preDeployCommand: node apps/server/scripts/apply-schema.mjs
-    healthCheckPath: /health
+    healthCheckPath: /health/ready
     autoDeploy: false
     envVars:
       - key: NODE_ENV
@@ -23,13 +23,11 @@ services:
         sync: false
       - key: COOKIE_SECRET
         sync: false
-      - key: CLIENT_URL
+      - key: ROUND_SEED_ENCRYPTION_KEY
         sync: false
       - key: CLIENT_ORIGIN
         sync: false
       - key: ALLOWED_ORIGINS
-        sync: false
-      - key: SOCKET_CORS_ORIGIN
         sync: false
       - key: SOCKET_ALLOWED_ORIGINS
         sync: false
@@ -49,6 +47,14 @@ services:
         value: color-trading-client
       - key: GAME_ENGINE_ENABLED
         value: "true"
+      - key: GAME_ROUND_DURATION_SECONDS
+        value: "60"
+      - key: GAME_BETTING_DURATION_SECONDS
+        value: "45"
+      - key: GAME_SCHEDULER_TICK_MS
+        value: "1000"
+      - key: GAME_ROUND_LOCK_TTL_MS
+        value: "5000"
       - key: GAME_MAX_BET_PER_USER_PER_ROUND
         value: "1000"
       - key: GAME_MAX_EXPOSURE_PER_COLOR

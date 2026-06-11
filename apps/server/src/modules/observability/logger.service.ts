@@ -1,5 +1,7 @@
 import { LogLevel, type Prisma, type PrismaClient } from "@prisma/client";
 
+import { sanitizeLogMetadata } from "../../common/utils/logger.js";
+
 interface QueuedLog {
   level: LogLevel;
   message: string;
@@ -42,7 +44,7 @@ export class LoggerService {
     this.queue.push({
       level: toPrismaLogLevel(input.level),
       message: input.message.slice(0, 240),
-      metadata: input.metadata ? toJsonObject(input.metadata) : undefined,
+      metadata: input.metadata ? toJsonObject(sanitizeLogMetadata(input.metadata)) : undefined,
       createdAt: input.timestamp ? new Date(input.timestamp) : new Date(),
     });
 

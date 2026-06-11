@@ -1,5 +1,7 @@
 import type { Request } from "express";
 
+import { HttpError } from "../errors/http-error.js";
+
 export interface PaginationInput {
   limit: number;
   cursor?: string;
@@ -8,6 +10,7 @@ export interface PaginationInput {
 export interface PageInfo {
   limit: number;
   nextCursor: string | null;
+  hasMore: boolean;
 }
 
 const DEFAULT_LIMIT = 50;
@@ -17,13 +20,19 @@ export function readPagination(req: Request, defaultLimit = DEFAULT_LIMIT): Pagi
   const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
   const rawCursor = Array.isArray(req.query.cursor) ? req.query.cursor[0] : req.query.cursor;
   const parsedLimit = typeof rawLimit === "string" ? Number(rawLimit) : defaultLimit;
-  const limit = Number.isSafeInteger(parsedLimit)
-    ? Math.min(Math.max(parsedLimit, 1), MAX_LIMIT)
-    : defaultLimit;
+  const cursor = typeof rawCursor === "string" && rawCursor.trim() ? rawCursor.trim() : undefined;
+
+  if (!Number.isSafeInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > MAX_LIMIT) {
+    throw new HttpError(400, "INVALID_PAGINATION_LIMIT", `limit must be an integer between 1 and ${MAX_LIMIT}.`);
+  }
+
+  if (cursor && !decodeCreatedAtIdCursor(cursor)) {
+    throw new HttpError(400, "INVALID_PAGINATION_CURSOR", "Pagination cursor is invalid.");
+  }
 
   return {
-    limit,
-    cursor: typeof rawCursor === "string" && rawCursor.trim() ? rawCursor.trim() : undefined,
+    limit: parsedLimit,
+    cursor,
   };
 }
 
@@ -40,6 +49,7 @@ export function pageInfo<TItem>(
     pageInfo: {
       limit,
       nextCursor: items.length > limit && lastVisibleItem ? cursorOf(lastVisibleItem) : null,
+      hasMore: items.length > limit,
     },
   };
 }

@@ -1,118 +1,26 @@
-# Wallet Module
+# Wallet Rules
 
-This module owns the virtual coin economy. It does not implement game rules.
+- The wallet snapshot contains `depositBalance` and `winningBalance`; total
+  balance is derived and never stored.
+- Every mutation is represented by one immutable, idempotent `coin_ledger`
+  entry in the same database transaction as the snapshot update.
+- Credits from game wins go to `winningBalance`. Other approved credits go to
+  `depositBalance`.
+- Bet and admin debits consume `depositBalance` first, then
+  `winningBalance`. A debit that would make either effective total negative is
+  rejected.
+- Cancelled-bet refunds currently return to `depositBalance` because historical
+  per-bet source allocation is not stored. Source-preserving refunds remain a
+  future schema enhancement.
+- Direct HTTP wallet mutations are not exposed. Manual changes use only
+  `POST /api/v1/admin/wallet/:userId/adjust`.
 
-## Folder Structure
+Run the read-only reconciliation operation with:
 
-```text
-modules/wallet/
-  dto/
-    wallet.dto.ts
-  wallet.controller.ts
-  wallet.repository.ts
-  wallet.routes.ts
-  wallet.serializer.ts
-  wallet.service.ts
+```bash
+npm run ops:wallet-reconcile -w @color-trading/server
 ```
 
-## Service API
-
-- `getWalletBalance(userId)`
-- `creditCoins(userId, amountCoins, referenceId, idempotencyKey)`
-- `debitCoins(userId, amountCoins, referenceId, idempotencyKey)`
-- `creditBetWinnings(userId, amountCoins, referenceId, idempotencyKey)`
-- `adminAdjustCoins(userId, amountCoins, direction, referenceId, idempotencyKey)`
-- `getLedgerHistory(userId)`
-
-## HTTP Endpoints
-
-All wallet endpoints require `Authorization: Bearer <accessToken>`.
-
-### GET /api/v1/wallet/balance
-
-Response:
-
-```json
-{
-  "wallet": {
-    "id": "uuid",
-    "userId": "uuid",
-    "depositBalance": "1000",
-    "winningBalance": "0",
-    "totalBalance": "1000",
-    "ledgerVersion": "4",
-    "status": "ACTIVE",
-    "createdAt": "2026-06-09T00:00:00.000Z",
-    "updatedAt": "2026-06-09T00:00:00.000Z"
-  }
-}
-```
-
-### GET /api/v1/wallet/ledger?limit=50&cursor=<nextCursor>
-
-Response:
-
-```json
-{
-  "entries": [
-    {
-      "id": "uuid",
-      "type": "BET_DEBIT",
-      "direction": "DEBIT",
-      "amountCoins": "100",
-      "balanceAfterCoins": "900",
-      "status": "SUCCESS",
-      "idempotencyKey": "bet:user:round:v1"
-    }
-  ],
-  "pageInfo": {
-    "limit": 50,
-    "nextCursor": null
-  }
-}
-```
-
-### POST /api/v1/admin/wallet/:userId/adjust
-
-Requires `ADMIN` role and verified admin email.
-
-```json
-{
-  "amountCoins": 250,
-  "direction": "CREDIT",
-  "referenceId": "00000000-0000-0000-0000-000000000003",
-  "idempotencyKey": "admin:user:ticket:123"
-}
-```
-
-This is the only HTTP endpoint allowed to mutate wallets administratively.
-Credits go to `depositBalance`. Debits consume `depositBalance` first, then
-`winningBalance`. The adjustment ledger entry and audit record commit in one
-serializable transaction and share the request idempotency key.
-
-## Transaction Flow
-
-Example: user places a future bet.
-
-1. Auth guard resolves the user.
-2. `WalletService.debitCoins()` receives amount, reference id, and idempotency key.
-3. Repository starts a PostgreSQL transaction with `Serializable` isolation.
-4. Wallet row is created if missing, then locked with `SELECT ... FOR UPDATE`.
-5. Existing `coin_ledger.idempotency_key` is checked to prevent replay.
-6. If balance is sufficient:
-   - Insert immutable `coin_ledger` row with `BET_DEBIT` and `SUCCESS`.
-   - Update wallet snapshot balance and increment `ledger_version`.
-   - Commit.
-7. If balance is insufficient:
-   - Insert immutable `coin_ledger` row with `BET_DEBIT` and `FAILED`.
-   - Do not update wallet snapshot.
-   - Commit, then return `409 INSUFFICIENT_FUNDS`.
-
-## Concurrency Safety
-
-- Wallet mutations run inside a single database transaction.
-- `SELECT ... FOR UPDATE` serializes simultaneous operations for the same wallet.
-- `coin_ledger.idempotency_key` is unique and catches retry races.
-- Wallet snapshot is updated only after a ledger entry is inserted.
-- Ledger rows are insert-only. They are never updated to change meaning after creation.
-- Coin values are stored as database `BigInt`; API responses serialize them as strings to avoid JSON precision loss.
+It compares each wallet snapshot total with successful ledger credits minus
+debits, prints mismatches, changes no data, and exits with code `2` when a
+mismatch is found.

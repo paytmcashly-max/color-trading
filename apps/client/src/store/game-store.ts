@@ -14,6 +14,7 @@ type EventName =
   | "round:locked"
   | "round:result"
   | "round:completed"
+  | "round:cancelled"
   | "bet:placed"
   | "bet:settled"
   | "wallet:update"
@@ -30,6 +31,7 @@ interface GameState {
   recentResults: Array<Pick<RoundDto, "id" | "roundNumber" | "result">>;
   timerRemainingSeconds: number;
   lastResult: string | null;
+  lastCancellation: { roundId: string; reason: string | null } | null;
   lastError: string | null;
   lastSocketHealthAt: string | null;
   setSocketConnected: (connected: boolean) => void;
@@ -48,6 +50,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   recentResults: [],
   timerRemainingSeconds: 0,
   lastResult: null,
+  lastCancellation: null,
   lastError: null,
   lastSocketHealthAt: null,
   setSocketConnected: (connected) => set({ socketConnected: connected }),
@@ -69,11 +72,24 @@ export const useGameStore = create<GameState>((set, get) => ({
         name === "round:state" ||
         name === "round:lock" ||
         name === "round:locked" ||
-        name === "round:completed") &&
+        name === "round:completed" ||
+        name === "round:cancelled") &&
       isRecord(payload) &&
       isRound(payload.round)
     ) {
-      set({ currentRound: payload.round });
+      const cancelled = isCancelledRound(payload.round);
+      set({
+        currentRound: payload.round,
+        lastResult: cancelled ? null : get().lastResult,
+        lastCancellation: cancelled
+          ? {
+              roundId: payload.round.id,
+              reason: typeof payload.reason === "string" ? payload.reason : null,
+            }
+          : name === "round:created"
+            ? null
+            : get().lastCancellation,
+      });
       if (typeof payload.remainingSeconds === "number") {
         set({ timerRemainingSeconds: payload.remainingSeconds });
       }
@@ -94,6 +110,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({
         currentRound: payload.round,
         lastResult: payload.round.result,
+        lastCancellation: null,
         recentResults: prependResult(get().recentResults, payload.round),
       });
       return;
@@ -190,6 +207,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isRound(value: unknown): value is RoundDto {
   return isRecord(value) && typeof value.id === "string" && typeof value.status === "string";
+}
+
+function isCancelledRound(round: RoundDto) {
+  return round.dbStatus === "CANCELLED" || round.status === "CANCELLED";
 }
 
 function isWallet(value: unknown): value is WalletDto {

@@ -1,5 +1,5 @@
 import { RoundStatus, type Bet, type GameRound } from "@prisma/client";
-import type { RoundEngineStatus } from "@color-trading/shared";
+import type { RoundEngineStatus, RoundLifecycleStatus } from "@color-trading/shared";
 
 export function serializeRound(round: GameRound) {
   const lifecycleStatus = toRealtimeRoundStatus(round.status);
@@ -47,7 +47,7 @@ function toRoundEngineStatus(status: RoundStatus): RoundEngineStatus {
   }
 }
 
-function toRealtimeRoundStatus(status: RoundStatus) {
+function toRealtimeRoundStatus(status: RoundStatus): RoundLifecycleStatus {
   switch (status) {
     case RoundStatus.INIT:
       return "BETTING_OPEN";

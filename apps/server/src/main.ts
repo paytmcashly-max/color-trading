@@ -12,7 +12,7 @@ async function bootstrap() {
   const httpServer = http.createServer(app);
 
   startObservability();
-  createSocketServer(httpServer);
+  await createSocketServer(httpServer);
   startGameEngine();
 
   httpServer.listen(env.PORT, () => {

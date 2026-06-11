@@ -32,7 +32,7 @@ import {
   subscribeToRealtimeEvents,
   type RealtimeEvent,
 } from "./socket.events.js";
-import { revalidateSocketSession } from "./socket.session.js";
+import { authorizeSocketSession } from "./socket.session.js";
 
 const SOCKET_RATE_LIMIT_WINDOW_MS = 10_000;
 const SOCKET_RATE_LIMIT_MAX_EVENTS = 40;
@@ -44,7 +44,7 @@ const prisma = getPrismaClient();
 const walletService = new WalletService(new WalletRepository(prisma));
 const betService = new BetService(new BetRepository(prisma), walletService);
 
-export function createSocketServer(httpServer: HttpServer) {
+export async function createSocketServer(httpServer: HttpServer) {
   const io = new Server(httpServer, {
     cors: {
       origin: env.SOCKET_ALLOWED_ORIGINS,
@@ -71,29 +71,39 @@ export function createSocketServer(httpServer: HttpServer) {
     routeRealtimeEvent(io, event);
   });
 
-  configureRedisAdapter(io).catch((error: unknown) => {
-    publishRealtimeEvent("system:error", {
-      code: "SOCKET_REDIS_ADAPTER_FAILED",
-      message: "Socket.io Redis adapter failed to initialize.",
-    });
-    logger.warn("socket_redis_adapter_disabled", { error });
-  });
-
-  initializeRealtimeEventBus().catch((error: unknown) => {
-    publishRealtimeEvent("system:error", {
-      code: "REALTIME_EVENT_BUS_FAILED",
-      message: "Realtime Redis event bus failed to initialize.",
-    });
-    logger.warn("realtime_event_bus_failed", { error });
-  });
+  await initializeRedisRealtime(io);
 
   return io;
+}
+
+async function initializeRedisRealtime(io: Server) {
+  try {
+    await configureRedisAdapter(io);
+    await initializeRealtimeEventBus();
+  } catch (error) {
+    publishRealtimeEvent("system:error", {
+      code: "REALTIME_REDIS_INITIALIZATION_FAILED",
+      message: "Realtime Redis dependencies failed to initialize.",
+    });
+
+    if (env.NODE_ENV === "production" || env.NODE_ENV === "staging") {
+      logger.error("realtime_redis_initialization_failed", { error });
+      throw error;
+    }
+
+    logger.warn("realtime_redis_local_fallback_enabled", { error });
+  }
 }
 
 async function handleConnection(socket: Socket) {
   installRateLimit(socket);
 
   const user = getSocketUser(socket);
+
+  if (!(await authorizeSensitiveSocketEvent(socket))) {
+    return;
+  }
+
   socket.join(`user:${user.userId}`);
   socket.join(GLOBAL_GAME_ROOM);
   socket.join("system");
@@ -192,6 +202,10 @@ async function handleConnection(socket: Socket) {
 }
 
 async function syncLatestState(socket: Socket) {
+  if (!(await authorizeSensitiveSocketEvent(socket))) {
+    return;
+  }
+
   const user = getSocketUser(socket);
   const snapshot = await buildStateSnapshot(user.userId);
 
@@ -433,6 +447,10 @@ function routeRealtimeEvent(io: Server, event: RealtimeEvent) {
       );
     }
 
+    if (event.name === "round:cancelled") {
+      io.to(GLOBAL_GAME_ROOM).emit("round_cancelled", event.payload);
+    }
+
     return;
   }
 
@@ -599,20 +617,21 @@ async function authorizeSensitiveSocketEvent(
   socket: Socket,
   ack?: (response: unknown) => void,
 ) {
-  const active = await revalidateSocketSession(
+  const active = await authorizeSocketSession(
     prisma,
     getSocketUser(socket),
-    () => socket.disconnect(true),
+    () => {
+      const response = {
+        code: "SESSION_REVOKED",
+        message: "Socket session is no longer active.",
+      };
+      socket.emit("system:error", response);
+      ack?.({ ok: false, error: response.code, message: response.message });
+    },
+    () => {
+      socket.disconnect(true);
+    },
   );
-
-  if (!active) {
-    const response = {
-      code: "SESSION_REVOKED",
-      message: "Socket session is no longer active.",
-    };
-    socket.emit("system:error", response);
-    ack?.({ ok: false, error: response.code, message: response.message });
-  }
 
   return active;
 }

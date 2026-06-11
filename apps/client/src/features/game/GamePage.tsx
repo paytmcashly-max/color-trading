@@ -59,6 +59,7 @@ export function GamePage({ title = "Fast Parity" }: { title?: string } = {}) {
   const timer = useGameStore((state) => state.timerRemainingSeconds);
   const activeBets = useGameStore((state) => state.activeBets);
   const lastResult = useGameStore((state) => state.lastResult);
+  const lastCancellation = useGameStore((state) => state.lastCancellation);
   const recentResults = useGameStore((state) => state.recentResults);
   const setRound = useGameStore((state) => state.setRound);
   const setWallet = useGameStore((state) => state.setWallet);
@@ -125,7 +126,8 @@ export function GamePage({ title = "Fast Parity" }: { title?: string } = {}) {
 
     return dedupeBets([...socketBets, ...historyBets]);
   }, [activeBets, currentRound, myBetsQuery.data?.bets, userId]);
-  const roundResult = currentRound?.result ?? lastResult;
+  const roundCancelled = currentRound?.dbStatus === "CANCELLED" || currentRound?.status === "CANCELLED";
+  const roundResult = roundCancelled ? null : currentRound?.result ?? lastResult;
   const outcome = getOutcome(roundResult, currentBets);
   const roundHistory = roundHistoryQuery.data?.rounds ?? [];
   const latestBets = currentRound
@@ -205,6 +207,15 @@ export function GamePage({ title = "Fast Parity" }: { title?: string } = {}) {
             </div>
           </div>
         </section>
+
+        {roundCancelled ? (
+          <section className="rounded-2xl border border-[#f1c1c1] bg-[#fff7f7] px-3 py-2 text-sm font-black text-[#8d1f1f]">
+            Round cancelled. Predictions were refunded.
+            {lastCancellation?.roundId === currentRound?.id && lastCancellation.reason
+              ? ` ${lastCancellation.reason}`
+              : ""}
+          </section>
+        ) : null}
 
         <section className="grid gap-2 rounded-3xl border border-line bg-white p-3 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
           <div className="flex items-center justify-between">
@@ -647,6 +658,10 @@ function getOutcome(
 function statusLabel(round: RoundDto | null) {
   if (!round) {
     return "Syncing round";
+  }
+
+  if (round.dbStatus === "CANCELLED" || round.status === "CANCELLED") {
+    return "Round cancelled";
   }
 
   if (round.result || round.phase === "RESULT_DECLARED") {

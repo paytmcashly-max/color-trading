@@ -15,6 +15,7 @@ export type RealtimeEventName =
   | "round:locked"
   | "round:result"
   | "round:completed"
+  | "round:cancelled"
   | "round:settlement"
   | "bet:placed"
   | "bet:settled"

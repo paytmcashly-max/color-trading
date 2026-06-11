@@ -39,6 +39,21 @@ export function clearActiveSocket(socket: Socket) {
   }
 }
 
+export function reconnectSocketWithToken(socket: Socket, accessToken: string) {
+  socket.io.opts.reconnection = false;
+  socket.disconnect();
+  socket.auth = { token: accessToken };
+  socket.io.opts.reconnection = true;
+  activeSocket = socket;
+  socket.connect();
+}
+
+export function disposeSocket(socket: Socket) {
+  clearActiveSocket(socket);
+  socket.removeAllListeners();
+  socket.disconnect();
+}
+
 export function joinGameRoomOverSocket() {
   const socket = getActiveSocket();
 

@@ -54,6 +54,14 @@ Round:
 - `round:locked`
 - `round:result`
 - `round:completed`
+- `round:cancelled`
+
+`round:completed` is emitted only after normal result settlement. An
+administrator-stopped round emits `round:cancelled`, followed by `round:update`
+and `round:state` carrying `dbStatus: CANCELLED`. The cancellation payload
+includes its reason and refund summary; the admin actor id remains available in
+the protected audit/admin response and is not broadcast publicly. Clients must
+not display winner/result animations for a cancellation.
 
 User:
 - `bet:placed`

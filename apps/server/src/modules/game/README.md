@@ -26,16 +26,21 @@ modules/game/
 
 ## Lifecycle
 
-Rounds move through:
+Rounds move through the normal lifecycle:
 
 ```text
 INIT -> OPEN -> LOCKED -> RESOLVING -> COMPLETED
 ```
 
+An administrator may stop any active lifecycle state and transition it directly
+to `CANCELLED`. A cancelled round refunds and cancels pending bets and never
+emits the normal completion event.
+
 - `OPEN`: betting accepted until `lock_time` at 45 seconds.
 - `LOCKED`: no more bets until `end_time` at 60 seconds.
 - `RESOLVING`: secure RNG result is stored, bets are settled, wallets are credited through ledger.
 - `COMPLETED`: result has been broadcast and persisted.
+- `CANCELLED`: admin-stopped round; pending bets are cancelled and refunded.
 
 ## Redis Lock
 
@@ -75,12 +80,18 @@ If wallet debit fails, the bet is marked `CANCELLED`.
 - `round:locked`
 - `bet:placed`
 - `round:result`
+- `round:completed` for normally settled rounds
+- `round:cancelled` for admin-stopped/refunded rounds
+- `round:update` and `round:state` for every terminal state change
 - `wallet:update`
 
 Socket.io uses Redis Pub/Sub via `@socket.io/redis-adapter` when `REDIS_URL` is configured.
 
-Rounds store `seed_hash` when created. The private seed reveal is kept in Redis
-and saved to PostgreSQL only when the round is resolving or completed.
+Rounds store `seed_hash` and an AES-GCM encrypted durable reveal in
+`game_round_secrets` within the same database transaction. Production requires
+a stable `ROUND_SEED_ENCRYPTION_KEY`; Redis/local storage is only a best-effort
+cache. The public `seed_reveal` field remains null until the round is completed
+or cancelled.
 
 ## Risk Limits
 

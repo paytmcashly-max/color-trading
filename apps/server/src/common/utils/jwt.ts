@@ -91,3 +91,32 @@ export function verifyRefreshToken(token: string): RefreshTokenPayload {
     throw new HttpError(401, "INVALID_REFRESH_TOKEN", "Invalid or expired refresh token.");
   }
 }
+
+export function readExpiredVerifiedRefreshToken(token: string): RefreshTokenPayload | null {
+  try {
+    const payload = jwt.verify(token, env.JWT_REFRESH_SECRET, {
+      algorithms: ["HS256"],
+      issuer: env.JWT_ISSUER,
+      audience: env.JWT_AUDIENCE,
+      ignoreExpiration: true,
+    }) as jwt.JwtPayload;
+
+    if (
+      typeof payload.sub !== "string" ||
+      typeof payload.sessionId !== "string" ||
+      payload.tokenType !== "refresh" ||
+      typeof payload.exp !== "number" ||
+      payload.exp > Math.floor(Date.now() / 1000)
+    ) {
+      return null;
+    }
+
+    return {
+      sub: payload.sub,
+      sessionId: payload.sessionId,
+      tokenType: "refresh",
+    };
+  } catch {
+    return null;
+  }
+}

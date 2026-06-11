@@ -9,6 +9,10 @@ import {
 } from "@prisma/client";
 
 import { createdAtIdDescWhere, type PaginationInput } from "../../../common/utils/pagination.js";
+import {
+  decryptRoundSeedReveal,
+  encryptRoundSeedReveal,
+} from "../services/round-secret.crypto.js";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -27,6 +31,7 @@ interface RoundCreateInput {
   lockTime: Date;
   endTime: Date;
   seedHash: string;
+  seedReveal: string;
 }
 
 interface PendingBetInput {
@@ -76,8 +81,8 @@ export class GameRepository {
     });
   }
 
-  createRound(tx: TxClient, input: RoundCreateInput) {
-    return tx.gameRound.create({
+  async createRound(tx: TxClient, input: RoundCreateInput) {
+    const round = await tx.gameRound.create({
       data: {
         roundNumber: input.roundNumber,
         startTime: input.startTime,
@@ -85,6 +90,36 @@ export class GameRepository {
         endTime: input.endTime,
         status: RoundStatus.INIT,
         seedHash: input.seedHash,
+      },
+    });
+
+    await tx.gameRoundSecret.create({
+      data: {
+        roundId: round.id,
+        seedRevealEncrypted: encryptRoundSeedReveal(input.seedReveal),
+      },
+    });
+
+    return round;
+  }
+
+  async findDurableRoundSeedReveal(roundId: string) {
+    const secret = await this.prisma.gameRoundSecret.findUnique({
+      where: { roundId },
+      select: { seedRevealEncrypted: true },
+    });
+
+    return secret ? decryptRoundSeedReveal(secret.seedRevealEncrypted) : null;
+  }
+
+  markRoundSeedRevealed(roundId: string) {
+    return this.prisma.gameRoundSecret.updateMany({
+      where: {
+        roundId,
+        revealedAt: null,
+      },
+      data: {
+        revealedAt: new Date(),
       },
     });
   }

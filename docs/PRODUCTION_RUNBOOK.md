@@ -17,17 +17,19 @@ JWT_REFRESH_SECRET=<different-unique-random-secret-at-least-32-characters>
 JWT_ACCESS_TOKEN_TTL=15m
 JWT_REFRESH_TOKEN_TTL=7d
 COOKIE_SECRET=<different-unique-random-secret-at-least-32-characters>
+ROUND_SEED_ENCRYPTION_KEY=<stable-unique-random-secret-at-least-32-characters>
 CLIENT_ORIGIN=https://your-client.vercel.app
 ALLOWED_ORIGINS=https://your-client.vercel.app
 SOCKET_ALLOWED_ORIGINS=https://your-client.vercel.app
-SOCKET_CORS_ORIGIN=https://your-client.vercel.app
 API_PREFIX=/api/v1
 GAME_ENGINE_ENABLED=true
 ```
 
-`JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, and `COOKIE_SECRET` must be unique.
+`JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `COOKIE_SECRET`, and
+`ROUND_SEED_ENCRYPTION_KEY` must be unique. Keep the round seed key stable across
+deploys so active and historical durable seed records remain decryptable.
 Production startup fails when PostgreSQL, Redis, JWT secrets, `COOKIE_SECRET`,
-or explicit HTTP/socket origin allow-lists are missing. `API_PREFIX` is
+`ROUND_SEED_ENCRYPTION_KEY`, or explicit HTTP/socket origin allow-lists are missing. `API_PREFIX` is
 validated as `/api/v1`; the server does not expose duplicate root, `/api`, or
 `/v1` module routes.
 
@@ -51,7 +53,6 @@ Configure these values in Vercel:
 NEXT_PUBLIC_API_URL=
 NEXT_PUBLIC_API_BASE_PATH=/api/v1
 NEXT_PUBLIC_SOCKET_URL=https://your-api.onrender.com
-NEXT_PUBLIC_APP_ENV=production
 BACKEND_API_URL=https://your-api.onrender.com
 ```
 
@@ -139,7 +140,8 @@ npm test
 npm run db:validate -w @color-trading/server
 ```
 
-Verify production:
+Verify production. Render should use `/health/ready` as the external health
+check and containers should use `/health/live` for liveness:
 
 - `GET /health/live` returns `200`.
 - `GET /health/ready` returns `200` with healthy PostgreSQL and Redis.

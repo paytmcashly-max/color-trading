@@ -11,9 +11,16 @@ test("admin round serializer hides seedReveal before terminal status", () => {
 });
 
 test("admin round serializer exposes seedReveal after cancellation", () => {
-  const serialized = serializeAdminRound({ ...buildRound(RoundStatus.CANCELLED), _count: { bets: 0 } });
+  const serialized = serializeAdminRound(
+    { ...buildRound(RoundStatus.CANCELLED), _count: { bets: 0 } },
+    { reason: "Emergency operational stop", actorId: "admin-1" },
+  );
 
   assert.equal(serialized.seedReveal, "secret-seed");
+  assert.deepEqual(serialized.cancellation, {
+    reason: "Emergency operational stop",
+    actorId: "admin-1",
+  });
 });
 
 function buildRound(status: RoundStatus): GameRound {

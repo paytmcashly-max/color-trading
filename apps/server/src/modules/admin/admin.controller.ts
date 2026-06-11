@@ -13,7 +13,7 @@ export class AdminController {
   };
 
   users = async (req: Request, res: Response) => {
-    const users = await this.adminService.listUsers(readStringQuery(req.query.q));
+    const users = await this.adminService.listUsers(readStringQuery(req.query.q), readPagination(req));
     res.status(200).json(users);
   };
 
@@ -27,8 +27,8 @@ export class AdminController {
     res.status(200).json(result);
   };
 
-  rounds = async (_req: Request, res: Response) => {
-    const result = await this.adminService.listRounds();
+  rounds = async (req: Request, res: Response) => {
+    const result = await this.adminService.listRounds(readPagination(req));
     res.status(200).json(result);
   };
 
@@ -96,8 +96,8 @@ export class AdminController {
     res.status(200).json(result);
   };
 
-  auditLogs = async (_req: Request, res: Response) => {
-    const result = await this.adminService.listAuditLogs();
+  auditLogs = async (req: Request, res: Response) => {
+    const result = await this.adminService.listAuditLogs(readPagination(req));
     res.status(200).json(result);
   };
 

@@ -48,6 +48,10 @@ export function serializeAdminRound(
   round: Pick<GameRound, "id" | "roundNumber" | "startTime" | "lockTime" | "endTime" | "status" | "result" | "seedHash" | "seedReveal" | "createdAt" | "updatedAt"> & {
     _count?: { bets: number };
   },
+  cancellation?: {
+    reason: string | null;
+    actorId: string | null;
+  },
 ) {
   return {
     id: round.id,
@@ -62,6 +66,12 @@ export function serializeAdminRound(
     createdAt: round.createdAt.toISOString(),
     updatedAt: round.updatedAt.toISOString(),
     betCount: round._count?.bets ?? 0,
+    cancellation: round.status === RoundStatus.CANCELLED
+      ? {
+          reason: cancellation?.reason ?? null,
+          actorId: cancellation?.actorId ?? null,
+        }
+      : null,
   };
 }
 

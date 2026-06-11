@@ -22,7 +22,7 @@ export const gameModules: GameModule[] = [
       glow: "shadow-[0_14px_34px_rgba(22,135,79,0.12)]",
     },
     route: "/game/color-prediction",
-    socketEvents: ["round:state", "round:timer", "round:lock", "round:result", "wallet:update", "bet:placed"],
+    socketEvents: ["round:state", "round:timer", "round:lock", "round:result", "round:cancelled", "wallet:update", "bet:placed"],
     stateManager: "game-store",
     renderUI: () => <GamePage title="Fast Parity" />,
   },

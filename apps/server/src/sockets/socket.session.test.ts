@@ -4,7 +4,7 @@ import { test } from "node:test";
 setRequiredEnv();
 
 const { HttpError } = await import("../common/errors/http-error.js");
-const { assertSocketSessionActive, revalidateSocketSession } = await import("./socket.session.js");
+const { assertSocketSessionActive, authorizeSocketSession, revalidateSocketSession } = await import("./socket.session.js");
 
 const user = {
   userId: "user-1",
@@ -39,6 +39,19 @@ test("sensitive socket revalidation disconnects a revoked session", async () => 
 
   assert.equal(active, false);
   assert.equal(disconnected, true);
+});
+
+test("revoked socket session is notified before disconnect", async () => {
+  const calls: string[] = [];
+  const active = await authorizeSocketSession(
+    createPrisma(null),
+    user,
+    () => calls.push("SESSION_REVOKED"),
+    () => calls.push("disconnect"),
+  );
+
+  assert.equal(active, false);
+  assert.deepEqual(calls, ["SESSION_REVOKED", "disconnect"]);
 });
 
 function createPrisma(result: unknown) {

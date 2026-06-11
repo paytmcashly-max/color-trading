@@ -23,4 +23,12 @@ export class ResultService {
 
     return color;
   }
+
+  seedHashMatches(seedReveal: string, seedHash: string) {
+    const actualHash = crypto.createHash("sha256").update(seedReveal).digest("hex");
+    const actual = Buffer.from(actualHash, "hex");
+    const expected = Buffer.from(seedHash, "hex");
+
+    return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+  }
 }

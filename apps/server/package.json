@@ -13,6 +13,7 @@
     "db:seed:admin": "node scripts/seed-admin.mjs",
     "db:disable-admin-bootstrap": "node scripts/disable-admin-bootstrap.mjs",
     "ops:bootstrap-admin": "npm run db:seed:admin",
+    "ops:wallet-reconcile": "node scripts/wallet-reconcile.mjs",
     "start": "node dist/main.js",
     "start:production": "node scripts/start-production.mjs",
     "test": "tsx --test \"src/**/*.test.ts\" \"scripts/**/*.test.mjs\"",

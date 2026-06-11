@@ -1,20 +1,23 @@
-import { HttpError } from "../../../common/errors/http-error.js";
-import { env } from "../../../config/env.js";
+import { logger } from "../../../common/utils/logger.js";
 import { getRedisClient } from "../../../database/redis.client.js";
 import { ROUND_DURATION_MS } from "../game.constants.js";
+import type { Redis } from "ioredis";
 
 const localSeedVault = new Map<string, { seedReveal: string; expiresAt: number }>();
 
-export async function storeRoundSeedReveal(roundId: string, seedReveal: string) {
-  const redis = getRedisClient();
+export async function storeRoundSeedReveal(
+  roundId: string,
+  seedReveal: string,
+  redis: Redis | null = getRedisClient(),
+) {
 
   if (redis) {
-    await redis.set(seedKey(roundId), seedReveal, "PX", ROUND_DURATION_MS * 2);
-    return;
-  }
-
-  if (env.NODE_ENV === "production") {
-    throw new HttpError(503, "ROUND_SEED_STORE_UNAVAILABLE", "Redis is required to store round seeds in production.");
+    try {
+      await redis.set(seedKey(roundId), seedReveal, "PX", ROUND_DURATION_MS * 2);
+      return;
+    } catch (error) {
+      logger.warn("round_seed_cache_write_failed", { error, roundId });
+    }
   }
 
   sweepExpiredLocalSeeds();
@@ -24,11 +27,20 @@ export async function storeRoundSeedReveal(roundId: string, seedReveal: string) 
   });
 }
 
-export async function readRoundSeedReveal(roundId: string) {
-  const redis = getRedisClient();
+export async function readRoundSeedReveal(
+  roundId: string,
+  redis: Redis | null = getRedisClient(),
+) {
 
   if (redis) {
-    return redis.get(seedKey(roundId));
+    try {
+      const cached = await redis.get(seedKey(roundId));
+      if (cached) {
+        return cached;
+      }
+    } catch (error) {
+      logger.warn("round_seed_cache_read_failed", { error, roundId });
+    }
   }
 
   const localSeed = localSeedVault.get(roundId);
@@ -41,12 +53,17 @@ export async function readRoundSeedReveal(roundId: string) {
   return localSeed.seedReveal;
 }
 
-export async function clearRoundSeedReveal(roundId: string) {
-  const redis = getRedisClient();
+export async function clearRoundSeedReveal(
+  roundId: string,
+  redis: Redis | null = getRedisClient(),
+) {
 
   if (redis) {
-    await redis.del(seedKey(roundId));
-    return;
+    try {
+      await redis.del(seedKey(roundId));
+    } catch (error) {
+      logger.warn("round_seed_cache_clear_failed", { error, roundId });
+    }
   }
 
   localSeedVault.delete(roundId);

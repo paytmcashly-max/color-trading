@@ -1,23 +1,33 @@
 "use client";
 
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { refreshSession } from "@/services/api-client";
-import { clearActiveSocket, createSocket, joinGameRoomOverSocket, joinRoundOverSocket } from "@/services/socket";
+import {
+  createSocket,
+  disposeSocket,
+  joinGameRoomOverSocket,
+  joinRoundOverSocket,
+  reconnectSocketWithToken,
+} from "@/services/socket";
 import { useAuthStore } from "@/store/auth-store";
 import { useGameStore } from "@/store/game-store";
 
 const ROUND_RESYNC_INTERVAL_MS = 15_000;
 
 export function SocketBridge() {
-  const accessToken = useAuthStore((state) => state.tokens?.accessToken);
+  const authenticated = useAuthStore((state) => Boolean(state.tokens?.accessToken));
   const setSession = useAuthStore((state) => state.setSession);
   const clearSession = useAuthStore((state) => state.clearSession);
   const setConnected = useGameStore((state) => state.setSocketConnected);
   const applyRealtimeEvent = useGameStore((state) => state.applyRealtimeEvent);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!accessToken) {
+    const accessToken = useAuthStore.getState().tokens?.accessToken;
+
+    if (!authenticated || !accessToken) {
       setConnected(false);
       return;
     }
@@ -39,11 +49,11 @@ export function SocketBridge() {
       refreshSession()
         .then((session) => {
           setSession(session.user, session.tokens);
-          socket.disconnect();
+          reconnectSocketWithToken(socket, session.tokens.accessToken);
         })
         .catch(() => {
           clearSession();
-          socket.disconnect();
+          disposeSocket(socket);
         })
         .finally(() => {
           refreshInFlight = false;
@@ -65,6 +75,15 @@ export function SocketBridge() {
     socket.on("round:locked", (payload) => applyRealtimeEvent("round:locked", payload));
     socket.on("round:result", (payload) => applyRealtimeEvent("round:result", payload));
     socket.on("round:completed", (payload) => applyRealtimeEvent("round:completed", payload));
+    socket.on("round:cancelled", (payload) => {
+      applyRealtimeEvent("round:cancelled", payload);
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["wallet"] }),
+        queryClient.invalidateQueries({ queryKey: ["wallet-transactions"] }),
+        queryClient.invalidateQueries({ queryKey: ["my-bet-history"] }),
+        queryClient.invalidateQueries({ queryKey: ["round-history"] }),
+      ]);
+    });
     socket.on("bet:placed", (payload) => applyRealtimeEvent("bet:placed", payload));
     socket.on("bet:settled", (payload) => applyRealtimeEvent("bet:settled", payload));
     socket.on("wallet:update", (payload) => applyRealtimeEvent("wallet:update", payload));
@@ -89,11 +108,10 @@ export function SocketBridge() {
     return () => {
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      clearActiveSocket(socket);
-      socket.disconnect();
+      disposeSocket(socket);
       setConnected(false);
     };
-  }, [accessToken, applyRealtimeEvent, clearSession, setConnected, setSession]);
+  }, [authenticated, applyRealtimeEvent, clearSession, queryClient, setConnected, setSession]);
 
   return null;
 }

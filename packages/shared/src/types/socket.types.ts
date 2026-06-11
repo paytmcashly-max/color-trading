@@ -1,5 +1,12 @@
 import type { PlaceBetRequest, PlaceBetResponse } from "./bet.types.js";
-import type { EntityId, ISODateString, PredictionColor, RoundEngineStatus } from "./game.types.js";
+import type {
+  EntityId,
+  ISODateString,
+  PredictionColor,
+  RoundEngineStatus,
+  RoundLifecycleStatus,
+  RoundStatus,
+} from "./game.types.js";
 import type { WalletUpdateEvent } from "./wallet.types.js";
 
 export interface JoinRoundRequest {
@@ -13,6 +20,8 @@ export interface LeaveRoundRequest {
 export interface SocketRound {
   id: EntityId;
   roundNumber: string;
+  status: RoundStatus | RoundLifecycleStatus;
+  dbStatus?: RoundStatus;
   lifecycleStatus: RoundEngineStatus;
   engineStatus: RoundEngineStatus;
   result: PredictionColor | null;
@@ -29,6 +38,14 @@ export interface RoundUpdateEvent {
 
 export interface ResultDeclaredEvent extends RoundUpdateEvent {
   result: PredictionColor;
+}
+
+export interface RoundCancelledEvent extends RoundUpdateEvent {
+  round: SocketRound;
+  reason: string;
+  actorId?: EntityId;
+  refundedBetCount: number;
+  refundedCoins: number;
 }
 
 export interface SocketSuccessAck<TData = undefined> {
@@ -53,6 +70,7 @@ export interface ClientToServerEventPayloads {
 
 export interface ServerToClientEventPayloads {
   round_update: RoundUpdateEvent;
+  round_cancelled: RoundCancelledEvent;
   wallet_update: WalletUpdateEvent;
   result_declared: ResultDeclaredEvent;
 }

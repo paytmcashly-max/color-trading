@@ -15,7 +15,6 @@ JWT_REFRESH_SECRET=<different-unique-strong-secret>
 COOKIE_SECRET=<different-unique-strong-secret>
 CLIENT_ORIGIN=https://your-client.vercel.app
 ALLOWED_ORIGINS=https://your-client.vercel.app
-SOCKET_CORS_ORIGIN=https://your-client.vercel.app
 SOCKET_ALLOWED_ORIGINS=https://your-client.vercel.app
 GAME_ENGINE_ENABLED=true
 GAME_MAX_BET_PER_USER_PER_ROUND=1000
@@ -42,7 +41,6 @@ Set these variables in the Vercel project:
 NEXT_PUBLIC_API_URL=
 NEXT_PUBLIC_API_BASE_PATH=/api/v1
 NEXT_PUBLIC_SOCKET_URL=https://your-api.onrender.com
-NEXT_PUBLIC_APP_ENV=production
 BACKEND_API_URL=https://your-api.onrender.com
 ```
 

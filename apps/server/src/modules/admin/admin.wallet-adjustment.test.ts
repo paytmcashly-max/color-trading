@@ -8,11 +8,13 @@ const { AdminService } = await import("./admin.service.js");
 test("admin wallet adjustment and audit share one transaction and replay creates no audit", async () => {
   let transactionCount = 0;
   let auditCount = 0;
+  let auditMetadata: unknown;
   let replay = false;
   const tx = {
     auditLog: {
-      create: async () => {
+      create: async ({ data }: { data: { metadata?: unknown } }) => {
         auditCount += 1;
+        auditMetadata = data.metadata;
         return { id: "audit-1" };
       },
     },
@@ -52,6 +54,14 @@ test("admin wallet adjustment and audit share one transaction and replay creates
 
   assert.equal(transactionCount, 2);
   assert.equal(auditCount, 1);
+  assert.deepEqual(auditMetadata, {
+    amountCoins: 25,
+    direction: "DEBIT",
+    reason: "Support correction",
+    ledgerReferenceId: "989a2850-74d4-4c9c-96fd-ed9115156469",
+    idempotencyKeyHash: "989a285074d4cc9c",
+    debitStrategy: "DEPOSIT_FIRST_THEN_WINNINGS",
+  });
 });
 
 function setRequiredEnv() {

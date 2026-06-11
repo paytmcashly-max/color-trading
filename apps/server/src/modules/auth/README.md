@@ -126,7 +126,10 @@ Response:
 - JWT secrets are required from environment variables and are never hardcoded.
 - Access tokens are short-lived and kept in browser memory only.
 - Refresh tokens are delivered only through httpOnly cookies and stored server-side only as SHA-256 hashes in `auth_sessions`.
+- Refresh rotation revokes every active session when the presented token hash mismatches, the session is already revoked/expired, a cryptographically valid expired JWT is reused, the signed token references a missing rotated session, or concurrent reuse wins the rotation race.
+- A changed user-agent alone does not revoke sessions. It emits the sanitized `AUTH_REFRESH_USER_AGENT_CHANGED` warning with short user-agent fingerprints for future risk/step-up handling.
 - Production refresh cookies use `Secure` and `SameSite=None`; refresh, logout, and logout-all also require a trusted `Origin`.
 - Logout revokes the current auth session. The auth guard verifies both JWT validity and active session state.
 - Register and login are protected by IP-based rate limiting.
+- Registration keeps its fast email pre-check, but the database unique constraint remains authoritative. Concurrent duplicate attempts return the same generic `409 REGISTRATION_UNAVAILABLE` response, while user, wallet, and initial ledger creation remain one transaction.
 - Zod validates email format and password strength before service logic runs.

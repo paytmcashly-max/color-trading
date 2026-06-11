@@ -57,6 +57,62 @@ test("API retries once with a refreshed in-memory access token after 401", async
   }
 });
 
+test("concurrent 401 responses share one refresh request", async () => {
+  let refreshCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    const authorization = new Headers(init?.headers).get("authorization");
+
+    if (url.endsWith("/auth/refresh")) {
+      refreshCalls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return jsonResponse({
+        success: true,
+        data: {
+          user,
+          tokens: { accessToken: "shared-token", tokenType: "Bearer", expiresInSeconds: 900 },
+        },
+      });
+    }
+    if (authorization !== "Bearer shared-token") {
+      return jsonResponse({ success: false, message: "expired", data: null }, 401);
+    }
+    return jsonResponse({ success: true, data: { user } });
+  };
+
+  try {
+    await Promise.all([fetchMe("expired-token"), fetchMe("expired-token")]);
+    assert.equal(refreshCalls, 1);
+    assert.equal(useAuthStore.getState().tokens?.accessToken, "shared-token");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("failed refresh clears the in-memory session", async () => {
+  useAuthStore.getState().setSession(user, {
+    accessToken: "expired-token",
+    tokenType: "Bearer",
+    expiresInSeconds: 900,
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    return jsonResponse(
+      { success: false, message: url.endsWith("/auth/refresh") ? "invalid refresh" : "expired", data: null },
+      401,
+    );
+  };
+
+  try {
+    await assert.rejects(() => fetchMe("expired-token"));
+    assert.equal(useAuthStore.getState().tokens, null);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,

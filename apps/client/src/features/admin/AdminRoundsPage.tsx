@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { fetchAdminRounds, forceStartRound, forceStopRound } from "@/services/api-client";
 import { useAdminToken } from "@/features/admin/useAdminToken";
+import type { AdminRoundDto } from "@/types/api";
 
 export function AdminRoundsPage() {
   const token = useAdminToken();
@@ -30,6 +31,9 @@ export function AdminRoundsPage() {
     mutationFn: () => forceStopRound(token, stopReason),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "rounds"] }),
   });
+  const rounds = data?.rounds ?? [];
+  const cancelledRounds = rounds.filter((round) => round.status === "CANCELLED");
+  const otherRounds = rounds.filter((round) => round.status !== "CANCELLED");
 
   return (
     <AdminShell title="Rounds">
@@ -69,30 +73,62 @@ export function AdminRoundsPage() {
         </Card>
       </div>
 
-      <div className="mt-4 grid gap-3">
-        {data?.rounds.length === 0 ? (
+      <div className="mt-4 grid gap-5">
+        {rounds.length === 0 ? (
           <Card>
             <p className="font-black">No rounds yet</p>
             <p className="mt-1 text-sm text-muted">The scheduler will create rounds when the engine is running.</p>
           </Card>
         ) : null}
-        {data?.rounds.map((round) => (
-          <Card key={round.id}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-extrabold">Round #{round.roundNumber}</p>
-                <p className="mt-1 text-xs text-muted">{round.id}</p>
-              </div>
-              <StatusBadge status={round.status} />
-            </div>
-            <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
-              <span>Bets: <b>{round.betCount}</b></span>
-              <span>Result: <b>{round.result ?? "Pending"}</b></span>
-              <span>Ends: <b>{new Date(round.endTime).toLocaleTimeString()}</b></span>
-            </div>
-          </Card>
-        ))}
+        <RoundSection title="Active and completed" rounds={otherRounds} />
+        <RoundSection title="Cancelled and refunded" rounds={cancelledRounds} cancelled />
       </div>
     </AdminShell>
+  );
+}
+
+function RoundSection({
+  title,
+  rounds,
+  cancelled = false,
+}: {
+  title: string;
+  rounds: AdminRoundDto[];
+  cancelled?: boolean;
+}) {
+  if (rounds.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="grid gap-3">
+      <h2 className={`text-xs font-black uppercase ${cancelled ? "text-[#8d1f1f]" : "text-muted"}`}>
+        {title}
+      </h2>
+      {rounds.map((round) => (
+        <Card key={round.id} className={cancelled ? "border-[#f1c1c1]" : undefined}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-extrabold">Round #{round.roundNumber}</p>
+              <p className="mt-1 text-xs text-muted">{round.id}</p>
+            </div>
+            <StatusBadge status={round.status} />
+          </div>
+          <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+            <span>Bets: <b>{round.betCount}</b></span>
+            <span>
+              {cancelled ? "Outcome" : "Result"}:{" "}
+              <b>{cancelled ? "Cancelled / refunded" : round.result ?? "Pending"}</b>
+            </span>
+            <span>Ends: <b>{new Date(round.endTime).toLocaleTimeString()}</b></span>
+          </div>
+          {cancelled && round.cancellation?.reason ? (
+            <p className="mt-3 rounded-md border border-[#f1c1c1] bg-[#fff7f7] px-3 py-2 text-sm font-bold text-[#8d1f1f]">
+              {round.cancellation.reason}
+            </p>
+          ) : null}
+        </Card>
+      ))}
+    </section>
   );
 }

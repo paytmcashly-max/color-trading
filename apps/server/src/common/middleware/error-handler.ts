@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 
 import { HttpError } from "../errors/http-error.js";
+import { isPrismaUniqueConstraintError } from "../utils/prisma-errors.js";
 import { captureRequestError } from "../../modules/observability/error.handler.js";
 
 export function errorHandler(
@@ -44,6 +45,17 @@ export function errorHandler(
       message: "Request body must be valid JSON.",
       data: {
         code: "INVALID_JSON",
+      },
+    });
+    return;
+  }
+
+  if (isPrismaUniqueConstraintError(error)) {
+    res.status(409).json({
+      success: false,
+      message: "Unable to complete the request with the provided details.",
+      data: {
+        code: "CONFLICT",
       },
     });
     return;

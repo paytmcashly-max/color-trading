@@ -1,14 +1,13 @@
 import pino from "pino";
 
 import { env } from "../../config/env.js";
+import { redactSensitiveData } from "../security/redact.js";
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 type LogMeta = Record<string, unknown>;
 type LogSink = (entry: { level: LogLevel; message: string; metadata: LogMeta; timestamp: string }) => void;
 
 const minimumLevel: LogLevel = env.NODE_ENV === "production" ? "info" : "debug";
-const SENSITIVE_KEY_PATTERN =
-  /^(authorization|cookie|password|passwordHash|secret|token|accessToken|refreshToken|idempotencyKey|seedReveal|ADMIN_PASSWORD|ADMIN_BOOTSTRAP_PASSWORD|ADMIN_BOOTSTRAP_TOKEN|JWT_SECRET|JWT_ACCESS_SECRET|JWT_REFRESH_SECRET|COOKIE_SECRET)$/i;
 let logSink: LogSink | null = null;
 
 export const pinoLogger = pino({
@@ -36,6 +35,12 @@ export const pinoLogger = pino({
       "*.JWT_REFRESH_SECRET",
       "COOKIE_SECRET",
       "*.COOKIE_SECRET",
+      "ROUND_SEED_ENCRYPTION_KEY",
+      "*.ROUND_SEED_ENCRYPTION_KEY",
+      "DATABASE_URL",
+      "*.DATABASE_URL",
+      "REDIS_URL",
+      "*.REDIS_URL",
       "ADMIN_PASSWORD",
       "*.ADMIN_PASSWORD",
       "ADMIN_BOOTSTRAP_PASSWORD",
@@ -106,57 +111,9 @@ function writeLog(level: LogLevel, message: string, meta: LogMeta = {}) {
 }
 
 function serializeMeta(meta: LogMeta) {
-  return Object.fromEntries(
-    Object.entries(meta).map(([key, value]) => [key, serializeValue(value, key)]),
-  );
+  return redactSensitiveData(meta);
 }
 
-function serializeValue(value: unknown, key?: string): unknown {
-  if (key && isSensitiveKey(key)) {
-    return "[REDACTED]";
-  }
-
-  if (value instanceof Error) {
-    return {
-      name: value.name,
-      message: value.message,
-      stack: value.stack,
-    };
-  }
-
-  if (typeof value === "bigint") {
-    return value.toString();
-  }
-
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => serializeValue(item));
-  }
-
-  if (isPlainObject(value)) {
-    return Object.fromEntries(
-      Object.entries(value).map(([nestedKey, nestedValue]) => [
-        nestedKey,
-        serializeValue(nestedValue, nestedKey),
-      ]),
-    );
-  }
-
-  return value;
-}
-
-function isSensitiveKey(key: string) {
-  return SENSITIVE_KEY_PATTERN.test(key);
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
+export function sanitizeLogMetadata(meta: LogMeta) {
+  return serializeMeta(meta);
 }

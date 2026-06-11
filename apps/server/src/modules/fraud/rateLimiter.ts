@@ -1,5 +1,7 @@
 import type { Redis } from "ioredis";
 
+import { env } from "../../config/env.js";
+
 export interface RateLimitDecision {
   allowed: boolean;
   key: string;
@@ -9,7 +11,11 @@ export interface RateLimitDecision {
 }
 
 export class FraudRateLimiter {
-  constructor(private readonly redis: Redis | null) {}
+  constructor(private readonly redis: Redis | null) {
+    if (!redis && requiresRedisForFraudProtection(env.NODE_ENV)) {
+      throw new Error("Redis is required for fraud rate limiting outside local/test environments.");
+    }
+  }
 
   async consume(key: string, limit: number, windowMs: number): Promise<RateLimitDecision> {
     if (!this.redis) {
@@ -51,4 +57,8 @@ export class FraudRateLimiter {
       await this.redis.connect();
     }
   }
+}
+
+export function requiresRedisForFraudProtection(nodeEnv: string) {
+  return nodeEnv === "production" || nodeEnv === "staging";
 }

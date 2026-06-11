@@ -16,7 +16,7 @@ test("admin bootstrap rejects weak passwords before database access", () => {
 
 test("admin bootstrap rejects passwords shorter than 12 characters", () => {
   const result = runSeedAdmin({
-    ADMIN_BOOTSTRAP_PASSWORD: "Kishan@098",
+    ADMIN_BOOTSTRAP_PASSWORD: "Short1!",
   });
 
   assert.notEqual(result.status, 0);

@@ -117,6 +117,10 @@ export interface AdminUserDto extends UserDto {
 
 export interface AdminRoundDto extends RoundDto {
   betCount: number;
+  cancellation: {
+    reason: string | null;
+    actorId: string | null;
+  } | null;
 }
 
 export interface AdminBetDto extends BetDto {

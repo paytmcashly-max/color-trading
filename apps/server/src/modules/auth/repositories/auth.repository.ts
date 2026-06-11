@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import {
   CoinLedgerDirection,
   CoinLedgerStatus,
@@ -7,6 +8,8 @@ import {
   UserStatus,
   type PrismaClient,
 } from "@prisma/client";
+
+import { logger } from "../../../common/utils/logger.js";
 
 const INITIAL_VIRTUAL_COINS = 1000n;
 
@@ -203,36 +206,42 @@ export class AuthRepository implements AuthRepositoryPort {
       });
 
       if (!session) {
+        await revokeActiveSessions(tx, input.userId, revokedAt);
+        logger.warn("AUTH_REFRESH_REPLAY_DETECTED", {
+          userId: input.userId,
+          sessionId: input.sessionId,
+          replayReason: "SESSION_NOT_FOUND",
+        });
         return null;
       }
 
-      const isReplay =
-        session.refreshTokenHash !== input.refreshTokenHash ||
-        session.revokedAt !== null ||
-        session.expiresAt <= input.now ||
-        (Boolean(session.userAgent) &&
-          Boolean(input.userAgent) &&
-          session.userAgent !== input.userAgent);
+      const replayReason = getRefreshReplayReason(session, input);
 
-      if (isReplay) {
-        await tx.authSession.updateMany({
-          where: {
-            userId: input.userId,
-            revokedAt: null,
-          },
-          data: { revokedAt },
+      if (replayReason) {
+        await revokeActiveSessions(tx, input.userId, revokedAt);
+        logger.warn("AUTH_REFRESH_REPLAY_DETECTED", {
+          userId: input.userId,
+          sessionId: input.sessionId,
+          replayReason,
         });
         return null;
+      }
+
+      if (hasUserAgentMismatch(session.userAgent, input.userAgent)) {
+        logger.warn("AUTH_REFRESH_USER_AGENT_CHANGED", {
+          userId: input.userId,
+          sessionId: input.sessionId,
+          previousUserAgentHash: fingerprintUserAgent(session.userAgent),
+          presentedUserAgentHash: fingerprintUserAgent(input.userAgent),
+          riskSignal: "USER_AGENT_CHANGED",
+          riskPoints: 5,
+          // TODO: require step-up verification when UA and trusted device/IP both change.
+          stepUpVerificationRecommended: false,
+        });
       }
 
       if (session.user.status !== UserStatus.ACTIVE) {
-        await tx.authSession.updateMany({
-          where: {
-            userId: input.userId,
-            revokedAt: null,
-          },
-          data: { revokedAt },
-        });
+        await revokeActiveSessions(tx, input.userId, revokedAt);
         return null;
       }
 
@@ -248,12 +257,11 @@ export class AuthRepository implements AuthRepositoryPort {
       });
 
       if (consumed.count !== 1) {
-        await tx.authSession.updateMany({
-          where: {
-            userId: input.userId,
-            revokedAt: null,
-          },
-          data: { revokedAt },
+        await revokeActiveSessions(tx, input.userId, revokedAt);
+        logger.warn("AUTH_REFRESH_REPLAY_DETECTED", {
+          userId: input.userId,
+          sessionId: input.sessionId,
+          replayReason: "ROTATION_RACE_OR_REUSE",
         });
         return null;
       }
@@ -299,4 +307,56 @@ export class AuthRepository implements AuthRepositoryPort {
       },
     });
   }
+}
+
+export function hasUserAgentMismatch(
+  storedUserAgent: string | null | undefined,
+  presentedUserAgent: string | undefined,
+) {
+  return Boolean(storedUserAgent && presentedUserAgent && storedUserAgent !== presentedUserAgent);
+}
+
+export function fingerprintUserAgent(userAgent: string | null | undefined) {
+  if (!userAgent) {
+    return null;
+  }
+
+  return crypto.createHash("sha256").update(userAgent).digest("hex").slice(0, 16);
+}
+
+function getRefreshReplayReason(
+  session: {
+    refreshTokenHash: string;
+    revokedAt: Date | null;
+    expiresAt: Date;
+  },
+  input: RefreshSessionLookupInput,
+) {
+  if (session.refreshTokenHash !== input.refreshTokenHash) {
+    return "REFRESH_TOKEN_HASH_MISMATCH";
+  }
+
+  if (session.revokedAt !== null) {
+    return "SESSION_REVOKED";
+  }
+
+  if (session.expiresAt <= input.now) {
+    return "SESSION_EXPIRED";
+  }
+
+  return null;
+}
+
+function revokeActiveSessions(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  revokedAt: Date,
+) {
+  return tx.authSession.updateMany({
+    where: {
+      userId,
+      revokedAt: null,
+    },
+    data: { revokedAt },
+  });
 }

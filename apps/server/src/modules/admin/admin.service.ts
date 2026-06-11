@@ -9,6 +9,7 @@ import {
 import crypto from "node:crypto";
 
 import { HttpError } from "../../common/errors/http-error.js";
+import { redactSensitiveData } from "../../common/security/redact.js";
 import {
   createdAtIdDescWhere,
   encodeCreatedAtIdCursor,
@@ -26,10 +27,12 @@ import {
 } from "../game/game.constants.js";
 import { ResultService } from "../game/services/result.service.js";
 import { clearRoundSeedReveal, readRoundSeedReveal, storeRoundSeedReveal } from "../game/services/round-seed.service.js";
+import { encryptRoundSeedReveal } from "../game/services/round-secret.crypto.js";
 import { GameRepository } from "../game/repositories/game.repository.js";
 import { SettlementService } from "../game/services/settlement.service.js";
 import { publishRealtimeEvent } from "../../sockets/socket.events.js";
 import type { WalletService } from "../wallet/wallet.service.js";
+import { hashToken } from "../../common/utils/token-hash.js";
 import {
   serializeAdminBet,
   serializeAdminLedger,
@@ -74,12 +77,14 @@ type GameControlRecord = {
 export class AdminService {
   private readonly resultService = new ResultService();
   private readonly settlementService: SettlementService;
+  private readonly gameRepository: GameRepository;
 
   constructor(
     private readonly prisma: PrismaClient,
     private readonly walletService: WalletService,
   ) {
-    this.settlementService = new SettlementService(new GameRepository(prisma), walletService);
+    this.gameRepository = new GameRepository(prisma);
+    this.settlementService = new SettlementService(this.gameRepository, walletService);
   }
 
   async getDashboardStats() {
@@ -115,12 +120,16 @@ export class AdminService {
     };
   }
 
-  async listUsers(query?: string) {
-    const where = this.buildUserSearchWhere(query);
+  async listUsers(query?: string, pagination: PaginationInput = { limit: 50 }) {
+    const searchWhere = this.buildUserSearchWhere(query);
+    const cursorWhere = createdAtIdDescWhere(pagination.cursor);
+    const where: Prisma.UserWhereInput = searchWhere
+      ? { AND: [searchWhere, cursorWhere] }
+      : cursorWhere;
     const users = await this.prisma.user.findMany({
       where,
-      orderBy: { createdAt: "desc" },
-      take: 100,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: pagination.limit + 1,
       include: {
         wallet: {
           select: {
@@ -139,7 +148,11 @@ export class AdminService {
       },
     });
 
-    return { users: users.map(serializeAdminUser) };
+    const page = pageInfo(users, pagination.limit, (user) =>
+      encodeCreatedAtIdCursor(user.createdAt, user.id),
+    );
+
+    return { users: page.items.map(serializeAdminUser), pageInfo: page.pageInfo };
   }
 
   async banUser(adminUserId: string, userId: string) {
@@ -185,10 +198,10 @@ export class AdminService {
           actionType: "USER_BAN",
           targetType: "USER",
           targetId: userId,
-          metadata: {
+          metadata: auditMetadata({
             email: suspendedUser.email,
             revokedSessionCount: revokedSessions.count,
-          },
+          }),
         },
       });
 
@@ -209,38 +222,51 @@ export class AdminService {
   }
 
   async unbanUser(adminUserId: string, userId: string) {
-    const user = await this.prisma.user.update({
-      where: { id: userId },
-      data: { status: UserStatus.ACTIVE },
-      include: {
-        wallet: {
-          select: {
-            depositBalance: true,
-            winningBalance: true,
-            status: true,
-            ledgerVersion: true,
+    const user = await this.prisma.$transaction(async (tx) => {
+      const activeUser = await tx.user.update({
+        where: { id: userId },
+        data: { status: UserStatus.ACTIVE },
+        include: {
+          wallet: {
+            select: {
+              depositBalance: true,
+              winningBalance: true,
+              status: true,
+              ledgerVersion: true,
+            },
+          },
+          _count: {
+            select: {
+              bets: true,
+              ledgerEntries: true,
+            },
           },
         },
-        _count: {
-          select: {
-            bets: true,
-            ledgerEntries: true,
-          },
-        },
-      },
-    });
+      });
 
-    await this.writeAuditLog(adminUserId, "USER_UNBAN", "USER", userId, {
-      email: user.email,
+      await tx.auditLog.create({
+        data: {
+          adminUserId,
+          actionType: "USER_UNBAN",
+          targetType: "USER",
+          targetId: userId,
+          metadata: auditMetadata({
+            email: activeUser.email,
+          }),
+        },
+      });
+
+      return activeUser;
     });
 
     return { user: serializeAdminUser(user) };
   }
 
-  async listRounds() {
+  async listRounds(pagination: PaginationInput = { limit: 50 }) {
     const rounds = await this.prisma.gameRound.findMany({
-      orderBy: { startTime: "desc" },
-      take: 100,
+      where: createdAtIdDescWhere(pagination.cursor),
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: pagination.limit + 1,
       include: {
         _count: {
           select: {
@@ -250,7 +276,38 @@ export class AdminService {
       },
     });
 
-    return { rounds: rounds.map(serializeAdminRound) };
+    const page = pageInfo(rounds, pagination.limit, (round) =>
+      encodeCreatedAtIdCursor(round.createdAt, round.id),
+    );
+    const cancelledRoundIds = page.items
+      .filter((round) => round.status === RoundStatus.CANCELLED)
+      .map((round) => round.id);
+    const cancellationLogs = cancelledRoundIds.length > 0
+      ? await this.prisma.auditLog.findMany({
+          where: {
+            actionType: "ROUND_FORCE_STOP",
+            targetType: "ROUND",
+            targetId: { in: cancelledRoundIds },
+          },
+          orderBy: { createdAt: "desc" },
+        })
+      : [];
+    const cancellationsByRoundId = new Map<string, { reason: string | null; actorId: string | null }>();
+    for (const log of cancellationLogs) {
+      if (log.targetId && !cancellationsByRoundId.has(log.targetId)) {
+        cancellationsByRoundId.set(log.targetId, {
+          reason: readAuditReason(log.metadata),
+          actorId: log.adminUserId,
+        });
+      }
+    }
+
+    return {
+      rounds: page.items.map((round) =>
+        serializeAdminRound(round, cancellationsByRoundId.get(round.id)),
+      ),
+      pageInfo: page.pageInfo,
+    };
   }
 
   async getActiveRound() {
@@ -279,7 +336,7 @@ export class AdminService {
     const lockTime = new Date(startTime.getTime() + BET_LOCK_AFTER_MS);
     const endTime = new Date(startTime.getTime() + ROUND_DURATION_MS);
 
-    const { round, refunds, cancelledBetCount, refundedCoins } = await this.prisma.$transaction(async (tx) => {
+    const { round, refunds } = await this.prisma.$transaction(async (tx) => {
       const activeRounds = await tx.gameRound.findMany({
         where: {
           status: {
@@ -327,23 +384,35 @@ export class AdminService {
           seedHash: seed.seedHash,
         },
       });
+      await tx.gameRoundSecret.create({
+        data: {
+          roundId: round.id,
+          seedRevealEncrypted: encryptRoundSeedReveal(seed.seedReveal),
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          adminUserId,
+          actionType: "ROUND_FORCE_START",
+          targetType: "ROUND",
+          targetId: round.id,
+          metadata: auditMetadata({
+            reason: dto.reason ?? null,
+            roundNumber: round.roundNumber.toString(),
+            cancelledBetCount: refunds.length,
+            refundedCoins: refunds.reduce((total, refund) => total + refund.amountCoins, 0),
+          }),
+        },
+      });
 
       return {
         round,
         refunds,
-        cancelledBetCount: refunds.length,
-        refundedCoins: refunds.reduce((total, refund) => total + refund.amountCoins, 0),
       };
     }, { isolationLevel: "Serializable", maxWait: 5000, timeout: 20000 });
 
     await storeRoundSeedReveal(round.id, seed.seedReveal);
-
-    await this.writeAuditLog(adminUserId, "ROUND_FORCE_START", "ROUND", round.id, {
-      reason: dto.reason ?? null,
-      roundNumber: round.roundNumber.toString(),
-      cancelledBetCount,
-      refundedCoins,
-    });
 
     this.publishRefundWalletUpdates(refunds);
     publishGameEvent("round:created", { round: serializeRound(round) });
@@ -352,7 +421,7 @@ export class AdminService {
   }
 
   async forceStopRound(adminUserId: string, dto: ForceStopRoundDto) {
-    const { round, refunds, cancelledBetCount, refundedCoins } = await this.prisma.$transaction(async (tx) => {
+    const { round, refunds } = await this.prisma.$transaction(async (tx) => {
       const activeRound = await tx.gameRound.findFirst({
         where: {
           status: {
@@ -383,31 +452,59 @@ export class AdminService {
         where: { id: activeRound.id },
         data: { status: RoundStatus.CANCELLED },
       });
+      const cancelledBetCount = refunds.length;
+      const refundedCoins = refunds.reduce((total, refund) => total + refund.amountCoins, 0);
+
+      await tx.auditLog.create({
+        data: {
+          adminUserId,
+          actionType: "ROUND_FORCE_STOP",
+          targetType: "ROUND",
+          targetId: round.id,
+          metadata: auditMetadata({
+            reason: dto.reason,
+            roundNumber: round.roundNumber.toString(),
+            cancelledBetCount,
+            refundedCoins,
+          }),
+        },
+      });
 
       return {
         round,
         refunds,
-        cancelledBetCount: refunds.length,
-        refundedCoins: refunds.reduce((total, refund) => total + refund.amountCoins, 0),
+        cancelledBetCount,
+        refundedCoins,
       };
     }, { isolationLevel: "Serializable", maxWait: 5000, timeout: 20000 });
 
-    await this.writeAuditLog(adminUserId, "ROUND_FORCE_STOP", "ROUND", round.id, {
-      reason: dto.reason,
-      roundNumber: round.roundNumber.toString(),
-      cancelledBetCount,
-      refundedCoins,
-    });
-
     this.publishRefundWalletUpdates(refunds);
-    publishGameEvent("round:completed", { round: serializeRound(round) });
+    const cancellationPayload = {
+      round: {
+        ...serializeRound(round),
+        status: RoundStatus.CANCELLED,
+      },
+      remainingSeconds: 0,
+      syncedAt: new Date().toISOString(),
+      reason: dto.reason,
+      refundedBetCount: refunds.length,
+      refundedCoins: refunds.reduce((total, refund) => total + refund.amountCoins, 0),
+    };
+    publishGameEvent("round:cancelled", cancellationPayload);
+    publishGameEvent("round:update", cancellationPayload);
+    publishGameEvent("round:state", cancellationPayload);
     publishGameEvent("system:error", {
       code: "ADMIN_ROUND_FORCE_STOP",
       message: "Active round was stopped by an administrator.",
       roundId: round.id,
     });
 
-    return { round: serializeAdminRound({ ...round, _count: { bets: 0 } }) };
+    return {
+      round: serializeAdminRound(
+        { ...round, _count: { bets: 0 } },
+        { reason: dto.reason, actorId: adminUserId },
+      ),
+    };
   }
 
   async forceResult(adminUserId: string, dto: ForceResultDto) {
@@ -449,7 +546,17 @@ export class AdminService {
       return round;
     }, { isolationLevel: "Serializable", maxWait: 5000, timeout: 15000 });
 
-    const seedReveal = activeRound.seedReveal ?? (await this.getSeedReveal(activeRound.id));
+    const seedReveal = await this.getSeedReveal(activeRound.id);
+
+    if (!this.resultService.seedHashMatches(seedReveal, activeRound.seedHash)) {
+      publishGameEvent("system:error", {
+        code: "ROUND_SEED_HASH_MISMATCH",
+        message: "Durable round seed does not match the committed seed hash.",
+        roundId: activeRound.id,
+      });
+      throw new HttpError(500, "ROUND_SEED_HASH_MISMATCH", "Round seed integrity check failed.");
+    }
+
     const settlement = await this.settlementService.settleRound(activeRound.id, dto.result);
 
     const round = await this.prisma.gameRound.update({
@@ -460,6 +567,7 @@ export class AdminService {
         seedReveal,
       },
     });
+    await this.gameRepository.markRoundSeedRevealed(round.id);
 
     await this.writeAuditLog(adminUserId, "ROUND_FORCE_RESULT", "ROUND", round.id, {
       result: dto.result,
@@ -504,9 +612,9 @@ export class AdminService {
           actionType: "GAME_PAUSE",
           targetType: "SYSTEM",
           targetId: "global",
-          metadata: {
+          metadata: auditMetadata({
             reason: dto.reason,
-          },
+          }),
         },
       });
       return control;
@@ -530,9 +638,9 @@ export class AdminService {
           actionType: "GAME_RESUME",
           targetType: "SYSTEM",
           targetId: "global",
-          metadata: {
+          metadata: auditMetadata({
             reason: dto.reason ?? null,
-          },
+          }),
         },
       });
       return control;
@@ -586,13 +694,14 @@ export class AdminService {
             idempotencyKey: dto.idempotencyKey,
             targetType: "USER",
             targetId: userId,
-            metadata: {
+            metadata: auditMetadata({
               amountCoins: dto.amountCoins,
               direction: dto.direction,
               reason: dto.reason,
               ledgerReferenceId,
+              idempotencyKeyHash: hashToken(dto.idempotencyKey).slice(0, 16),
               debitStrategy: dto.direction === "DEBIT" ? "DEPOSIT_FIRST_THEN_WINNINGS" : null,
-            },
+            }),
           },
         });
       }
@@ -725,13 +834,17 @@ export class AdminService {
     };
   }
 
-  async listAuditLogs() {
+  async listAuditLogs(pagination: PaginationInput = { limit: 50 }) {
     const logs = await this.prisma.auditLog.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 100,
+      where: createdAtIdDescWhere(pagination.cursor),
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: pagination.limit + 1,
     });
+    const page = pageInfo(logs, pagination.limit, (log) =>
+      encodeCreatedAtIdCursor(log.createdAt, log.id),
+    );
 
-    return { auditLogs: logs.map(serializeAuditLog) };
+    return { auditLogs: page.items.map(serializeAuditLog), pageInfo: page.pageInfo };
   }
 
   async listFraudLogs() {
@@ -779,7 +892,7 @@ export class AdminService {
         actionType,
         targetType,
         targetId,
-        metadata,
+        metadata: metadata ? auditMetadata(metadata) : undefined,
       },
     });
   }
@@ -902,9 +1015,20 @@ export class AdminService {
   }
 
   private async getSeedReveal(roundId: string) {
+    const durableSeedReveal = await this.gameRepository.findDurableRoundSeedReveal(roundId);
+
+    if (durableSeedReveal) {
+      return durableSeedReveal;
+    }
+
     const seedReveal = await readRoundSeedReveal(roundId);
 
     if (!seedReveal) {
+      publishGameEvent("system:error", {
+        code: "ROUND_SEED_REVEAL_MISSING",
+        message: "Durable and cached round seed reveal are missing.",
+        roundId,
+      });
       throw new HttpError(500, "ROUND_SEED_REVEAL_MISSING", "Round seed reveal is missing.");
     }
 
@@ -956,12 +1080,12 @@ export class AdminService {
             actionType: "BET_REFUND",
             targetType: "BET",
             targetId: bet.id,
-            metadata: {
+            metadata: auditMetadata({
               roundId: round.id,
               userId: bet.userId,
               amountCoins,
               reason: "ROUND_CANCELLED",
-            },
+            }),
           },
         });
 
@@ -993,6 +1117,19 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+function readAuditReason(metadata: Prisma.JsonValue) {
+  if (
+    typeof metadata === "object" &&
+    metadata !== null &&
+    !Array.isArray(metadata) &&
+    typeof metadata.reason === "string"
+  ) {
+    return metadata.reason;
+  }
+
+  return null;
+}
+
 function serializeGameControl(control: GameControlRecord) {
   return {
     id: control.id,
@@ -1022,4 +1159,8 @@ function stableUuidFromIdempotencyKey(idempotencyKey: string) {
 function isRetryableAdminAdjustmentError(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError &&
     (error.code === "P2002" || error.code === "P2034");
+}
+
+function auditMetadata(metadata: Prisma.InputJsonValue) {
+  return redactSensitiveData(metadata) as Prisma.InputJsonValue;
 }

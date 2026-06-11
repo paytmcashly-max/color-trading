@@ -238,6 +238,16 @@ CREATE TABLE "coin_packages" (
     CONSTRAINT "coin_packages_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "game_round_secrets" (
+    "round_id" UUID NOT NULL,
+    "seed_reveal_encrypted" TEXT NOT NULL,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "revealed_at" TIMESTAMPTZ(6),
+
+    CONSTRAINT "game_round_secrets_pkey" PRIMARY KEY ("round_id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
@@ -338,6 +348,9 @@ CREATE INDEX "game_rounds_lock_time_idx" ON "game_rounds"("lock_time");
 CREATE INDEX "game_rounds_end_time_idx" ON "game_rounds"("end_time");
 
 -- CreateIndex
+CREATE INDEX "game_round_secrets_revealed_at_idx" ON "game_round_secrets"("revealed_at");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "round_settlements_round_id_key" ON "round_settlements"("round_id");
 
 -- CreateIndex
@@ -387,6 +400,9 @@ ALTER TABLE "coin_ledger" ADD CONSTRAINT "coin_ledger_user_id_fkey" FOREIGN KEY 
 
 -- AddForeignKey
 ALTER TABLE "coin_ledger" ADD CONSTRAINT "coin_ledger_wallet_id_fkey" FOREIGN KEY ("wallet_id") REFERENCES "wallets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "game_round_secrets" ADD CONSTRAINT "game_round_secrets_round_id_fkey" FOREIGN KEY ("round_id") REFERENCES "game_rounds"("round_id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "round_settlements" ADD CONSTRAINT "round_settlements_round_id_fkey" FOREIGN KEY ("round_id") REFERENCES "game_rounds"("round_id") ON DELETE RESTRICT ON UPDATE CASCADE;

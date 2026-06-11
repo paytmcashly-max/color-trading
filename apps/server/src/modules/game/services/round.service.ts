@@ -142,6 +142,7 @@ export class RoundService {
         lockTime,
         endTime,
         seedHash: seed.seedHash,
+        seedReveal: seed.seedReveal,
       });
 
       return { round: createdRound, created: true };
@@ -198,7 +199,17 @@ export class RoundService {
       throw new HttpError(500, "GAME_ENGINE_NOT_CONFIGURED", "Game engine services are not configured.");
     }
 
-    const seedReveal = round.seedReveal ?? (await this.getSeedReveal(round.id));
+    const seedReveal = await this.getSeedReveal(round.id);
+
+    if (!this.resultService.seedHashMatches(seedReveal, round.seedHash)) {
+      publishGameEvent("system:error", {
+        code: "ROUND_SEED_HASH_MISMATCH",
+        message: "Durable round seed does not match the committed seed hash.",
+        roundId: round.id,
+      });
+      throw new HttpError(500, "ROUND_SEED_HASH_MISMATCH", "Round seed integrity check failed.");
+    }
+
     const result = round.result ?? this.resultService.generateResult(seedReveal);
 
     if (round.status === RoundStatus.LOCKED) {
@@ -231,6 +242,7 @@ export class RoundService {
     const completedRound = await this.gameRepository.findRoundById(round.id);
 
     if (completedRound) {
+      await this.gameRepository.markRoundSeedRevealed(completedRound.id);
       publishGameEvent("round:result", {
         ...this.buildRoundPayload(completedRound),
         result,
@@ -252,9 +264,20 @@ export class RoundService {
   }
 
   private async getSeedReveal(roundId: string) {
+    const durableSeedReveal = await this.gameRepository.findDurableRoundSeedReveal(roundId);
+
+    if (durableSeedReveal) {
+      return durableSeedReveal;
+    }
+
     const seedReveal = await readRoundSeedReveal(roundId);
 
     if (!seedReveal) {
+      publishGameEvent("system:error", {
+        code: "ROUND_SEED_REVEAL_MISSING",
+        message: "Durable and cached round seed reveal are missing.",
+        roundId,
+      });
       throw new HttpError(500, "ROUND_SEED_REVEAL_MISSING", "Round seed reveal is missing.");
     }
 

@@ -34,15 +34,28 @@ export class HealthController {
   };
 
   readiness = async (_req: Request, res: Response) => {
-    const [db, redis] = await Promise.all([this.checkDatabase(), this.checkRedis()]);
-    const ready = db.status === "healthy" && redis.status === "healthy";
+    const [db, redis, migrations] = await Promise.all([
+      this.checkDatabase(),
+      this.checkRedis(),
+      this.checkMigrations(),
+    ]);
+    const readiness = evaluateReadiness({
+      dbHealthy: db.status === "healthy",
+      redisHealthy: redis.status === "healthy",
+      migrationsReady: migrations.status === "healthy",
+      gameEngineEnabled: env.GAME_ENGINE_ENABLED,
+    });
 
-    res.status(ready ? 200 : 503).json({
-      status: ready ? "ready" : "not_ready",
+    res.status(readiness.ready ? 200 : 503).json({
+      status: readiness.ready ? "ready" : "not_ready",
       service: "color-trading-server",
+      releaseVersion: env.RELEASE_VERSION,
+      uptimeSeconds: Math.floor(process.uptime()),
       dependencies: {
         db,
         redis,
+        migrations,
+        gameEngine: readiness.gameEngine,
       },
       timestamp: new Date().toISOString(),
     });
@@ -140,6 +153,33 @@ export class HealthController {
     }
   }
 
+  private async checkMigrations() {
+    const pool = getPostgresPool();
+
+    if (!pool) {
+      return {
+        status: "unhealthy",
+        applied: false,
+      };
+    }
+
+    try {
+      const result = await pool.query<{ migrations: string | null }>(
+        "SELECT to_regclass('public.schema_migrations')::text AS migrations",
+      );
+
+      return {
+        status: result.rows[0]?.migrations ? "healthy" : "unhealthy",
+        applied: Boolean(result.rows[0]?.migrations),
+      };
+    } catch {
+      return {
+        status: "unhealthy",
+        applied: false,
+      };
+    }
+  }
+
   private socketHealth() {
     return {
       status: "healthy",
@@ -148,4 +188,24 @@ export class HealthController {
       latencyMs: 0,
     };
   }
+}
+
+export function evaluateReadiness(input: {
+  dbHealthy: boolean;
+  redisHealthy: boolean;
+  migrationsReady: boolean;
+  gameEngineEnabled: boolean;
+}) {
+  const dependenciesReady = input.dbHealthy && input.redisHealthy && input.migrationsReady;
+
+  return {
+    ready: dependenciesReady,
+    gameEngine: {
+      enabled: input.gameEngineEnabled,
+      dependenciesReady,
+      status: input.gameEngineEnabled
+        ? dependenciesReady ? "ready" : "blocked"
+        : "disabled",
+    },
+  };
 }

@@ -43,6 +43,7 @@ export interface WalletUpdateEvent {
 export interface PageInfo {
   limit: number;
   nextCursor: string | null;
+  hasMore: boolean;
 }
 
 export interface WalletBalanceResponse {

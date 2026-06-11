@@ -42,3 +42,19 @@ export async function revalidateSocketSession(
     return false;
   }
 }
+
+export async function authorizeSocketSession(
+  prisma: Pick<PrismaClient, "authSession">,
+  user: SocketUserContext,
+  notifyRevoked: () => void,
+  disconnect: () => void,
+) {
+  try {
+    await assertSocketSessionActive(prisma, user);
+    return true;
+  } catch {
+    notifyRevoked();
+    disconnect();
+    return false;
+  }
+}

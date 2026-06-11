@@ -20,6 +20,7 @@ const rawEnvSchema = z.object({
   JWT_ACCESS_SECRET: z.string().min(32).optional(),
   JWT_REFRESH_SECRET: z.string().min(32).optional(),
   COOKIE_SECRET: z.string().min(32).optional(),
+  ROUND_SEED_ENCRYPTION_KEY: z.string().min(32).optional(),
   JWT_ACCESS_TOKEN_TTL: z.string().default("15m"),
   JWT_ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   JWT_REFRESH_TOKEN_TTL: z.string().default("7d"),
@@ -43,7 +44,7 @@ const rawEnvSchema = z.object({
     .default(true),
 });
 
-const envSchema = rawEnvSchema
+export const serverEnvSchema = rawEnvSchema
   .transform((value) => {
     const clientOrigin = value.CLIENT_ORIGIN ?? value.CLIENT_URL ?? "http://localhost:3000";
     const allowedOrigins = parseOrigins(value.ALLOWED_ORIGINS, clientOrigin);
@@ -63,6 +64,7 @@ const envSchema = rawEnvSchema
       JWT_ACCESS_SECRET: value.JWT_ACCESS_SECRET ?? value.JWT_SECRET,
       JWT_REFRESH_SECRET: value.JWT_REFRESH_SECRET ?? value.JWT_SECRET,
       COOKIE_SECRET: value.COOKIE_SECRET,
+      ROUND_SEED_ENCRYPTION_KEY: value.ROUND_SEED_ENCRYPTION_KEY,
     };
   })
   .pipe(
@@ -85,6 +87,7 @@ const envSchema = rawEnvSchema
       JWT_ACCESS_SECRET: z.string().min(32),
       JWT_REFRESH_SECRET: z.string().min(32),
       COOKIE_SECRET: z.string().min(32).optional(),
+      ROUND_SEED_ENCRYPTION_KEY: z.string().min(32).optional(),
       JWT_ACCESS_TOKEN_TTL: z.string(),
       JWT_ACCESS_TOKEN_TTL_SECONDS: z.number().int().positive(),
       JWT_REFRESH_TOKEN_TTL: z.string(),
@@ -108,6 +111,33 @@ const envSchema = rawEnvSchema
     },
   )
   .superRefine((value, context) => {
+    if (value.ALLOWED_ORIGINS.includes("*")) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["ALLOWED_ORIGINS"],
+        message: "ALLOWED_ORIGINS must contain explicit origins and cannot use '*'.",
+      });
+    }
+
+    if (value.SOCKET_ALLOWED_ORIGINS.includes("*")) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["SOCKET_ALLOWED_ORIGINS"],
+        message: "SOCKET_ALLOWED_ORIGINS must contain explicit origins and cannot use '*'.",
+      });
+    }
+
+    if (
+      (value.NODE_ENV === "staging" || value.NODE_ENV === "production") &&
+      !value.REDIS_URL
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["REDIS_URL"],
+        message: "REDIS_URL is required outside local/test environments.",
+      });
+    }
+
     if (value.NODE_ENV !== "production") {
       return;
     }
@@ -117,14 +147,6 @@ const envSchema = rawEnvSchema
         code: z.ZodIssueCode.custom,
         path: ["DATABASE_URL"],
         message: "DATABASE_URL is required in production.",
-      });
-    }
-
-    if (!value.REDIS_URL) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["REDIS_URL"],
-        message: "REDIS_URL is required in production.",
       });
     }
 
@@ -152,6 +174,14 @@ const envSchema = rawEnvSchema
       });
     }
 
+    if (!value.ROUND_SEED_ENCRYPTION_KEY) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["ROUND_SEED_ENCRYPTION_KEY"],
+        message: "ROUND_SEED_ENCRYPTION_KEY is required in production.",
+      });
+    }
+
     if (value.JWT_ACCESS_SECRET === value.JWT_REFRESH_SECRET) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -163,7 +193,8 @@ const envSchema = rawEnvSchema
     if (
       value.JWT_ACCESS_SECRET.includes("replace-with") ||
       value.JWT_REFRESH_SECRET.includes("replace-with") ||
-      value.COOKIE_SECRET?.includes("replace-with")
+      value.COOKIE_SECRET?.includes("replace-with") ||
+      value.ROUND_SEED_ENCRYPTION_KEY?.includes("replace-with")
     ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -173,7 +204,11 @@ const envSchema = rawEnvSchema
     }
   });
 
-const parsed = envSchema.safeParse(process.env);
+export function parseServerEnv(input: NodeJS.ProcessEnv) {
+  return serverEnvSchema.safeParse(input);
+}
+
+const parsed = parseServerEnv(process.env);
 
 if (!parsed.success) {
   console.error("Invalid server environment", parsed.error.flatten().fieldErrors);

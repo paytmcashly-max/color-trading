@@ -1,5 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
+import { redactSensitiveData } from "../../common/security/redact.js";
+
 export class AuditService {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -20,7 +22,9 @@ export class AuditService {
         actionType: input.action,
         targetType: input.targetType,
         targetId: input.targetId,
-        metadata: input.metadata as Prisma.InputJsonObject | undefined,
+        metadata: input.metadata
+          ? (redactSensitiveData(input.metadata) as Prisma.InputJsonObject)
+          : undefined,
       },
     });
   }

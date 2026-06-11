@@ -3,7 +3,13 @@ import { UserStatus } from "@prisma/client";
 
 import { HttpError } from "../../../common/errors/http-error.js";
 import { logger } from "../../../common/utils/logger.js";
-import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../../common/utils/jwt.js";
+import { isPrismaUniqueConstraintError } from "../../../common/utils/prisma-errors.js";
+import {
+  readExpiredVerifiedRefreshToken,
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+} from "../../../common/utils/jwt.js";
 import { hashToken } from "../../../common/utils/token-hash.js";
 import { env } from "../../../config/env.js";
 import type { LoginDto, RefreshTokenDto, RegisterDto } from "../dto/auth.dto.js";
@@ -22,19 +28,29 @@ export class AuthService {
     const existingUser = await this.authRepository.findUserIdByEmail(dto.email);
 
     if (existingUser) {
-      throw new HttpError(
-        409,
-        "REGISTRATION_UNAVAILABLE",
-        "Unable to create an account with the provided details.",
-      );
+      throw registrationUnavailable();
     }
 
     const passwordHash = await hashPassword(dto.password);
-    const user = await this.authRepository.createUserWithInitialWallet({
-      email: dto.email,
-      passwordHash,
-      displayName: dto.displayName,
-    });
+    let user: SafeUser;
+
+    try {
+      user = await this.authRepository.createUserWithInitialWallet({
+        email: dto.email,
+        passwordHash,
+        displayName: dto.displayName,
+      });
+    } catch (error) {
+      if (isPrismaUniqueConstraintError(error)) {
+        logger.warn("AUTH_REGISTRATION_CONFLICT", {
+          reason: "UNIQUE_CONSTRAINT",
+          ipAddress: metadata.ipAddress,
+        });
+        throw registrationUnavailable();
+      }
+
+      throw error;
+    }
 
     return this.createTokenPair(user, metadata);
   }
@@ -70,7 +86,29 @@ export class AuthService {
   }
 
   async refresh(dto: RefreshTokenDto, metadata: RequestMetadata) {
-    const payload = verifyRefreshToken(dto.refreshToken);
+    let payload;
+
+    try {
+      payload = verifyRefreshToken(dto.refreshToken);
+    } catch (error) {
+      const expiredPayload = readExpiredVerifiedRefreshToken(dto.refreshToken);
+
+      if (expiredPayload) {
+        const revokedSessionCount = await this.authRepository.revokeAllSessions(
+          expiredPayload.sub,
+          new Date(),
+        );
+        logger.warn("AUTH_REFRESH_REPLAY_DETECTED", {
+          userId: expiredPayload.sub,
+          sessionId: expiredPayload.sessionId,
+          replayReason: "JWT_EXPIRED",
+          revokedSessionCount,
+        });
+      }
+
+      throw error;
+    }
+
     const refreshTokenHash = hashToken(dto.refreshToken);
     const now = new Date();
     const replacementSessionId = crypto.randomUUID();
@@ -162,4 +200,12 @@ export class AuthService {
       },
     };
   }
+}
+
+function registrationUnavailable() {
+  return new HttpError(
+    409,
+    "REGISTRATION_UNAVAILABLE",
+    "Unable to create an account with the provided details.",
+  );
 }

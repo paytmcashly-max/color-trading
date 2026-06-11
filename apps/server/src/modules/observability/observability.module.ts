@@ -46,7 +46,7 @@ export function startObservability() {
       metadata: {
         eventId: event.id,
         eventName: event.name,
-        payload: event.payload,
+        payloadSummary: summarizeRealtimePayload(event.payload),
         source: event.source,
       },
       timestamp: event.createdAt,
@@ -75,7 +75,7 @@ export function startObservability() {
         message: "System error event emitted.",
         metadata: {
           eventId: event.id,
-          payload: event.payload,
+          payloadSummary: summarizeRealtimePayload(event.payload),
         },
       });
     }
@@ -97,4 +97,26 @@ export async function flushObservability() {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+export function summarizeRealtimePayload(payload: unknown) {
+  if (!isRecord(payload)) {
+    return { payloadType: typeof payload };
+  }
+
+  const round = isRecord(payload.round) ? payload.round : null;
+  const bet = isRecord(payload.bet) ? payload.bet : null;
+  const wallet = isRecord(payload.wallet) ? payload.wallet : null;
+
+  return {
+    userId: stringValue(payload.userId) ?? stringValue(wallet?.userId) ?? stringValue(bet?.userId),
+    roundId: stringValue(payload.roundId) ?? stringValue(round?.id) ?? stringValue(bet?.roundId),
+    betId: stringValue(payload.betId) ?? stringValue(bet?.id),
+    code: stringValue(payload.code),
+    status: stringValue(payload.status) ?? stringValue(round?.status),
+  };
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : undefined;
 }

@@ -37,6 +37,7 @@ interface ApiErrorBody {
 }
 
 type ValidationDetails = Record<string, string[] | undefined>;
+let refreshRequest: Promise<AuthResponse> | null = null;
 
 async function request<TResponse>(
   path: string,
@@ -57,12 +58,7 @@ async function request<TResponse>(
 
   if (response.status === 401 && allowRefreshRetry && canRefreshAfterUnauthorized(path)) {
     try {
-      const refreshed = await request<AuthResponse>(
-        apiPath("/auth/refresh"),
-        { method: "POST" },
-        undefined,
-        false,
-      );
+      const refreshed = await refreshSession();
       useAuthStore.getState().setSession(refreshed.user, refreshed.tokens);
       return request<TResponse>(path, options, refreshed.tokens.accessToken, false);
     } catch {
@@ -157,9 +153,16 @@ export function register(email: string, password: string, displayName?: string) 
 }
 
 export function refreshSession() {
-  return request<AuthResponse>(apiPath("/auth/refresh"), {
-    method: "POST",
+  refreshRequest ??= request<AuthResponse>(
+    apiPath("/auth/refresh"),
+    { method: "POST" },
+    undefined,
+    false,
+  ).finally(() => {
+    refreshRequest = null;
   });
+
+  return refreshRequest;
 }
 
 export function fetchMe(accessToken: string) {
@@ -352,6 +355,7 @@ interface PaginationParams {
 interface PageInfo {
   limit: number;
   nextCursor: string | null;
+  hasMore: boolean;
 }
 
 function paginationSuffix(input: PaginationParams) {

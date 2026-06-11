@@ -13,6 +13,7 @@ const adminInvalidationMap: Record<string, string[][]> = {
   "round:locked": [["admin", "rounds"], ["admin", "active-round"], ["admin", "health"]],
   "round:result": [["admin", "rounds"], ["admin", "active-round"], ["admin", "bets"], ["admin", "health"]],
   "round:completed": [["admin", "rounds"], ["admin", "active-round"], ["admin", "health"]],
+  "round:cancelled": [["admin", "rounds"], ["admin", "active-round"], ["admin", "bets"], ["admin", "wallet"], ["admin", "health"]],
   "bet:placed": [["admin", "bets"], ["admin", "rounds"], ["admin", "health"]],
   "bet:settled": [["admin", "bets"], ["admin", "rounds"], ["admin", "health"]],
   "wallet:update": [["admin", "wallet"], ["admin", "ledger"], ["admin", "users"], ["admin", "health"]],

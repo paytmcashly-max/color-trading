@@ -51,10 +51,12 @@ The final launch checklist is documented in
 [docs/production-launch-checklist.md](docs/production-launch-checklist.md).
 Production environment setup, first-admin bootstrap, rollback, and emergency
 admin lock procedures are in [docs/PRODUCTION_RUNBOOK.md](docs/PRODUCTION_RUNBOOK.md).
+The authoritative variable inventory and API URL composition rules are in
+[docs/PRODUCTION_ENV.md](docs/PRODUCTION_ENV.md).
 At minimum, production needs managed PostgreSQL, managed Redis, Render backend
 environment variables, and Vercel frontend variables:
 
-- Backend: `DATABASE_URL`, `REDIS_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `COOKIE_SECRET`, `CLIENT_ORIGIN`, `ALLOWED_ORIGINS`, `SOCKET_CORS_ORIGIN`, `SOCKET_ALLOWED_ORIGINS`
+- Backend: `DATABASE_URL`, `REDIS_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `COOKIE_SECRET`, `ROUND_SEED_ENCRYPTION_KEY`, `CLIENT_ORIGIN`, `ALLOWED_ORIGINS`, `SOCKET_ALLOWED_ORIGINS`
 - Frontend: `NEXT_PUBLIC_API_URL` (leave empty in production), `NEXT_PUBLIC_API_BASE_PATH=/api/v1`, `NEXT_PUBLIC_SOCKET_URL`, `BACKEND_API_URL`
 - Game limits: `GAME_MAX_BET_PER_USER_PER_ROUND`, `GAME_MAX_EXPOSURE_PER_COLOR`
 
@@ -68,9 +70,9 @@ Before production launch, verify Render has:
 - `JWT_ACCESS_SECRET`
 - `JWT_REFRESH_SECRET`
 - `COOKIE_SECRET`
+- `ROUND_SEED_ENCRYPTION_KEY`
 - `CLIENT_ORIGIN`
 - `ALLOWED_ORIGINS`
-- `SOCKET_CORS_ORIGIN`
 - `SOCKET_ALLOWED_ORIGINS`
 
 Verify Vercel has:
