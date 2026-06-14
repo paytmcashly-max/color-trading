@@ -6,7 +6,7 @@ services:
     dockerfilePath: ./apps/server/Dockerfile
     dockerContext: .
     healthCheckPath: /health/ready
-    autoDeployTrigger: commit
+    autoDeployTrigger: checksPass
     envVars:
       - key: NODE_ENV
         value: production
@@ -86,7 +86,7 @@ services:
     dockerfilePath: ./apps/payment/Dockerfile
     dockerContext: .
     healthCheckPath: /health/ready
-    autoDeployTrigger: commit
+    autoDeployTrigger: checksPass
     envVars:
       - key: NODE_ENV
         value: production
