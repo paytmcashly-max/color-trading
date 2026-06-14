@@ -29,7 +29,7 @@ export class PaymentService {
     const existing = await this.prisma.paymentIntent.findUnique({ where: { idempotencyKey } });
 
     if (existing) {
-      this.assertIntentReplay(existing, userId, input.amountPaise);
+      this.assertIntentReplay(existing, userId, input.amountPaise, input.purpose);
       return serializeIntent(existing, this.paymentUrl(existing, userId));
     }
 
@@ -39,6 +39,7 @@ export class PaymentService {
         data: {
           userId,
           amountPaise: BigInt(input.amountPaise),
+          purpose: input.purpose,
           idempotencyKey,
           expiresAt: new Date(Date.now() + PAYMENT_INTENT_TTL_MS),
         },
@@ -47,7 +48,7 @@ export class PaymentService {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         const replay = await this.prisma.paymentIntent.findUnique({ where: { idempotencyKey } });
         if (replay) {
-          this.assertIntentReplay(replay, userId, input.amountPaise);
+          this.assertIntentReplay(replay, userId, input.amountPaise, input.purpose);
           return serializeIntent(replay, this.paymentUrl(replay, userId));
         }
       }
@@ -130,7 +131,8 @@ export class PaymentService {
       }
       if (
         intent.userId !== event.userId ||
-        intent.amountPaise.toString() !== event.amountPaise
+        intent.amountPaise.toString() !== event.amountPaise ||
+        intent.purpose !== event.purpose
       ) {
         throw new HttpError(409, "PAYMENT_INTENT_MISMATCH", "Verified payment did not match the intent.");
       }
@@ -153,50 +155,11 @@ export class PaymentService {
         throw new HttpError(409, "PAYMENT_INTENT_EXPIRED", "Payment was completed after intent expiry.");
       }
 
-      await tx.premiumCreditWallet.upsert({
-        where: { userId: event.userId },
-        update: {},
-        create: { userId: event.userId },
-      });
-      const wallets = await tx.$queryRaw<Array<{
-        id: string;
-        balanceCredits: bigint;
-      }>>`
-        SELECT id, balance_credits AS "balanceCredits"
-        FROM premium_credit_wallets
-        WHERE user_id = CAST(${event.userId} AS uuid)
-        FOR UPDATE
-      `;
-      const wallet = wallets[0];
-      if (!wallet) {
-        throw new Error("Premium credit wallet could not be locked.");
+      if (event.purpose === "REAL_MONEY_GAME_DEPOSIT") {
+        await creditRealMoneyDeposit(tx, intent.id, event);
+      } else {
+        await creditPremiumWallet(tx, intent.id, event);
       }
-
-      const credits = BigInt(event.amountPaise) / 100n;
-      const after = wallet.balanceCredits + credits;
-      await tx.premiumCreditLedgerEntry.create({
-        data: {
-          walletId: wallet.id,
-          userId: event.userId,
-          credits,
-          balanceBefore: wallet.balanceCredits,
-          balanceAfter: after,
-          paymentIntentId: intent.id,
-          idempotencyKey: `premium-credit:${event.eventId}`,
-          metadata: {
-            provider: event.provider,
-            providerOrderId: event.providerOrderId,
-            providerTxnId: event.providerTxnId,
-          },
-        },
-      });
-      await tx.premiumCreditWallet.update({
-        where: { id: wallet.id },
-        data: {
-          balanceCredits: after,
-          ledgerVersion: { increment: 1 },
-        },
-      });
       await tx.paymentIntent.update({
         where: { id: intent.id },
         data: {
@@ -231,6 +194,7 @@ export class PaymentService {
       userId: string;
       amountPaise: bigint;
       expiresAt: Date;
+      purpose: "PREMIUM_CREDITS" | "REAL_MONEY_GAME_DEPOSIT";
     },
     userId: string,
   ) {
@@ -240,7 +204,7 @@ export class PaymentService {
         intentId: intent.id,
         userId,
         amountPaise: intent.amountPaise.toString(),
-        purpose: "PREMIUM_CREDITS",
+        purpose: intent.purpose,
         expiresAt: intent.expiresAt.toISOString(),
         nonce: crypto.randomUUID(),
       },
@@ -255,14 +219,115 @@ export class PaymentService {
   }
 
   private assertIntentReplay(
-    existing: { userId: string; amountPaise: bigint },
+    existing: { userId: string; amountPaise: bigint; purpose: string },
     userId: string,
     amountPaise: number,
+    purpose: string,
   ) {
-    if (existing.userId !== userId || existing.amountPaise !== BigInt(amountPaise)) {
+    if (existing.userId !== userId || existing.amountPaise !== BigInt(amountPaise) || existing.purpose !== purpose) {
       throw new HttpError(409, "PAYMENT_INTENT_IDEMPOTENCY_MISMATCH", "Idempotency key was already used.");
     }
   }
+}
+
+async function creditPremiumWallet(
+  tx: Prisma.TransactionClient,
+  intentId: string,
+  event: VerifiedPaymentEventInput,
+) {
+  await tx.premiumCreditWallet.upsert({
+    where: { userId: event.userId },
+    update: {},
+    create: { userId: event.userId },
+  });
+  const wallets = await tx.$queryRaw<Array<{ id: string; balanceCredits: bigint }>>`
+    SELECT id, balance_credits AS "balanceCredits"
+    FROM premium_credit_wallets
+    WHERE user_id = CAST(${event.userId} AS uuid)
+    FOR UPDATE
+  `;
+  const wallet = wallets[0];
+  if (!wallet) throw new Error("Premium credit wallet could not be locked.");
+  const credits = BigInt(event.amountPaise) / 100n;
+  const after = wallet.balanceCredits + credits;
+  await tx.premiumCreditLedgerEntry.create({
+    data: {
+      walletId: wallet.id,
+      userId: event.userId,
+      credits,
+      balanceBefore: wallet.balanceCredits,
+      balanceAfter: after,
+      paymentIntentId: intentId,
+      idempotencyKey: `premium-credit:${event.eventId}`,
+      metadata: {
+        provider: event.provider,
+        providerOrderId: event.providerOrderId,
+        providerTxnId: event.providerTxnId,
+      },
+    },
+  });
+  await tx.premiumCreditWallet.update({
+    where: { id: wallet.id },
+    data: { balanceCredits: after, ledgerVersion: { increment: 1 } },
+  });
+}
+
+async function creditRealMoneyDeposit(
+  tx: Prisma.TransactionClient,
+  intentId: string,
+  event: VerifiedPaymentEventInput,
+) {
+  await tx.realMoneyGameWallet.upsert({
+    where: { userId: event.userId },
+    update: {},
+    create: { userId: event.userId },
+  });
+  const wallets = await tx.$queryRaw<Array<{ id: string; availablePaise: bigint; lockedPaise: bigint }>>`
+    SELECT id, available_paise AS "availablePaise", locked_paise AS "lockedPaise"
+    FROM real_money_game_wallets
+    WHERE user_id = CAST(${event.userId} AS uuid)
+    FOR UPDATE
+  `;
+  const wallet = wallets[0];
+  if (!wallet) throw new Error("Real-money wallet could not be locked.");
+  const amount = BigInt(event.amountPaise);
+  const after = wallet.availablePaise + amount;
+  await tx.realMoneyGameLedgerEntry.create({
+    data: {
+      walletId: wallet.id,
+      userId: event.userId,
+      type: "DEPOSIT_APPROVED",
+      amountPaise: amount,
+      availableBeforePaise: wallet.availablePaise,
+      availableAfterPaise: after,
+      lockedBeforePaise: wallet.lockedPaise,
+      lockedAfterPaise: wallet.lockedPaise,
+      idempotencyKey: `real-money-deposit:${event.eventId}`,
+      referenceType: "DEPOSIT",
+      referenceId: intentId,
+      metadata: { provider: event.provider, providerTxnId: event.providerTxnId },
+    },
+  });
+  await tx.realMoneyGameWallet.update({
+    where: { id: wallet.id },
+    data: { availablePaise: after, ledgerVersion: { increment: 1 } },
+  });
+  await tx.realMoneyDeposit.upsert({
+    where: { paymentIntentId: intentId },
+    update: {
+      status: "CREDITED",
+      providerTxnId: event.providerTxnId,
+      creditedAt: new Date(event.paidAt),
+    },
+    create: {
+      userId: event.userId,
+      paymentIntentId: intentId,
+      amountPaise: amount,
+      status: "CREDITED",
+      providerTxnId: event.providerTxnId,
+      creditedAt: new Date(event.paidAt),
+    },
+  });
 }
 
 export function serializeIntent(intent: {
@@ -272,12 +337,13 @@ export function serializeIntent(intent: {
   expiresAt: Date;
   creditedAt: Date | null;
   updatedAt: Date;
+  purpose?: "PREMIUM_CREDITS" | "REAL_MONEY_GAME_DEPOSIT";
 }, paymentUrl?: string) {
   return {
     id: intent.id,
     amountPaise: intent.amountPaise.toString(),
     credits: (intent.amountPaise / 100n).toString(),
-    purpose: "PREMIUM_CREDITS" as const,
+    purpose: intent.purpose ?? "PREMIUM_CREDITS",
     status: intent.status,
     ...(paymentUrl ? { paymentUrl } : {}),
     expiresAt: intent.expiresAt.toISOString(),

@@ -6,11 +6,13 @@ export type PaymentIntentStatus =
   | "FAILED"
   | "EXPIRED";
 
+export type PaymentIntentPurpose = "PREMIUM_CREDITS" | "REAL_MONEY_GAME_DEPOSIT";
+
 export interface SignedPaymentIntent {
   intentId: string;
   userId: string;
   amountPaise: string;
-  purpose: "PREMIUM_CREDITS";
+  purpose: PaymentIntentPurpose;
   expiresAt: string;
   nonce: string;
 }
@@ -20,7 +22,7 @@ export interface VerifiedPaymentEvent {
   intentId: string;
   userId: string;
   amountPaise: string;
-  purpose: "PREMIUM_CREDITS";
+  purpose: PaymentIntentPurpose;
   provider: "cashfree";
   providerOrderId: string;
   providerTxnId: string;
@@ -32,7 +34,7 @@ export interface PaymentIntentDto {
   id: string;
   amountPaise: string;
   credits: string;
-  purpose: "PREMIUM_CREDITS";
+  purpose: PaymentIntentPurpose;
   status: PaymentIntentStatus;
   paymentUrl?: string;
   expiresAt: string;

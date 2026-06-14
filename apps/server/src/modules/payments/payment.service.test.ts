@@ -25,6 +25,7 @@ test("payment intent idempotency rejects a replay belonging to another user", as
         id: "intent-1",
         userId: "user-1",
         amountPaise: 1_000n,
+        purpose: "PREMIUM_CREDITS",
         status: PaymentIntentStatus.CREATED,
         expiresAt: new Date(Date.now() + 60_000),
         creditedAt: null,
@@ -55,6 +56,7 @@ test("verified payment event credits premium ledger once and duplicate event is 
     id: "11111111-1111-4111-8111-111111111111",
     userId: "22222222-2222-4222-8222-222222222222",
     amountPaise: 10_000n,
+    purpose: "PREMIUM_CREDITS",
     status: PaymentIntentStatus.CREATED,
     providerTxnId: null,
     expiresAt: new Date("2030-01-01T00:10:00.000Z"),
@@ -110,4 +112,76 @@ test("verified payment event credits premium ledger once and duplicate event is 
   assert.equal(balance, 100n);
   assert.equal(ledgerCreates, 1);
   await assert.rejects(() => service.processVerifiedEvent(event, "altered-hash"), /replay did not match/);
+});
+
+test("verified real-money deposit event credits isolated wallet exactly once", async () => {
+  let processed: { eventId: string; payloadHash: string } | null = null;
+  let available = 0n;
+  let ledgerCreates = 0;
+  let depositUpserts = 0;
+  const intent = {
+    id: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    amountPaise: 10_000n,
+    purpose: "REAL_MONEY_GAME_DEPOSIT",
+    status: PaymentIntentStatus.CREATED,
+    providerTxnId: null,
+    expiresAt: new Date("2030-01-01T00:10:00.000Z"),
+  };
+  const tx = {
+    processedPaymentEvent: {
+      findUnique: async () => processed,
+      create: async ({ data }: { data: { eventId: string; payloadHash: string } }) => {
+        processed = data;
+        return data;
+      },
+    },
+    paymentIntent: { findUnique: async () => intent, update: async () => intent },
+    realMoneyGameWallet: {
+      upsert: async () => ({}),
+      update: async ({ data }: { data: { availablePaise: bigint } }) => {
+        available = data.availablePaise;
+        return {};
+      },
+    },
+    realMoneyGameLedgerEntry: {
+      create: async () => {
+        ledgerCreates += 1;
+        return {};
+      },
+    },
+    realMoneyDeposit: {
+      upsert: async () => {
+        depositUpserts += 1;
+        return {};
+      },
+    },
+    $queryRaw: async () => [{
+      id: "33333333-3333-4333-8333-333333333333",
+      availablePaise: available,
+      lockedPaise: 0n,
+    }],
+  };
+  const prisma = { $transaction: async (handler: (client: typeof tx) => Promise<unknown>) => handler(tx) };
+  const service = new PaymentService(prisma as never, {});
+  const event = {
+    eventId: "44444444-4444-4444-8444-444444444444",
+    intentId: intent.id,
+    userId: intent.userId,
+    amountPaise: "10000",
+    purpose: "REAL_MONEY_GAME_DEPOSIT" as const,
+    provider: "cashfree" as const,
+    providerOrderId: "rm_order_1",
+    providerTxnId: "cf_payment_2",
+    status: "PAID_VERIFIED" as const,
+    paidAt: "2030-01-01T00:00:00.000Z",
+  };
+
+  assert.deepEqual(await service.processVerifiedEvent(event, "hash-rm"), { idempotent: false });
+  assert.equal(available, 10_000n);
+  assert.equal(ledgerCreates, 1);
+  assert.equal(depositUpserts, 1);
+  assert.deepEqual(await service.processVerifiedEvent(event, "hash-rm"), { idempotent: true });
+  assert.equal(available, 10_000n);
+  assert.equal(ledgerCreates, 1);
 });

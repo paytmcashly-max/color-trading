@@ -15,7 +15,7 @@ const signedIntentSchema = z.object({
     const amount = BigInt(value);
     return amount >= 1_000n && amount <= 1_000_000n && amount % 100n === 0n;
   }, "Amount must be whole rupees between INR 10 and INR 10,000."),
-  purpose: z.literal("PREMIUM_CREDITS"),
+  purpose: z.enum(["PREMIUM_CREDITS", "REAL_MONEY_GAME_DEPOSIT"]),
   expiresAt: z.string().datetime(),
   nonce: z.string().uuid(),
 });
@@ -25,7 +25,7 @@ export class PaymentService {
 
   async exchangeSignedIntent(token: string) {
     const intent = signedIntentSchema.parse(
-      verifySignedToken<SignedPaymentIntent>(token, config.PAYMENT_INTENT_SIGNING_SECRET),
+      verifySignedToken<SignedPaymentIntent>(token, config.PAYMENT_INTENT_SIGNING_SECRET!),
     );
     if (new Date(intent.expiresAt) <= new Date()) {
       throw new Error("PAYMENT_LINK_EXPIRED");
@@ -65,11 +65,11 @@ export class PaymentService {
 
   async createProviderOrder(sessionId: string) {
     const session = await this.getSession(sessionId);
-    const providerOrderId = `pc_${session.intentId.replaceAll("-", "")}`;
+    const providerOrderId = `${session.intentPayload.purpose === "PREMIUM_CREDITS" ? "pc" : "rm"}_${session.intentId.replaceAll("-", "")}`;
     await pool.query(
       `INSERT INTO payment_service_orders (
-         id, intent_id, session_id, user_id, amount_paise, provider, provider_order_id, status, updated_at
-       ) VALUES ($1, $2, $3, $4, $5, 'cashfree', $6, 'CREATING', now())
+         id, intent_id, session_id, user_id, amount_paise, purpose, provider, provider_order_id, status, updated_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, 'cashfree', $7, 'CREATING', now())
        ON CONFLICT (intent_id) DO NOTHING`,
       [
         crypto.randomUUID(),
@@ -77,6 +77,7 @@ export class PaymentService {
         session.id,
         session.intentPayload.userId,
         session.intentPayload.amountPaise,
+        session.intentPayload.purpose,
         providerOrderId,
       ],
     );
@@ -98,6 +99,7 @@ export class PaymentService {
       amountPaise: session.intentPayload.amountPaise,
       userId: session.intentPayload.userId,
       idempotencyKey: session.id,
+      purpose: session.intentPayload.purpose,
     });
     await pool.query(
       `UPDATE payment_service_orders
@@ -122,8 +124,9 @@ export class PaymentService {
       intentId: string;
       userId: string;
       amountPaise: string;
+      purpose: "PREMIUM_CREDITS" | "REAL_MONEY_GAME_DEPOSIT";
     }>(
-      `SELECT intent_id AS "intentId", user_id AS "userId", amount_paise::text AS "amountPaise"
+      `SELECT intent_id AS "intentId", user_id AS "userId", amount_paise::text AS "amountPaise", purpose
        FROM payment_service_orders WHERE provider_order_id = $1`,
       [providerOrderId],
     );
@@ -148,7 +151,7 @@ export class PaymentService {
       intentId: local.intentId,
       userId: local.userId,
       amountPaise: local.amountPaise,
-      purpose: "PREMIUM_CREDITS",
+      purpose: local.purpose,
       provider: "cashfree",
       providerOrderId,
       providerTxnId: successful.cf_payment_id,

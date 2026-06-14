@@ -25,6 +25,7 @@ model PaymentServiceOrder {
   sessionId        String   @unique @map("session_id") @db.Uuid
   userId           String   @map("user_id") @db.Uuid
   amountPaise      BigInt   @map("amount_paise")
+  purpose          String   @db.VarChar(40)
   provider         String   @db.VarChar(40)
   providerOrderId  String   @unique @map("provider_order_id") @db.VarChar(80)
   cfOrderId        String?  @unique @map("cf_order_id") @db.VarChar(80)

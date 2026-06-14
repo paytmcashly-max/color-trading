@@ -150,7 +150,9 @@ npm run db:disable-admin-bootstrap
 ## Known Limitations
 
 - Email verification is enforced for admin-sensitive actions, but outbound email delivery is not implemented yet.
-- There are no withdrawals or real-money gameplay flows in this system.
+- The isolated real-money gameplay domain is sandbox-only, compliance-gated, disabled by default,
+  and hard-blocked from production enablement in this iteration. Withdrawals are manual review
+  records only; there is no automatic payout integration.
 - Cashfree sandbox payments credit a separate premium-credit ledger. Premium credits cannot enter
   game wallets, bets, winnings, or gameplay balances.
 
@@ -173,6 +175,16 @@ npm run dev:client
 
 Open `/sandbox-checkout` while authenticated. Configure real Cashfree sandbox credentials only in
 the payment-service environment. A browser return redirect is never treated as payment success.
+
+The payment service now boots safely with `PAYMENT_SERVICE_ENABLED=false` and reports readiness as
+disabled. The isolated real-money sandbox uses separate paise wallets, ledger, bets, settlements,
+deposits, and withdrawals. See [docs/REAL_MONEY_SANDBOX.md](docs/REAL_MONEY_SANDBOX.md).
+
+Dry-run real-money reconciliation:
+
+```bash
+npm run ops:real-money-game-reconcile -w @color-trading/server
+```
 - The game engine is designed for one active round stream; multi-game independent engines would need separate scheduler namespaces.
 
 ## Architecture Decisions

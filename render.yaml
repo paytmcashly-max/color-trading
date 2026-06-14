@@ -6,7 +6,7 @@ services:
     dockerfilePath: ./apps/server/Dockerfile
     dockerContext: .
     healthCheckPath: /health/ready
-    autoDeployTrigger: checksPass
+    autoDeployTrigger: commit
     envVars:
       - key: NODE_ENV
         value: production
@@ -46,6 +46,20 @@ services:
         value: color-trading-client
       - key: GAME_ENGINE_ENABLED
         value: "true"
+      - key: PAYMENT_SERVICE_ENABLED
+        value: "false"
+      - key: REAL_MONEY_ENABLED
+        value: "false"
+      - key: COMPLIANCE_APPROVED
+        value: "false"
+      - key: PAYMENT_PROVIDER_APPROVED
+        value: "false"
+      - key: KYC_ENABLED
+        value: "false"
+      - key: AML_CHECKS_ENABLED
+        value: "false"
+      - key: RESPONSIBLE_GAMING_ENABLED
+        value: "false"
       - key: GAME_ROUND_DURATION_SECONDS
         value: "60"
       - key: GAME_BETTING_DURATION_SECONDS
@@ -72,10 +86,12 @@ services:
     dockerfilePath: ./apps/payment/Dockerfile
     dockerContext: .
     healthCheckPath: /health/ready
-    autoDeployTrigger: checksPass
+    autoDeployTrigger: commit
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PAYMENT_SERVICE_ENABLED
+        value: "false"
       - key: PAYMENT_DATABASE_URL
         fromDatabase:
           name: color-trading-payment-postgres

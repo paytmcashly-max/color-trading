@@ -42,6 +42,28 @@ const rawEnvSchema = z.object({
       return value;
     }, z.boolean())
     .default(true),
+  PAYMENT_SERVICE_ENABLED: z
+    .preprocess((value) => {
+      if (typeof value === "string") return value.toLowerCase() === "true";
+      return value;
+    }, z.boolean())
+    .default(false),
+  REAL_MONEY_ENABLED: booleanEnv(false),
+  COMPLIANCE_APPROVED: booleanEnv(false),
+  PAYMENT_PROVIDER_APPROVED: booleanEnv(false),
+  KYC_ENABLED: booleanEnv(false),
+  AML_CHECKS_ENABLED: booleanEnv(false),
+  RESPONSIBLE_GAMING_ENABLED: booleanEnv(false),
+  REAL_MONEY_TIMEZONE: z.literal("Asia/Kolkata").default("Asia/Kolkata"),
+  REAL_MONEY_WIN_PAYOUT_MULTIPLIER: z.coerce.number().int().min(1).max(100).default(2),
+  MIN_REAL_MONEY_DEPOSIT_PAISE: safePositiveInteger(1_000),
+  MAX_REAL_MONEY_DEPOSIT_PAISE: safePositiveInteger(1_000_000),
+  MIN_REAL_MONEY_WITHDRAWAL_PAISE: safePositiveInteger(1_000),
+  MAX_REAL_MONEY_WITHDRAWAL_PAISE: safePositiveInteger(1_000_000),
+  MAX_REAL_MONEY_BET_PER_ROUND_PAISE: safePositiveInteger(100_000),
+  MAX_REAL_MONEY_EXPOSURE_PER_ROUND_PAISE: safePositiveInteger(1_000_000),
+  MAX_REAL_MONEY_EXPOSURE_PER_COLOR_PAISE: safePositiveInteger(500_000),
+  DAILY_REAL_MONEY_LOSS_LIMIT_PAISE: safePositiveInteger(500_000),
   PAYMENT_APP_URL: z.string().url().optional(),
   PAYMENT_INTENT_SIGNING_SECRET: z.string().min(32).optional(),
   PAYMENT_SERVICE_SECRET: z.string().min(32).optional(),
@@ -104,6 +126,23 @@ export const serverEnvSchema = rawEnvSchema
       GAME_MAX_BET_PER_USER_PER_ROUND: z.number().int().positive(),
       GAME_MAX_EXPOSURE_PER_COLOR: z.number().int().positive(),
       GAME_ENGINE_ENABLED: z.boolean(),
+      PAYMENT_SERVICE_ENABLED: z.boolean(),
+      REAL_MONEY_ENABLED: z.boolean(),
+      COMPLIANCE_APPROVED: z.boolean(),
+      PAYMENT_PROVIDER_APPROVED: z.boolean(),
+      KYC_ENABLED: z.boolean(),
+      AML_CHECKS_ENABLED: z.boolean(),
+      RESPONSIBLE_GAMING_ENABLED: z.boolean(),
+      REAL_MONEY_TIMEZONE: z.literal("Asia/Kolkata"),
+      REAL_MONEY_WIN_PAYOUT_MULTIPLIER: z.number().int().positive(),
+      MIN_REAL_MONEY_DEPOSIT_PAISE: z.number().int().positive(),
+      MAX_REAL_MONEY_DEPOSIT_PAISE: z.number().int().positive(),
+      MIN_REAL_MONEY_WITHDRAWAL_PAISE: z.number().int().positive(),
+      MAX_REAL_MONEY_WITHDRAWAL_PAISE: z.number().int().positive(),
+      MAX_REAL_MONEY_BET_PER_ROUND_PAISE: z.number().int().positive(),
+      MAX_REAL_MONEY_EXPOSURE_PER_ROUND_PAISE: z.number().int().positive(),
+      MAX_REAL_MONEY_EXPOSURE_PER_COLOR_PAISE: z.number().int().positive(),
+      DAILY_REAL_MONEY_LOSS_LIMIT_PAISE: z.number().int().positive(),
       PAYMENT_APP_URL: z.string().url().optional(),
       PAYMENT_INTENT_SIGNING_SECRET: z.string().min(32).optional(),
       PAYMENT_SERVICE_SECRET: z.string().min(32).optional(),
@@ -117,6 +156,20 @@ export const serverEnvSchema = rawEnvSchema
     },
   )
   .superRefine((value, context) => {
+    if (value.NODE_ENV === "production" && value.REAL_MONEY_ENABLED) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["REAL_MONEY_ENABLED"],
+        message: "REAL_MONEY_ENABLED=true is blocked in production during the sandbox-only iteration.",
+      });
+    }
+
+    if (value.MIN_REAL_MONEY_DEPOSIT_PAISE > value.MAX_REAL_MONEY_DEPOSIT_PAISE) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["MIN_REAL_MONEY_DEPOSIT_PAISE"], message: "Deposit minimum must not exceed maximum." });
+    }
+    if (value.MIN_REAL_MONEY_WITHDRAWAL_PAISE > value.MAX_REAL_MONEY_WITHDRAWAL_PAISE) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["MIN_REAL_MONEY_WITHDRAWAL_PAISE"], message: "Withdrawal minimum must not exceed maximum." });
+    }
     if (value.ALLOWED_ORIGINS.includes("*")) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -148,17 +201,19 @@ export const serverEnvSchema = rawEnvSchema
       return;
     }
 
-    for (const [key, configured] of [
-      ["PAYMENT_APP_URL", value.PAYMENT_APP_URL],
-      ["PAYMENT_INTENT_SIGNING_SECRET", value.PAYMENT_INTENT_SIGNING_SECRET],
-      ["PAYMENT_SERVICE_SECRET", value.PAYMENT_SERVICE_SECRET],
-    ] as const) {
-      if (!configured) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [key],
-          message: `${key} is required in production.`,
-        });
+    if (value.PAYMENT_SERVICE_ENABLED) {
+      for (const [key, configured] of [
+        ["PAYMENT_APP_URL", value.PAYMENT_APP_URL],
+        ["PAYMENT_INTENT_SIGNING_SECRET", value.PAYMENT_INTENT_SIGNING_SECRET],
+        ["PAYMENT_SERVICE_SECRET", value.PAYMENT_SERVICE_SECRET],
+      ] as const) {
+        if (!configured) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [key],
+            message: `${key} is required when PAYMENT_SERVICE_ENABLED=true.`,
+          });
+        }
       }
     }
 
@@ -255,4 +310,15 @@ function parseOrigins(value: string | undefined, fallback: string) {
     .filter(Boolean);
 
   return origins?.length ? origins : [fallback];
+}
+
+function booleanEnv(defaultValue: boolean) {
+  return z.preprocess((value) => {
+    if (typeof value === "string") return value.toLowerCase() === "true";
+    return value;
+  }, z.boolean()).default(defaultValue);
+}
+
+function safePositiveInteger(defaultValue: number) {
+  return z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER).default(defaultValue);
 }

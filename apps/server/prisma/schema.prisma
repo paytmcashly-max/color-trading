@@ -96,6 +96,66 @@ enum PaymentIntentStatus {
   EXPIRED
 }
 
+enum PaymentIntentPurpose {
+  PREMIUM_CREDITS
+  REAL_MONEY_GAME_DEPOSIT
+}
+
+enum RealMoneyWalletStatus {
+  ACTIVE
+  FROZEN
+  CLOSED
+}
+
+enum RealMoneyLedgerType {
+  DEPOSIT_APPROVED
+  BET_LOCKED
+  BET_WON_PAYOUT
+  BET_LOST_SETTLED
+  BET_REFUND
+  WITHDRAWAL_LOCKED
+  WITHDRAWAL_REJECTED_RELEASE
+  WITHDRAWAL_PAID
+  ADMIN_ADJUSTMENT
+}
+
+enum RealMoneyBetStatus {
+  PENDING
+  WON
+  LOST
+  CANCELLED
+  REFUNDED
+}
+
+enum RealMoneySettlementStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum KycStatus {
+  NOT_SUBMITTED
+  PENDING_REVIEW
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum RealMoneyDepositStatus {
+  INTENT_CREATED
+  PAID_VERIFIED
+  CREDITED
+  FAILED
+}
+
+enum RealMoneyWithdrawalStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  PAID
+  CANCELLED
+}
+
 model User {
   id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email           String     @unique @db.Citext
@@ -118,6 +178,13 @@ model User {
   paymentIntents      PaymentIntent[]
   premiumCreditWallet PremiumCreditWallet?
   premiumCreditLedger PremiumCreditLedgerEntry[]
+  realMoneyWallet     RealMoneyGameWallet?
+  realMoneyLedger     RealMoneyGameLedgerEntry[]
+  realMoneyBets       RealMoneyBet[]
+  realMoneyDeposits   RealMoneyDeposit[]
+  realMoneyWithdrawals RealMoneyWithdrawal[]
+  kycProfile          UserKycProfile?
+  responsibleGamingLimit ResponsibleGamingLimit?
 
   @@index([role])
   @@index([status])
@@ -169,6 +236,10 @@ model UserRiskProfile {
   riskScore    Int      @default(0) @map("risk_score")
   isBlocked    Boolean  @default(false) @map("is_blocked")
   botSuspected Boolean  @default(false) @map("bot_suspected")
+  realMoneyBetBlocked Boolean @default(false) @map("real_money_bet_blocked")
+  realMoneyDepositBlocked Boolean @default(false) @map("real_money_deposit_blocked")
+  realMoneyWithdrawalBlocked Boolean @default(false) @map("real_money_withdrawal_blocked")
+  realMoneyBlockReason String? @map("real_money_block_reason") @db.VarChar(240)
   lastUpdated  DateTime @default(now()) @map("last_updated") @db.Timestamptz(6)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -305,6 +376,8 @@ model GameRound {
   bets       Bet[]
   settlement RoundSettlement?
   secret     GameRoundSecret?
+  realMoneyBets RealMoneyBet[]
+  realMoneySettlement RealMoneyRoundSettlement?
 
   @@index([status, startTime])
   @@index([startTime])
@@ -388,6 +461,7 @@ model PaymentIntent {
   id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId                String              @map("user_id") @db.Uuid
   amountPaise           BigInt              @map("amount_paise")
+  purpose               PaymentIntentPurpose @default(PREMIUM_CREDITS)
   status                PaymentIntentStatus @default(CREATED)
   paymentServiceOrderId String?             @map("payment_service_order_id") @db.VarChar(80)
   provider              String?             @db.VarChar(40)
@@ -401,10 +475,164 @@ model PaymentIntent {
   user                 User                       @relation(fields: [userId], references: [id], onDelete: Restrict)
   processedEvents      ProcessedPaymentEvent[]
   premiumLedgerEntries PremiumCreditLedgerEntry[]
+  realMoneyDeposit     RealMoneyDeposit?
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@map("payment_intents")
+}
+
+model RealMoneyGameWallet {
+  id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String                @unique @map("user_id") @db.Uuid
+  availablePaise BigInt                @default(0) @map("available_paise")
+  lockedPaise    BigInt                @default(0) @map("locked_paise")
+  ledgerVersion  BigInt                @default(0) @map("ledger_version")
+  status         RealMoneyWalletStatus @default(ACTIVE)
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user          User                       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  ledgerEntries RealMoneyGameLedgerEntry[]
+
+  @@index([status])
+  @@map("real_money_game_wallets")
+}
+
+model RealMoneyGameLedgerEntry {
+  id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  walletId             String              @map("wallet_id") @db.Uuid
+  userId               String              @map("user_id") @db.Uuid
+  type                 RealMoneyLedgerType
+  amountPaise          BigInt              @map("amount_paise")
+  availableBeforePaise BigInt              @map("available_before_paise")
+  availableAfterPaise  BigInt              @map("available_after_paise")
+  lockedBeforePaise    BigInt              @map("locked_before_paise")
+  lockedAfterPaise     BigInt              @map("locked_after_paise")
+  idempotencyKey       String              @unique @map("idempotency_key") @db.VarChar(160)
+  referenceType        String              @map("reference_type") @db.VarChar(60)
+  referenceId          String              @map("reference_id") @db.VarChar(120)
+  metadata             Json?
+  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  wallet RealMoneyGameWallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  user   User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([referenceType, referenceId])
+  @@map("real_money_game_ledger")
+}
+
+model RealMoneyBet {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String             @map("user_id") @db.Uuid
+  roundId        String             @map("round_id") @db.Uuid
+  choice         PredictionColor
+  stakePaise     BigInt             @map("stake_paise")
+  payoutPaise    BigInt             @default(0) @map("payout_paise")
+  status         RealMoneyBetStatus @default(PENDING)
+  idempotencyKey String             @unique @map("idempotency_key") @db.VarChar(160)
+  settledAt      DateTime?          @map("settled_at") @db.Timestamptz(6)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user  User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  round GameRound @relation(fields: [roundId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([roundId, status])
+  @@index([roundId, choice])
+  @@map("real_money_bets")
+}
+
+model RealMoneyRoundSettlement {
+  id               String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roundId          String                    @unique @map("round_id") @db.Uuid
+  result           PredictionColor
+  status           RealMoneySettlementStatus @default(PENDING)
+  totalBets        Int                       @default(0) @map("total_bets")
+  totalPayoutPaise BigInt                    @default(0) @map("total_payout_paise")
+  failureReason    String?                   @map("failure_reason") @db.VarChar(500)
+  startedAt        DateTime                  @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt      DateTime?                 @map("completed_at") @db.Timestamptz(6)
+  createdAt        DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  round GameRound @relation(fields: [roundId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+  @@map("real_money_round_settlements")
+}
+
+model UserKycProfile {
+  userId       String    @id @map("user_id") @db.Uuid
+  status       KycStatus @default(NOT_SUBMITTED)
+  jurisdiction String?   @db.VarChar(80)
+  reviewNote   String?   @map("review_note") @db.VarChar(500)
+  reviewedBy   String?   @map("reviewed_by") @db.Uuid
+  reviewedAt   DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("user_kyc_profiles")
+}
+
+model ResponsibleGamingLimit {
+  userId               String    @id @map("user_id") @db.Uuid
+  dailyDepositPaise    BigInt?   @map("daily_deposit_paise")
+  dailyWithdrawalPaise BigInt?   @map("daily_withdrawal_paise")
+  dailyLossPaise       BigInt?   @map("daily_loss_paise")
+  perBetPaise          BigInt?   @map("per_bet_paise")
+  selfExcludedUntil    DateTime? @map("self_excluded_until") @db.Timestamptz(6)
+  coolingOffUntil      DateTime? @map("cooling_off_until") @db.Timestamptz(6)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("responsible_gaming_limits")
+}
+
+model RealMoneyDeposit {
+  id              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String                 @map("user_id") @db.Uuid
+  paymentIntentId String                 @unique @map("payment_intent_id") @db.Uuid
+  amountPaise     BigInt                 @map("amount_paise")
+  status          RealMoneyDepositStatus @default(INTENT_CREATED)
+  providerTxnId   String?                @unique @map("provider_txn_id") @db.VarChar(120)
+  creditedAt      DateTime?              @map("credited_at") @db.Timestamptz(6)
+  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user   User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  intent PaymentIntent @relation(fields: [paymentIntentId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("real_money_deposits")
+}
+
+model RealMoneyWithdrawal {
+  id             String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String                    @map("user_id") @db.Uuid
+  amountPaise    BigInt                    @map("amount_paise")
+  status         RealMoneyWithdrawalStatus @default(REQUESTED)
+  idempotencyKey String                    @unique @map("idempotency_key") @db.VarChar(160)
+  reviewNote     String?                   @map("review_note") @db.VarChar(500)
+  reviewedBy     String?                   @map("reviewed_by") @db.Uuid
+  reviewedAt     DateTime?                 @map("reviewed_at") @db.Timestamptz(6)
+  paidAt         DateTime?                 @map("paid_at") @db.Timestamptz(6)
+  createdAt      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("real_money_withdrawals")
 }
 
 model ProcessedPaymentEvent {

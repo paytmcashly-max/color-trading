@@ -7,8 +7,6 @@ CREATE TABLE IF NOT EXISTS "checkout_sessions" (
   "expires_at" TIMESTAMPTZ(6) NOT NULL,
   "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
-  ,CONSTRAINT "payment_service_orders_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "checkout_sessions"("id") ON DELETE RESTRICT
-  ,CONSTRAINT "payment_service_orders_amount_paise_check" CHECK ("amount_paise" BETWEEN 1000 AND 1000000 AND MOD("amount_paise", 100) = 0)
 );
 
 CREATE TABLE IF NOT EXISTS "payment_service_orders" (
@@ -17,13 +15,16 @@ CREATE TABLE IF NOT EXISTS "payment_service_orders" (
   "session_id" UUID NOT NULL UNIQUE,
   "user_id" UUID NOT NULL,
   "amount_paise" BIGINT NOT NULL,
+  "purpose" VARCHAR(40) NOT NULL,
   "provider" VARCHAR(40) NOT NULL,
   "provider_order_id" VARCHAR(80) NOT NULL UNIQUE,
   "cf_order_id" VARCHAR(80) UNIQUE,
   "payment_session_id" TEXT,
   "status" VARCHAR(40) NOT NULL,
   "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "payment_service_orders_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "checkout_sessions"("id") ON DELETE RESTRICT,
+  CONSTRAINT "payment_service_orders_amount_paise_check" CHECK ("amount_paise" BETWEEN 1000 AND 1000000 AND MOD("amount_paise", 100) = 0)
 );
 CREATE INDEX IF NOT EXISTS "payment_service_orders_status_created_at_idx"
   ON "payment_service_orders"("status", "created_at");

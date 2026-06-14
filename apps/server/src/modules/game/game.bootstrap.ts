@@ -10,6 +10,7 @@ import { ResultService } from "./services/result.service.js";
 import { RoundService } from "./services/round.service.js";
 import { SchedulerService } from "./services/scheduler.service.js";
 import { SettlementService } from "./services/settlement.service.js";
+import { RealMoneySettlementService } from "../real-money/real-money-settlement.service.js";
 
 export function startGameEngine() {
   if (!shouldStartGameEngine()) {
@@ -27,7 +28,12 @@ export function startGameEngine() {
   const gameRepository = new GameRepository(prisma);
   const walletService = new WalletService(new WalletRepository(prisma));
   const settlementService = new SettlementService(gameRepository, walletService);
-  const roundService = new RoundService(gameRepository, new ResultService(), settlementService);
+  const roundService = new RoundService(
+    gameRepository,
+    new ResultService(),
+    settlementService,
+    new RealMoneySettlementService(prisma),
+  );
   const scheduler = new SchedulerService(roundService, new RedisLockService(redis));
 
   scheduler.start();

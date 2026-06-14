@@ -12,6 +12,7 @@ import { serializeRound, serializeUserBetHistory } from "../game.serializer.js";
 import type { GameRepository, GameRoundRecord } from "../repositories/game.repository.js";
 import type { ResultService } from "./result.service.js";
 import { clearRoundSeedReveal, readRoundSeedReveal, storeRoundSeedReveal } from "./round-seed.service.js";
+import type { RealMoneySettlementService } from "../../real-money/real-money-settlement.service.js";
 import type { SettlementService } from "./settlement.service.js";
 
 export class RoundService {
@@ -19,6 +20,7 @@ export class RoundService {
     private readonly gameRepository: GameRepository,
     private readonly resultService?: ResultService,
     private readonly settlementService?: SettlementService,
+    private readonly realMoneySettlementService?: RealMoneySettlementService,
   ) {}
 
   async getCurrentRound() {
@@ -222,6 +224,7 @@ export class RoundService {
     }
 
     const settlement = await this.settlementService.settleRound(round.id, result);
+    const realMoneySettlement = await this.realMoneySettlementService?.settleRound(round.id, result);
 
     await this.gameRepository.updateRoundStatus(
       round.id,
@@ -241,12 +244,14 @@ export class RoundService {
         ...this.buildRoundPayload(completedRound),
         result,
         settlement,
+        realMoneySettlement,
       });
       publishGameEvent("round:update", this.buildRoundPayload(completedRound));
       publishGameEvent("round:state", this.buildRoundPayload(completedRound));
       publishGameEvent("round:completed", {
         round: serializeRound(completedRound),
         settlement,
+        realMoneySettlement,
       });
 
       await clearRoundSeedReveal(completedRound.id);

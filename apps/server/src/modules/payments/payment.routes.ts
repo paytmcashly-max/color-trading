@@ -19,13 +19,16 @@ export const paymentRouter = Router();
 export const internalPaymentEventsRouter = Router();
 
 const service = new PaymentService(getPrismaClient(), {
-  paymentAppUrl: env.PAYMENT_APP_URL,
-  intentSigningSecret: env.PAYMENT_INTENT_SIGNING_SECRET,
+  paymentAppUrl: env.PAYMENT_SERVICE_ENABLED ? env.PAYMENT_APP_URL : undefined,
+  intentSigningSecret: env.PAYMENT_SERVICE_ENABLED ? env.PAYMENT_INTENT_SIGNING_SECRET : undefined,
 });
 
 paymentRouter.use(authGuard);
 paymentRouter.post("/intents", asyncHandler(async (req, res) => {
   const input = createPaymentIntentSchema.parse(req.body);
+  if (input.purpose !== "PREMIUM_CREDITS") {
+    throw new HttpError(403, "REAL_MONEY_DEPOSIT_ROUTE_REQUIRED", "Use the compliance-gated deposit route.");
+  }
   const intent = await service.createIntent(req.auth!.userId, input, req.get("idempotency-key"));
   res.status(201).json({ success: true, message: "Payment intent created.", data: { intent } });
 }));

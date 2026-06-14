@@ -26,12 +26,28 @@ app.use(express.json({
 
 app.get("/health/live", (_req, res) => res.json({ status: "healthy" }));
 app.get("/health/ready", async (_req, res) => {
+  if (!config.PAYMENT_SERVICE_ENABLED) {
+    res.json({ status: "healthy", paymentService: "disabled" });
+    return;
+  }
+
   try {
     await pool.query("SELECT 1");
     res.json({ status: "healthy" });
   } catch {
     res.status(503).json({ status: "unhealthy" });
   }
+});
+
+app.use((req, res, next) => {
+  if (!config.PAYMENT_SERVICE_ENABLED) {
+    res.status(503).json({
+      code: "PAYMENT_SERVICE_DISABLED",
+      message: "Sandbox payment service is disabled.",
+    });
+    return;
+  }
+  next();
 });
 
 app.get("/pay", async (req, res, next) => {
@@ -46,7 +62,7 @@ app.get("/pay", async (req, res, next) => {
 app.get("/checkout/:sessionId", async (req, res, next) => {
   try {
     const session = await service.getSession(z.string().uuid().parse(req.params.sessionId));
-    res.type("html").send(checkoutHtml(session.id, session.intentPayload.amountPaise));
+    res.type("html").send(checkoutHtml(session.id, session.intentPayload.amountPaise, session.intentPayload.purpose));
   } catch (error) {
     next(error);
   }
@@ -103,8 +119,14 @@ app.use((error: unknown, _req: express.Request, res: express.Response, next: exp
 
 let stopOutboxWorker: (() => void) | undefined;
 const httpServer = app.listen(config.PORT, () => {
-  console.log("payment_service_listening", { port: config.PORT, provider: "cashfree-sandbox" });
-  stopOutboxWorker = startOutboxWorker();
+  console.log("payment_service_listening", {
+    port: config.PORT,
+    provider: "cashfree-sandbox",
+    enabled: config.PAYMENT_SERVICE_ENABLED,
+  });
+  if (config.PAYMENT_SERVICE_ENABLED) {
+    stopOutboxWorker = startOutboxWorker();
+  }
 });
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
@@ -114,13 +136,14 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
   });
 }
 
-function checkoutHtml(sessionId: string, amountPaise: string) {
+function checkoutHtml(sessionId: string, amountPaise: string, purpose: "PREMIUM_CREDITS" | "REAL_MONEY_GAME_DEPOSIT") {
   const amount = (Number(amountPaise) / 100).toFixed(2);
+  const realMoney = purpose === "REAL_MONEY_GAME_DEPOSIT";
   return `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Premium credits sandbox checkout</title><script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
+<title>${realMoney ? "Sandbox game wallet deposit" : "Premium credits sandbox checkout"}</title><script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
 <style>body{font-family:system-ui;background:#f6f8f4;color:#17201a;margin:0;padding:24px}.box{max-width:440px;margin:0 auto;background:white;border:1px solid #dfe6df;border-radius:16px;padding:20px}.warn{background:#fff8e7;color:#73510d;padding:12px;border-radius:12px}button{width:100%;height:48px;border:0;border-radius:12px;background:#16874f;color:white;font-weight:800;font-size:16px;margin-top:16px}</style>
-</head><body><main class="box"><h1>Premium credits</h1><p class="warn">Cashfree sandbox only. Premium credits cannot be used for bets or converted to game coins.</p><h2>INR ${amount}</h2><button id="pay">Open sandbox checkout</button><p id="message"></p></main>
+</head><body><main class="box"><h1>${realMoney ? "Sandbox game wallet" : "Premium credits"}</h1><p class="warn">Cashfree sandbox only. No production transaction or automatic withdrawal is available.</p><h2>INR ${amount}</h2><button id="pay">Open sandbox checkout</button><p id="message"></p></main>
 <script>
 const button=document.getElementById('pay');const message=document.getElementById('message');
 button.onclick=async()=>{button.disabled=true;message.textContent='Creating secure order...';

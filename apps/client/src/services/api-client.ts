@@ -19,6 +19,12 @@ import type {
   PaymentIntentDto,
   PremiumCreditWalletDto,
   PremiumCreditLedgerDto,
+  RealMoneyEligibilityDto,
+  RealMoneyLedgerDto,
+  RealMoneyWalletDto,
+  RealMoneyDepositDto,
+  RealMoneyWithdrawalDto,
+  RealMoneyBetDto,
 } from "@/types/api";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -255,6 +261,40 @@ export function fetchPremiumCreditLedger(accessToken: string, input: PaginationP
     apiPath(`/payments/premium-wallet/ledger${paginationSuffix(input)}`),
     {},
     accessToken,
+  );
+}
+
+export function fetchRealMoneyEligibility(accessToken: string) {
+  return request<RealMoneyEligibilityDto>(apiPath("/real-money/eligibility"), {}, accessToken);
+}
+
+export function fetchRealMoneyWallet(accessToken: string) {
+  return request<{ wallet: RealMoneyWalletDto }>(apiPath("/real-money/wallet"), {}, accessToken);
+}
+
+export function fetchRealMoneyLedger(accessToken: string, input: PaginationParams = {}) {
+  return request<{ entries: RealMoneyLedgerDto[]; pageInfo: PageInfo }>(
+    apiPath(`/real-money/ledger${paginationSuffix(input)}`),
+    {},
+    accessToken,
+  );
+}
+
+export function fetchRealMoneyDeposits(accessToken: string, input: PaginationParams = {}) {
+  return request<{ deposits: RealMoneyDepositDto[]; pageInfo: PageInfo }>(
+    apiPath(`/real-money/deposits${paginationSuffix(input)}`), {}, accessToken,
+  );
+}
+
+export function fetchRealMoneyWithdrawals(accessToken: string, input: PaginationParams = {}) {
+  return request<{ withdrawals: RealMoneyWithdrawalDto[]; pageInfo: PageInfo }>(
+    apiPath(`/real-money/withdrawals${paginationSuffix(input)}`), {}, accessToken,
+  );
+}
+
+export function fetchRealMoneyBets(accessToken: string, input: PaginationParams = {}) {
+  return request<{ bets: RealMoneyBetDto[]; pageInfo: PageInfo }>(
+    apiPath(`/real-money/bets${paginationSuffix(input)}`), {}, accessToken,
   );
 }
 

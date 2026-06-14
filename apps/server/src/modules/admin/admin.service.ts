@@ -32,6 +32,7 @@ import { GameRepository } from "../game/repositories/game.repository.js";
 import { SettlementService } from "../game/services/settlement.service.js";
 import { publishRealtimeEvent } from "../../sockets/socket.events.js";
 import type { WalletService } from "../wallet/wallet.service.js";
+import { RealMoneySettlementService } from "../real-money/real-money-settlement.service.js";
 import { hashToken } from "../../common/utils/token-hash.js";
 import {
   serializeAdminBet,
@@ -81,6 +82,7 @@ export class AdminService {
   private readonly resultService = new ResultService();
   private readonly settlementService: SettlementService;
   private readonly gameRepository: GameRepository;
+  private readonly realMoneySettlementService: RealMoneySettlementService;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -88,6 +90,7 @@ export class AdminService {
   ) {
     this.gameRepository = new GameRepository(prisma);
     this.settlementService = new SettlementService(this.gameRepository, walletService);
+    this.realMoneySettlementService = new RealMoneySettlementService(prisma);
   }
 
   async getDashboardStats() {
@@ -378,7 +381,7 @@ export class AdminService {
     const lockTime = new Date(startTime.getTime() + BET_LOCK_AFTER_MS);
     const endTime = new Date(startTime.getTime() + ROUND_DURATION_MS);
 
-    const { round, refunds } = await this.prisma.$transaction(async (tx) => {
+    const { round, refunds, cancelledRoundIds } = await this.prisma.$transaction(async (tx) => {
       const activeRounds = await tx.gameRound.findMany({
         where: {
           status: {
@@ -452,12 +455,16 @@ export class AdminService {
       return {
         round,
         refunds,
+        cancelledRoundIds: activeRounds.map((activeRound) => activeRound.id),
       };
     }, { isolationLevel: "Serializable", maxWait: 5000, timeout: 20000 });
 
     await storeRoundSeedReveal(round.id, seed.seedReveal);
 
     this.publishRefundWalletUpdates(refunds);
+    for (const cancelledRoundId of cancelledRoundIds) {
+      await this.realMoneySettlementService.refundRound(cancelledRoundId);
+    }
     publishGameEvent("round:created", { round: serializeRound(round) });
 
     return { round: serializeAdminRound({ ...round, _count: { bets: 0 } }) };
@@ -523,6 +530,7 @@ export class AdminService {
     }, { isolationLevel: "Serializable", maxWait: 5000, timeout: 20000 });
 
     this.publishRefundWalletUpdates(refunds);
+    await this.realMoneySettlementService.refundRound(round.id);
     const cancellationPayload = {
       round: {
         ...serializeRound(round),
@@ -602,6 +610,7 @@ export class AdminService {
     }
 
     const settlement = await this.settlementService.settleRound(activeRound.id, dto.result);
+    const realMoneySettlement = await this.realMoneySettlementService.settleRound(activeRound.id, dto.result);
 
     const round = await this.prisma.gameRound.update({
       where: { id: activeRound.id },
@@ -617,6 +626,7 @@ export class AdminService {
       result: dto.result,
       reason: dto.reason,
       settlement: { ...settlement },
+      realMoneySettlement,
     });
 
     publishGameEvent("round:result", {

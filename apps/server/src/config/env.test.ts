@@ -63,6 +63,17 @@ test("development environment accepts documented local example values", () => {
   assert.equal(result.data?.PORT, 4000);
 });
 
+test("production hard-blocks real-money sandbox enablement", () => {
+  const result = parseServerEnv(productionEnvironment({
+    REAL_MONEY_ENABLED: "true",
+  }));
+
+  assert.equal(result.success, false);
+  assert.deepEqual(result.error?.flatten().fieldErrors.REAL_MONEY_ENABLED, [
+    "REAL_MONEY_ENABLED=true is blocked in production during the sandbox-only iteration.",
+  ]);
+});
+
 function productionEnvironment(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
     NODE_ENV: "production",

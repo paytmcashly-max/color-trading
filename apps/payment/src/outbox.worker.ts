@@ -36,9 +36,9 @@ export async function deliverNextEvent() {
   if (!event) return;
 
   const timestamp = String(Date.now());
-  const signature = signPayload(`${timestamp}.${event.rawPayload}`, config.PAYMENT_SERVICE_SECRET);
+  const signature = signPayload(`${timestamp}.${event.rawPayload}`, config.PAYMENT_SERVICE_SECRET!);
   try {
-    const response = await fetch(`${config.MAIN_API_URL}/api/v1/internal/payment-events`, {
+    const response = await fetch(`${config.MAIN_API_URL!}/api/v1/internal/payment-events`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

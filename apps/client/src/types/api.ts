@@ -224,3 +224,59 @@ export interface RiskProfileDto {
     status: string;
   };
 }
+
+export interface RealMoneyEligibilityDto {
+  eligible: boolean;
+  reasons: string[];
+  kycStatus: string;
+}
+
+export interface RealMoneyWalletDto {
+  availablePaise: string;
+  lockedPaise: string;
+  totalPaise: string;
+  status: string;
+  ledgerVersion: string;
+  updatedAt: string;
+}
+
+export interface RealMoneyLedgerDto {
+  id: string;
+  type: string;
+  amountPaise: string;
+  availableAfterPaise: string;
+  lockedAfterPaise: string;
+  referenceType: string;
+  referenceId: string;
+  createdAt: string;
+}
+
+export interface RealMoneyDepositDto {
+  id: string;
+  amountPaise: string;
+  status: string;
+  creditedAt: string | null;
+  createdAt: string;
+}
+
+export interface RealMoneyWithdrawalDto {
+  id: string;
+  amountPaise: string;
+  status: string;
+  reviewNote: string | null;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+export interface RealMoneyBetDto {
+  id: string;
+  roundId: string;
+  roundNumber?: string;
+  choice: string;
+  result: string | null;
+  stakePaise: string;
+  payoutPaise: string;
+  status: string;
+  settledAt: string | null;
+  createdAt: string;
+}

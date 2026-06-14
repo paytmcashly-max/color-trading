@@ -25,6 +25,13 @@ services:
       JWT_ISSUER: color-trading-api
       JWT_AUDIENCE: color-trading-client
       GAME_ENGINE_ENABLED: true
+      PAYMENT_SERVICE_ENABLED: true
+      REAL_MONEY_ENABLED: false
+      COMPLIANCE_APPROVED: false
+      PAYMENT_PROVIDER_APPROVED: false
+      KYC_ENABLED: false
+      AML_CHECKS_ENABLED: false
+      RESPONSIBLE_GAMING_ENABLED: false
       PAYMENT_APP_URL: http://localhost:4100
       PAYMENT_INTENT_SIGNING_SECRET: local-payment-intent-secret-change-before-shared-use
       PAYMENT_SERVICE_SECRET: local-payment-service-secret-change-before-shared-use
@@ -62,6 +69,7 @@ services:
     environment: &payment-environment
       NODE_ENV: development
       PORT: 4100
+      PAYMENT_SERVICE_ENABLED: true
       PAYMENT_DATABASE_URL: postgresql://postgres:postgres@payment-postgres:5432/color_trading_payments
       MAIN_API_URL: http://backend:4000
       MAIN_CLIENT_URL: http://localhost:3000

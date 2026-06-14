@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowDownLeft, ArrowUpRight, RefreshCw, WalletCards } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, RefreshCw, ShieldCheck, WalletCards } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 
 import { AppShell } from "@/components/layout/AppShell";
@@ -8,9 +9,19 @@ import { WalletCard } from "@/components/wallet/WalletCard";
 import { useWallet } from "@/hooks/useWallet";
 import { walletActivityLabel } from "@/lib/player-copy";
 import { formatCoinString } from "@/utils/format-coins";
+import { fetchRealMoneyEligibility } from "@/services/api-client";
+import { useAuthStore } from "@/store/auth-store";
 
 export function WalletPage() {
   const { wallet, transactions, isLoading, isTransactionsLoading, refetch } = useWallet();
+  const token = useAuthStore((state) => state.tokens?.accessToken);
+  const userId = useAuthStore((state) => state.user?.id);
+  const realMoney = useQuery({
+    queryKey: ["real-money-eligibility", userId],
+    queryFn: () => fetchRealMoneyEligibility(token!),
+    enabled: Boolean(token && userId),
+  });
+  const globallyAvailable = !realMoney.data?.reasons.some((reason) => reason.startsWith("GLOBAL_"));
 
   return (
     <AppShell
@@ -35,6 +46,13 @@ export function WalletPage() {
         <span>Premium credits</span>
         <span className="text-sm">Cashfree sandbox</span>
       </Link>
+
+      {globallyAvailable ? (
+        <Link href="/real-money" className="flex items-center justify-between rounded-2xl border border-[#ead9a8] bg-[#fff8e7] px-4 py-3 font-black text-[#73510d] shadow-sm active:scale-[0.99]">
+          <span className="flex items-center gap-2"><ShieldCheck size={18} /> Sandbox wallet</span>
+          <span className="text-sm">{realMoney.data?.eligible ? "Available" : "Review required"}</span>
+        </Link>
+      ) : null}
 
       <section className="rounded-3xl border border-line bg-white p-3 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
         <div className="flex items-center justify-between gap-3">

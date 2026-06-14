@@ -26,6 +26,13 @@ GAME_ENGINE_ENABLED=true
 PAYMENT_APP_URL=https://your-payment-service.onrender.com
 PAYMENT_INTENT_SIGNING_SECRET=<unique-random-secret-at-least-32-characters>
 PAYMENT_SERVICE_SECRET=<different-unique-random-secret-at-least-32-characters>
+PAYMENT_SERVICE_ENABLED=false
+REAL_MONEY_ENABLED=false
+COMPLIANCE_APPROVED=false
+PAYMENT_PROVIDER_APPROVED=false
+KYC_ENABLED=false
+AML_CHECKS_ENABLED=false
+RESPONSIBLE_GAMING_ENABLED=false
 ```
 
 `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `COOKIE_SECRET`, and
@@ -41,6 +48,7 @@ Configure the isolated payment service separately:
 ```bash
 NODE_ENV=production
 PORT=4100
+PAYMENT_SERVICE_ENABLED=false
 PAYMENT_DATABASE_URL=postgresql://...
 MAIN_API_URL=https://your-api.onrender.com
 MAIN_CLIENT_URL=https://your-client.vercel.app
@@ -57,6 +65,11 @@ CASHFREE_WEBHOOK_URL=https://your-payment-service.onrender.com/api/webhooks/cash
 The payment service hard-rejects Cashfree production endpoints. Its database must be separate from
 the main application database. The two signing secrets must be different and must never be exposed
 through Vercel or browser-visible variables.
+
+Keep `PAYMENT_SERVICE_ENABLED=false` until the sandbox database and Cashfree credentials are
+verified. Disabled payment service readiness reports `paymentService: disabled`. Real-money
+sandbox routes must remain disabled in production; this iteration intentionally fails startup if
+`REAL_MONEY_ENABLED=true` with `NODE_ENV=production`.
 
 Recommended production settings:
 

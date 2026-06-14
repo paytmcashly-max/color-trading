@@ -26,6 +26,7 @@ export class CashfreeClient {
     amountPaise: string;
     userId: string;
     idempotencyKey: string;
+    purpose: "PREMIUM_CREDITS" | "REAL_MONEY_GAME_DEPOSIT";
   }) {
     return this.request<CashfreeOrder>("/orders", {
       method: "POST",
@@ -39,10 +40,12 @@ export class CashfreeClient {
           customer_phone: "9999999999",
         },
         order_meta: {
-          return_url: config.CASHFREE_RETURN_URL,
-          notify_url: config.CASHFREE_WEBHOOK_URL,
+          return_url: config.CASHFREE_RETURN_URL!,
+          notify_url: config.CASHFREE_WEBHOOK_URL!,
         },
-        order_note: "Premium credits sandbox order",
+        order_note: input.purpose === "REAL_MONEY_GAME_DEPOSIT"
+          ? "Compliance-gated sandbox game wallet deposit"
+          : "Premium credits sandbox order",
       }),
     });
   }
@@ -61,8 +64,8 @@ export class CashfreeClient {
       headers: {
         "Content-Type": "application/json",
         "x-api-version": config.CASHFREE_API_VERSION,
-        "x-client-id": config.CASHFREE_CLIENT_ID,
-        "x-client-secret": config.CASHFREE_CLIENT_SECRET,
+        "x-client-id": config.CASHFREE_CLIENT_ID!,
+        "x-client-secret": config.CASHFREE_CLIENT_SECRET!,
         "x-request-id": crypto.randomUUID(),
         ...options.headers,
       },
@@ -75,7 +78,7 @@ export class CashfreeClient {
 }
 
 export function verifyCashfreeSignature(rawBody: Buffer, timestamp: string, signature: string) {
-  const expected = crypto.createHmac("sha256", config.CASHFREE_CLIENT_SECRET)
+  const expected = crypto.createHmac("sha256", config.CASHFREE_CLIENT_SECRET!)
     .update(timestamp)
     .update(rawBody)
     .digest();
