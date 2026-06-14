@@ -9,7 +9,14 @@ const MAX_INPUT_DEPTH = 12;
 const MAX_OBJECT_KEYS = 200;
 const MAX_ARRAY_ITEMS = 500;
 const MAX_STRING_LENGTH = 4096;
-const SENSITIVE_ROUTE_PREFIXES = [`${API_PREFIX}/auth`, `${API_PREFIX}/wallet`, `${API_PREFIX}/bets`, `${API_PREFIX}/admin`];
+const SENSITIVE_ROUTE_PREFIXES = [
+  `${API_PREFIX}/auth`,
+  `${API_PREFIX}/wallet`,
+  `${API_PREFIX}/bets`,
+  `${API_PREFIX}/admin`,
+  `${API_PREFIX}/payments`,
+  `${API_PREFIX}/internal/payment-events`,
+];
 
 export function securityMiddleware(req: Request, res: Response, next: NextFunction) {
   if (BODY_METHODS.has(req.method) && hasRequestBody(req) && !req.is("application/json")) {

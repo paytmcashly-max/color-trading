@@ -1,7 +1,7 @@
 const REDACTED = "[REDACTED]";
 
 const SENSITIVE_KEY_PATTERN =
-  /^(authorization|cookie|password|passwordHash|token|accessToken|refreshToken|refreshTokenHash|secret|jwt|idempotencyKey|seedReveal|ADMIN_PASSWORD|ADMIN_BOOTSTRAP_PASSWORD|ADMIN_BOOTSTRAP_TOKEN|JWT_SECRET|JWT_ACCESS_SECRET|JWT_REFRESH_SECRET|COOKIE_SECRET|ROUND_SEED_ENCRYPTION_KEY|DATABASE_URL|REDIS_URL)$/i;
+  /^(authorization|cookie|password|passwordHash|token|accessToken|refreshToken|refreshTokenHash|paymentSessionId|secret|jwt|idempotencyKey|seedReveal|ADMIN_PASSWORD|ADMIN_BOOTSTRAP_PASSWORD|ADMIN_BOOTSTRAP_TOKEN|JWT_SECRET|JWT_ACCESS_SECRET|JWT_REFRESH_SECRET|COOKIE_SECRET|ROUND_SEED_ENCRYPTION_KEY|DATABASE_URL|REDIS_URL|PAYMENT_DATABASE_URL|PAYMENT_INTENT_SIGNING_SECRET|PAYMENT_SERVICE_SECRET|CASHFREE_CLIENT_ID|CASHFREE_CLIENT_SECRET|x-client-id|x-client-secret)$/i;
 
 export function redactSensitiveData<TValue>(value: TValue): TValue {
   return redactValue(value) as TValue;

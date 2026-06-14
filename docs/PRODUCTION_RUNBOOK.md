@@ -23,6 +23,9 @@ ALLOWED_ORIGINS=https://your-client.vercel.app
 SOCKET_ALLOWED_ORIGINS=https://your-client.vercel.app
 API_PREFIX=/api/v1
 GAME_ENGINE_ENABLED=true
+PAYMENT_APP_URL=https://your-payment-service.onrender.com
+PAYMENT_INTENT_SIGNING_SECRET=<unique-random-secret-at-least-32-characters>
+PAYMENT_SERVICE_SECRET=<different-unique-random-secret-at-least-32-characters>
 ```
 
 `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `COOKIE_SECRET`, and
@@ -32,6 +35,28 @@ Production startup fails when PostgreSQL, Redis, JWT secrets, `COOKIE_SECRET`,
 `ROUND_SEED_ENCRYPTION_KEY`, or explicit HTTP/socket origin allow-lists are missing. `API_PREFIX` is
 validated as `/api/v1`; the server does not expose duplicate root, `/api`, or
 `/v1` module routes.
+
+Configure the isolated payment service separately:
+
+```bash
+NODE_ENV=production
+PORT=4100
+PAYMENT_DATABASE_URL=postgresql://...
+MAIN_API_URL=https://your-api.onrender.com
+MAIN_CLIENT_URL=https://your-client.vercel.app
+PAYMENT_INTENT_SIGNING_SECRET=<same-intent-secret-as-main-api>
+PAYMENT_SERVICE_SECRET=<same-event-secret-as-main-api>
+CASHFREE_CLIENT_ID=<sandbox-app-id>
+CASHFREE_CLIENT_SECRET=<sandbox-secret>
+CASHFREE_API_VERSION=2025-01-01
+CASHFREE_BASE_URL=https://sandbox.cashfree.com/pg
+CASHFREE_RETURN_URL=https://your-payment-service.onrender.com/return?order_id={order_id}
+CASHFREE_WEBHOOK_URL=https://your-payment-service.onrender.com/api/webhooks/cashfree
+```
+
+The payment service hard-rejects Cashfree production endpoints. Its database must be separate from
+the main application database. The two signing secrets must be different and must never be exposed
+through Vercel or browser-visible variables.
 
 Recommended production settings:
 
@@ -71,10 +96,12 @@ changes. From a controlled Render shell or migration job, run:
 
 ```bash
 npm run db:migrate:deploy -w @color-trading/server
+npm run db:migrate:deploy -w @color-trading/payment
 ```
 
-The migration runner uses a PostgreSQL advisory lock, records line-ending-
-independent checksums, and can safely be run again to verify idempotency. Do not
+The main API migration runner uses a PostgreSQL advisory lock and records line-ending-independent
+checksums. The payment-service bootstrap migration uses a separate advisory lock and idempotent
+schema statements. Both commands can safely be run again. Do not
 edit an already-applied SQL migration.
 
 The production Docker image runs the same migration runner as a startup gate.
@@ -159,6 +186,10 @@ check and containers should use `/health/live` for liveness:
 - `seedReveal` is null before a round reaches `COMPLETED` or `CANCELLED`.
 - Logs contain no passwords, JWTs, refresh tokens, cookies, bootstrap secrets,
   raw idempotency keys, or unrevealed seeds.
+- Cashfree return redirects do not credit anything without a verified provider status and a signed
+  payment-service event.
+- Premium credits appear in their separate ledger and never change game wallet balances.
+- Pending payment outbox events retry after a main API outage and credit exactly once.
 
 ## Rollback
 

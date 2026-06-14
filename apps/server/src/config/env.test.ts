@@ -77,6 +77,9 @@ function productionEnvironment(overrides: NodeJS.ProcessEnv = {}): NodeJS.Proces
     JWT_REFRESH_SECRET: "production-refresh-secret-unique-and-long-enough-456",
     COOKIE_SECRET: "production-cookie-secret-unique-and-long-enough-789",
     ROUND_SEED_ENCRYPTION_KEY: "production-round-seed-secret-unique-and-long-abc",
+    PAYMENT_APP_URL: "https://payments.example.com",
+    PAYMENT_INTENT_SIGNING_SECRET: "production-payment-intent-secret-unique-long-123",
+    PAYMENT_SERVICE_SECRET: "production-payment-service-secret-unique-long-456",
     ...overrides,
   };
 }

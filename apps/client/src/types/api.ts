@@ -8,6 +8,9 @@ import type {
   RoundStatus,
   WalletBalance,
   WalletTransaction,
+  PaymentIntentDto,
+  PremiumCreditWalletDto,
+  PremiumCreditLedgerDto,
 } from "@color-trading/shared";
 
 export type UserDto = AuthUser;
@@ -17,6 +20,7 @@ export type TokenPair = AuthTokenPair;
 export type AuthResponse = AuthSession;
 
 export type WalletDto = WalletBalance;
+export type { PaymentIntentDto, PremiumCreditWalletDto, PremiumCreditLedgerDto };
 
 export interface RoundDto {
   id: string;

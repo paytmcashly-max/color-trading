@@ -16,6 +16,9 @@ import type {
   UserBetHistoryDto,
   WalletDto,
   WalletTransactionDto,
+  PaymentIntentDto,
+  PremiumCreditWalletDto,
+  PremiumCreditLedgerDto,
 } from "@/types/api";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -221,6 +224,38 @@ export function fetchMyBetHistory(accessToken: string, input: PaginationParams =
 
 export function fetchLeaderboard() {
   return request<{ users: LeaderboardUserDto[] }>(apiPath("/users/leaderboard"));
+}
+
+export function createPaymentIntent(accessToken: string, amountPaise: number, idempotencyKey: string) {
+  return request<{ intent: PaymentIntentDto }>(apiPath("/payments/intents"), {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({ amountPaise, purpose: "PREMIUM_CREDITS", idempotencyKey }),
+  }, accessToken);
+}
+
+export function fetchPaymentIntent(accessToken: string, intentId: string) {
+  return request<{ intent: PaymentIntentDto }>(
+    apiPath(`/payments/intents/${encodeURIComponent(intentId)}/status`),
+    {},
+    accessToken,
+  );
+}
+
+export function fetchPremiumCreditWallet(accessToken: string) {
+  return request<{ wallet: PremiumCreditWalletDto }>(
+    apiPath("/payments/premium-wallet"),
+    {},
+    accessToken,
+  );
+}
+
+export function fetchPremiumCreditLedger(accessToken: string, input: PaginationParams = {}) {
+  return request<{ entries: PremiumCreditLedgerDto[]; pageInfo: PageInfo }>(
+    apiPath(`/payments/premium-wallet/ledger${paginationSuffix(input)}`),
+    {},
+    accessToken,
+  );
 }
 
 export function placePrediction(

@@ -45,4 +45,7 @@ function setRequiredEnv() {
   process.env.JWT_REFRESH_SECRET = "refresh-secret-for-tests-at-least-thirty-two-chars";
   process.env.COOKIE_SECRET = "cookie-secret-for-tests-at-least-thirty-two-chars";
   process.env.ROUND_SEED_ENCRYPTION_KEY = "round-seed-key-for-tests-at-least-thirty-two-chars";
+  process.env.PAYMENT_APP_URL = "https://payments.example.com";
+  process.env.PAYMENT_INTENT_SIGNING_SECRET = "payment-intent-secret-for-tests-at-least-thirty-two-chars";
+  process.env.PAYMENT_SERVICE_SECRET = "payment-service-secret-for-tests-at-least-thirty-two-chars";
 }

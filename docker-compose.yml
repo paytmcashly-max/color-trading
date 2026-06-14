@@ -25,6 +25,9 @@ services:
       JWT_ISSUER: color-trading-api
       JWT_AUDIENCE: color-trading-client
       GAME_ENGINE_ENABLED: true
+      PAYMENT_APP_URL: http://localhost:4100
+      PAYMENT_INTENT_SIGNING_SECRET: local-payment-intent-secret-change-before-shared-use
+      PAYMENT_SERVICE_SECRET: local-payment-service-secret-change-before-shared-use
     depends_on:
       postgres:
         condition: service_healthy
@@ -49,6 +52,49 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  payment-migrate:
+    build:
+      context: .
+      dockerfile: apps/payment/Dockerfile
+    command: ["node", "apps/payment/scripts/apply-schema.mjs"]
+    restart: "no"
+    environment: &payment-environment
+      NODE_ENV: development
+      PORT: 4100
+      PAYMENT_DATABASE_URL: postgresql://postgres:postgres@payment-postgres:5432/color_trading_payments
+      MAIN_API_URL: http://backend:4000
+      MAIN_CLIENT_URL: http://localhost:3000
+      PAYMENT_INTENT_SIGNING_SECRET: local-payment-intent-secret-change-before-shared-use
+      PAYMENT_SERVICE_SECRET: local-payment-service-secret-change-before-shared-use
+      CASHFREE_CLIENT_ID: sandbox-client-id
+      CASHFREE_CLIENT_SECRET: sandbox-client-secret
+      CASHFREE_API_VERSION: 2025-01-01
+      CASHFREE_BASE_URL: https://sandbox.cashfree.com/pg
+      CASHFREE_RETURN_URL: http://localhost:4100/return?order_id={order_id}
+      CASHFREE_WEBHOOK_URL: http://localhost:4100/api/webhooks/cashfree
+    depends_on:
+      payment-postgres:
+        condition: service_healthy
+
+  payment:
+    build:
+      context: .
+      dockerfile: apps/payment/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "4100:4100"
+    environment: *payment-environment
+    depends_on:
+      payment-migrate:
+        condition: service_completed_successfully
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4100/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
 
   postgres:
     image: postgres:16-alpine
@@ -83,6 +129,24 @@ services:
       timeout: 5s
       retries: 5
 
+  payment-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: color_trading_payments
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - payment-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d color_trading_payments"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres-data:
   redis-data:
+  payment-postgres-data:

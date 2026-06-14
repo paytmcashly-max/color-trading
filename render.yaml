@@ -58,9 +58,55 @@ services:
         value: "1000"
       - key: GAME_MAX_EXPOSURE_PER_COLOR
         value: "100000"
+      - key: PAYMENT_APP_URL
+        sync: false
+      - key: PAYMENT_INTENT_SIGNING_SECRET
+        sync: false
+      - key: PAYMENT_SERVICE_SECRET
+        sync: false
+
+  - type: web
+    name: color-trading-payment
+    runtime: docker
+    plan: free
+    dockerfilePath: ./apps/payment/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health/ready
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PAYMENT_DATABASE_URL
+        fromDatabase:
+          name: color-trading-payment-postgres
+          property: connectionString
+      - key: MAIN_API_URL
+        sync: false
+      - key: MAIN_CLIENT_URL
+        sync: false
+      - key: PAYMENT_INTENT_SIGNING_SECRET
+        sync: false
+      - key: PAYMENT_SERVICE_SECRET
+        sync: false
+      - key: CASHFREE_CLIENT_ID
+        sync: false
+      - key: CASHFREE_CLIENT_SECRET
+        sync: false
+      - key: CASHFREE_API_VERSION
+        value: 2025-01-01
+      - key: CASHFREE_BASE_URL
+        value: https://sandbox.cashfree.com/pg
+      - key: CASHFREE_RETURN_URL
+        sync: false
+      - key: CASHFREE_WEBHOOK_URL
+        sync: false
 
 databases:
   - name: color-trading-postgres
     databaseName: color_trading
     user: color_trading
+    plan: free
+  - name: color-trading-payment-postgres
+    databaseName: color_trading_payments
+    user: color_trading_payment
     plan: free

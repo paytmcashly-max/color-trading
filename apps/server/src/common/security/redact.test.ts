@@ -13,6 +13,9 @@ test("recursive sanitizer redacts nested secrets and keeps safe identifiers", ()
       passwordHash: "hash",
       DATABASE_URL: "postgresql://secret",
       REDIS_URL: "redis://secret",
+      PAYMENT_DATABASE_URL: "postgresql://payment-secret",
+      CASHFREE_CLIENT_ID: "cashfree-client",
+      CASHFREE_CLIENT_SECRET: "cashfree-secret",
       list: [
         {
           seedReveal: "seed",
@@ -33,6 +36,9 @@ test("recursive sanitizer redacts nested secrets and keeps safe identifiers", ()
       passwordHash: "[REDACTED]",
       DATABASE_URL: "[REDACTED]",
       REDIS_URL: "[REDACTED]",
+      PAYMENT_DATABASE_URL: "[REDACTED]",
+      CASHFREE_CLIENT_ID: "[REDACTED]",
+      CASHFREE_CLIENT_SECRET: "[REDACTED]",
       list: [
         {
           seedReveal: "[REDACTED]",

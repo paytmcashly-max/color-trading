@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model CheckoutSession {
+  id            String   @id @db.Uuid
+  intentId      String   @unique @map("intent_id") @db.Uuid
+  intentPayload Json     @map("intent_payload")
+  expiresAt     DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order PaymentServiceOrder?
+
+  @@map("checkout_sessions")
+}
+
+model PaymentServiceOrder {
+  id               String   @id @db.Uuid
+  intentId         String   @unique @map("intent_id") @db.Uuid
+  sessionId        String   @unique @map("session_id") @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  amountPaise      BigInt   @map("amount_paise")
+  provider         String   @db.VarChar(40)
+  providerOrderId  String   @unique @map("provider_order_id") @db.VarChar(80)
+  cfOrderId        String?  @unique @map("cf_order_id") @db.VarChar(80)
+  paymentSessionId String?  @map("payment_session_id") @db.Text
+  status           String   @db.VarChar(40)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  session     CheckoutSession      @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  transaction ProviderTransaction?
+
+  @@index([status, createdAt])
+  @@map("payment_service_orders")
+}
+
+model ProviderTransaction {
+  id              String   @id @db.Uuid
+  intentId        String   @map("intent_id") @db.Uuid
+  providerOrderId String   @unique @map("provider_order_id") @db.VarChar(80)
+  providerTxnId   String   @unique @map("provider_txn_id") @db.VarChar(120)
+  amountPaise     BigInt   @map("amount_paise")
+  status          String   @db.VarChar(40)
+  paidAt          DateTime @map("paid_at") @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order PaymentServiceOrder @relation(fields: [providerOrderId], references: [providerOrderId], onDelete: Restrict)
+
+  @@index([intentId])
+  @@map("provider_transactions")
+}
+
+model OutboxEvent {
+  id            String    @id @db.Uuid
+  eventId       String    @unique @map("event_id") @db.Uuid
+  rawPayload    String    @map("raw_payload") @db.Text
+  status        String    @default("PENDING") @db.VarChar(40)
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  lockedUntil   DateTime? @map("locked_until") @db.Timestamptz(6)
+  deliveredAt   DateTime? @map("delivered_at") @db.Timestamptz(6)
+  lastError     String?   @map("last_error") @db.VarChar(240)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, nextAttemptAt])
+  @@map("outbox_events")
+}

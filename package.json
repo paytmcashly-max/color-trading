@@ -11,6 +11,7 @@
     "dev": "npm run dev --workspaces --if-present",
     "dev:client": "npm run dev -w @color-trading/client",
     "dev:server": "npm run dev -w @color-trading/server",
+    "dev:payment": "npm run dev -w @color-trading/payment",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
@@ -19,6 +20,7 @@
     "db:seed:admin": "npm run db:seed:admin -w @color-trading/server",
     "db:disable-admin-bootstrap": "npm run db:disable-admin-bootstrap -w @color-trading/server",
     "docker:server:build": "docker build -f apps/server/Dockerfile -t color-trading-api:local .",
+    "docker:payment:build": "docker build -f apps/payment/Dockerfile -t color-trading-payment:local .",
     "compose:up": "docker compose up --build",
     "compose:down": "docker compose down"
   },

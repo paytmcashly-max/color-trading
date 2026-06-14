@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowDownLeft, ArrowUpRight, RefreshCw, WalletCards } from "lucide-react";
+import Link from "next/link";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { WalletCard } from "@/components/wallet/WalletCard";
@@ -26,6 +27,14 @@ export function WalletPage() {
       }
     >
       <WalletCard wallet={wallet} isLoading={isLoading} />
+
+      <Link
+        href="/sandbox-checkout"
+        className="flex items-center justify-between rounded-2xl border border-[#c8e9d5] bg-[#e9f8ef] px-4 py-3 font-black text-[#106b3d] shadow-sm active:scale-[0.99]"
+      >
+        <span>Premium credits</span>
+        <span className="text-sm">Cashfree sandbox</span>
+      </Link>
 
       <section className="rounded-3xl border border-line bg-white p-3 shadow-[0_12px_28px_rgba(23,32,26,0.07)]">
         <div className="flex items-center justify-between gap-3">

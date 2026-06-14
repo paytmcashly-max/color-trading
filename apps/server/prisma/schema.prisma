@@ -87,6 +87,15 @@ enum LogLevel {
   ERROR
 }
 
+enum PaymentIntentStatus {
+  CREATED
+  PAYMENT_STARTED
+  PAID_VERIFIED
+  CREDITED
+  FAILED
+  EXPIRED
+}
+
 model User {
   id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email           String     @unique @db.Citext
@@ -99,13 +108,16 @@ model User {
   createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  wallet        Wallet?
-  bets          Bet[]
-  ledgerEntries CoinLedger[]
-  sessions      AuthSession[]
-  auditLogs     AuditLog[]       @relation("AdminAuditLogs")
-  fraudLogs     FraudLog[]
-  riskProfile   UserRiskProfile?
+  wallet              Wallet?
+  bets                Bet[]
+  ledgerEntries       CoinLedger[]
+  sessions            AuthSession[]
+  auditLogs           AuditLog[]                 @relation("AdminAuditLogs")
+  fraudLogs           FraudLog[]
+  riskProfile         UserRiskProfile?
+  paymentIntents      PaymentIntent[]
+  premiumCreditWallet PremiumCreditWallet?
+  premiumCreditLedger PremiumCreditLedgerEntry[]
 
   @@index([role])
   @@index([status])
@@ -370,4 +382,77 @@ model CoinPackage {
 
   @@index([active, sortOrder])
   @@map("coin_packages")
+}
+
+model PaymentIntent {
+  id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String              @map("user_id") @db.Uuid
+  amountPaise           BigInt              @map("amount_paise")
+  status                PaymentIntentStatus @default(CREATED)
+  paymentServiceOrderId String?             @map("payment_service_order_id") @db.VarChar(80)
+  provider              String?             @db.VarChar(40)
+  providerTxnId         String?             @unique @map("provider_txn_id") @db.VarChar(120)
+  idempotencyKey        String              @unique @map("idempotency_key") @db.VarChar(160)
+  creditedAt            DateTime?           @map("credited_at") @db.Timestamptz(6)
+  expiresAt             DateTime            @map("expires_at") @db.Timestamptz(6)
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user                 User                       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  processedEvents      ProcessedPaymentEvent[]
+  premiumLedgerEntries PremiumCreditLedgerEntry[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("payment_intents")
+}
+
+model ProcessedPaymentEvent {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId     String   @unique @map("event_id") @db.Uuid
+  intentId    String   @map("intent_id") @db.Uuid
+  provider    String   @db.VarChar(40)
+  status      String   @db.VarChar(40)
+  payloadHash String   @map("payload_hash") @db.VarChar(64)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  intent PaymentIntent @relation(fields: [intentId], references: [id], onDelete: Restrict)
+
+  @@index([intentId])
+  @@map("processed_payment_events")
+}
+
+model PremiumCreditWallet {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @unique @map("user_id") @db.Uuid
+  balanceCredits BigInt   @default(0) @map("balance_credits")
+  ledgerVersion  BigInt   @default(0) @map("ledger_version")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user          User                       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  ledgerEntries PremiumCreditLedgerEntry[]
+
+  @@map("premium_credit_wallets")
+}
+
+model PremiumCreditLedgerEntry {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  walletId        String   @map("wallet_id") @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  credits         BigInt
+  balanceBefore   BigInt   @map("balance_before")
+  balanceAfter    BigInt   @map("balance_after")
+  paymentIntentId String   @map("payment_intent_id") @db.Uuid
+  idempotencyKey  String   @unique @map("idempotency_key") @db.VarChar(160)
+  metadata        Json?
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  wallet PremiumCreditWallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  user   User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  intent PaymentIntent       @relation(fields: [paymentIntentId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([paymentIntentId])
+  @@map("premium_credit_ledger")
 }

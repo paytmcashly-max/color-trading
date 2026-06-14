@@ -10,6 +10,13 @@ on:
         options:
           - staging
           - production
+      target:
+        description: Database to migrate
+        required: true
+        type: choice
+        options:
+          - main
+          - payment
 
 permissions:
   contents: read
@@ -25,6 +32,7 @@ jobs:
     environment: ${{ inputs.environment }}
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PAYMENT_DATABASE_URL: ${{ secrets.PAYMENT_DATABASE_URL }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,7 +47,14 @@ jobs:
         run: npm ci --omit=dev
 
       - name: Verify database secret
-        run: test -n "$DATABASE_URL"
+        run: |
+          if [ "${{ inputs.target }}" = "main" ]; then test -n "$DATABASE_URL"; fi
+          if [ "${{ inputs.target }}" = "payment" ]; then test -n "$PAYMENT_DATABASE_URL"; fi
 
-      - name: Apply database migrations
+      - name: Apply main database migrations
+        if: inputs.target == 'main'
         run: npm run db:migrate:deploy
+
+      - name: Apply payment database migrations
+        if: inputs.target == 'payment'
+        run: npm run db:migrate:deploy -w @color-trading/payment

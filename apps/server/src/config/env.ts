@@ -42,6 +42,9 @@ const rawEnvSchema = z.object({
       return value;
     }, z.boolean())
     .default(true),
+  PAYMENT_APP_URL: z.string().url().optional(),
+  PAYMENT_INTENT_SIGNING_SECRET: z.string().min(32).optional(),
+  PAYMENT_SERVICE_SECRET: z.string().min(32).optional(),
 });
 
 export const serverEnvSchema = rawEnvSchema
@@ -101,6 +104,9 @@ export const serverEnvSchema = rawEnvSchema
       GAME_MAX_BET_PER_USER_PER_ROUND: z.number().int().positive(),
       GAME_MAX_EXPOSURE_PER_COLOR: z.number().int().positive(),
       GAME_ENGINE_ENABLED: z.boolean(),
+      PAYMENT_APP_URL: z.string().url().optional(),
+      PAYMENT_INTENT_SIGNING_SECRET: z.string().min(32).optional(),
+      PAYMENT_SERVICE_SECRET: z.string().min(32).optional(),
     }),
   )
   .refine(
@@ -140,6 +146,31 @@ export const serverEnvSchema = rawEnvSchema
 
     if (value.NODE_ENV !== "production") {
       return;
+    }
+
+    for (const [key, configured] of [
+      ["PAYMENT_APP_URL", value.PAYMENT_APP_URL],
+      ["PAYMENT_INTENT_SIGNING_SECRET", value.PAYMENT_INTENT_SIGNING_SECRET],
+      ["PAYMENT_SERVICE_SECRET", value.PAYMENT_SERVICE_SECRET],
+    ] as const) {
+      if (!configured) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [key],
+          message: `${key} is required in production.`,
+        });
+      }
+    }
+
+    if (
+      value.PAYMENT_INTENT_SIGNING_SECRET &&
+      value.PAYMENT_INTENT_SIGNING_SECRET === value.PAYMENT_SERVICE_SECRET
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["PAYMENT_SERVICE_SECRET"],
+        message: "Payment signing secrets must be different.",
+      });
     }
 
     if (!value.DATABASE_URL) {

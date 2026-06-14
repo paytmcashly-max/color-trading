@@ -36,7 +36,9 @@ jobs:
         run: npm ci
 
       - name: Validate Prisma schema
-        run: npm run db:validate -w @color-trading/server
+        run: |
+          npm run db:validate -w @color-trading/server
+          npm run db:validate -w @color-trading/payment
 
       - name: Generate Prisma client
         run: npx prisma generate --schema apps/server/prisma/schema.prisma
@@ -59,6 +61,9 @@ jobs:
       - name: Build backend Docker image
         run: docker build -f apps/server/Dockerfile -t color-trading-api:${{ github.sha }} .
 
+      - name: Build payment Docker image
+        run: docker build -f apps/payment/Dockerfile -t color-trading-payment:${{ github.sha }} .
+
   migration-smoke:
     name: Migration smoke test
     runs-on: ubuntu-latest
@@ -76,8 +81,22 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      payment-postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: color_trading_payments
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d color_trading_payments"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/color_trading
+      PAYMENT_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5433/color_trading_payments
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -92,7 +111,11 @@ jobs:
         run: npm ci
 
       - name: Apply migrations
-        run: npm run db:migrate:deploy
+        run: |
+          npm run db:migrate:deploy
+          npm run db:migrate:deploy -w @color-trading/payment
 
       - name: Verify migrations are idempotent
-        run: npm run db:migrate:deploy
+        run: |
+          npm run db:migrate:deploy
+          npm run db:migrate:deploy -w @color-trading/payment

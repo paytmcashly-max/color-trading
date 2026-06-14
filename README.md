@@ -150,7 +150,29 @@ npm run db:disable-admin-bootstrap
 ## Known Limitations
 
 - Email verification is enforced for admin-sensitive actions, but outbound email delivery is not implemented yet.
-- There are no withdrawals or real-money flows in this system.
+- There are no withdrawals or real-money gameplay flows in this system.
+- Cashfree sandbox payments credit a separate premium-credit ledger. Premium credits cannot enter
+  game wallets, bets, winnings, or gameplay balances.
+
+## Isolated Cashfree sandbox payment service
+
+`apps/payment` owns Cashfree credentials, provider verification, its own PostgreSQL database, and
+a durable signed-event outbox. The main API creates short-lived signed payment intents and credits
+premium credits only after it verifies a signed backend event from the payment service.
+
+Local setup:
+
+```bash
+npm ci
+npm run db:migrate:deploy -w @color-trading/server
+npm run db:migrate:deploy -w @color-trading/payment
+npm run dev:server
+npm run dev:payment
+npm run dev:client
+```
+
+Open `/sandbox-checkout` while authenticated. Configure real Cashfree sandbox credentials only in
+the payment-service environment. A browser return redirect is never treated as payment success.
 - The game engine is designed for one active round stream; multi-game independent engines would need separate scheduler namespaces.
 
 ## Architecture Decisions
